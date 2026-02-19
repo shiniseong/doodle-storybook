@@ -232,12 +232,11 @@
 
 .canvas-stage__surface {
   display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  min-height: inherit;
   height: 100%;
-  aspect-ratio: auto;
   border-radius: inherit;
-  position: relative;
   background:
     linear-gradient(0deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
     repeating-linear-gradient(
@@ -276,14 +275,6 @@
   box-shadow:
     0 1rem 1.6rem rgba(44, 116, 160, 0.16),
     inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-}
-
-.canvas-stage__surface::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: transparent;
 }
 
 .tool-chip-list {

@@ -139,6 +139,7 @@ function DrawingBoardSection() {
   const { t } = useTranslation()
   const [isGridVisible, setIsGridVisible] = useState(true)
   const [undoDepth, setUndoDepth] = useState(0)
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null)
   const undoSnapshotsRef = useRef<ImageData[]>([])
@@ -253,14 +254,15 @@ function DrawingBoardSection() {
   }, [])
 
   useEffect(() => {
+    const stage = canvasStageRef.current
     const canvas = canvasRef.current
 
-    if (!canvas) {
+    if (!stage || !canvas) {
       return
     }
 
     const resizeCanvas = () => {
-      const bounds = canvas.getBoundingClientRect()
+      const bounds = stage.getBoundingClientRect()
 
       if (bounds.width === 0 || bounds.height === 0) {
         return
@@ -313,7 +315,7 @@ function DrawingBoardSection() {
       resizeCanvas()
     })
 
-    resizeObserver.observe(canvas)
+    resizeObserver.observe(stage)
 
     return () => {
       resizeObserver.disconnect()
@@ -332,7 +334,7 @@ function DrawingBoardSection() {
         <h2 id="drawing-panel-title">{t('workspace.panels.canvas.title')}</h2>
         <p>{t('workspace.panels.canvas.description')}</p>
       </div>
-      <div className="canvas-stage">
+      <div ref={canvasStageRef} className="canvas-stage">
         <canvas
           ref={canvasRef}
           className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`}
