@@ -359,9 +359,9 @@
 .pen-width-panel__step-button {
   width: 2rem;
   height: 2rem;
-  border: 1px solid rgba(104, 163, 198, 0.45);
-  border-radius: 999px;
-  background: rgba(241, 249, 255, 0.92);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -380,8 +380,11 @@
 }
 
 .pen-width-panel__step-button:hover {
+  background: transparent;
+}
+
+.pen-width-panel__step-button:hover .pen-width-panel__dot-icon {
   border-color: rgba(84, 152, 191, 0.64);
-  background: rgba(229, 244, 255, 0.95);
 }
 
 .pen-width-panel__step-button:focus-visible {
@@ -395,8 +398,8 @@
 }
 
 .pen-width-panel__dot-icon {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   border: 1px solid rgba(96, 154, 191, 0.45);
   background: #fff;
@@ -417,8 +420,8 @@
 }
 
 .pen-width-panel__dot-icon--thick::after {
-  width: 0.44rem;
-  height: 0.44rem;
+  width: 0.68rem;
+  height: 0.68rem;
 }
 
 .pen-width-panel__slider {
