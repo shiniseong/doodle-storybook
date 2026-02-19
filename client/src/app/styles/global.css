@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
+
+:root {
+  --font-display: 'Sora', 'Noto Sans KR', 'Hiragino Sans', 'PingFang SC', sans-serif;
+  --font-body: 'Nunito Sans', 'Noto Sans KR', 'Hiragino Sans', 'PingFang SC', sans-serif;
+
+  --ink-strong: #0f2438;
+  --ink-soft: #4e667a;
+  --line-soft: rgba(92, 145, 176, 0.28);
+  --line-strong: rgba(92, 145, 176, 0.55);
+  --surface-strong: rgba(255, 255, 255, 0.84);
+
+  --radius-md: 0.95rem;
+  --radius-lg: 1.15rem;
+  --radius-xl: 1.35rem;
+  --shadow-soft: 0 0.8rem 2rem rgba(17, 78, 114, 0.09);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: var(--font-body);
+  line-height: 1.45;
+  color: var(--ink-strong);
+  background:
+    radial-gradient(circle at 18% 20%, #fff4d6 0, #fff9ee 26%, transparent 48%),
+    radial-gradient(circle at 80% 72%, #d6f2ff 0, #eaf8ff 24%, transparent 50%),
+    linear-gradient(160deg, #f9fcff 0%, #edf8ff 34%, #fff9ef 100%);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
