@@ -1,6 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import type { CreateStorybookUseCasePort } from '@features/storybook-creation/application/create-storybook.use-case'
+import {
+  selectRemainingFreeStories,
+  useStorybookCreationStore,
+} from '@features/storybook-creation/model/storybook-creation.store'
 import { StorybookDescriptionForm } from '@features/storybook-creation/ui/StorybookDescriptionForm'
 
 import './StorybookWorkspace.css'
@@ -20,6 +24,8 @@ function AmbientBackdrop() {
 }
 
 function WorkspaceHeader() {
+  const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
+
   return (
     <header className="topbar">
       <div className="brand-block">
@@ -30,7 +36,7 @@ function WorkspaceHeader() {
       <ul className="status-list" aria-label="서비스 상태">
         <li className="status-item">
           <span className="status-item__label">무료 생성</span>
-          <strong className="status-item__value">2편</strong>
+          <strong className="status-item__value">{remainingFreeStories}편 남음</strong>
         </li>
         <li className="status-item">
           <span className="status-item__label">체험</span>
@@ -71,8 +77,11 @@ interface StoryComposerSectionProps {
 }
 
 function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [feedback, setFeedback] = useState<string | null>(null)
+  const createStatus = useStorybookCreationStore((state) => state.createStatus)
+  const feedback = useStorybookCreationStore((state) => state.feedbackMessage)
+  const startSubmitting = useStorybookCreationStore((state) => state.startSubmitting)
+  const markSuccess = useStorybookCreationStore((state) => state.markSuccess)
+  const markError = useStorybookCreationStore((state) => state.markError)
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
 
@@ -83,10 +92,9 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
         <p>최대 500자, 이후 동화 생성 API 연결</p>
       </div>
       <StorybookDescriptionForm
-        isSubmitting={isSubmitting}
+        isSubmitting={createStatus === 'submitting'}
         onSubmit={async ({ description, language }) => {
-          setIsSubmitting(true)
-          setFeedback(null)
+          startSubmitting()
 
           const result = await useCase.execute({
             userId: dependencies.currentUserId,
@@ -95,12 +103,10 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
           })
 
           if (result.ok) {
-            setFeedback(`동화 생성 요청 완료: ${result.value.storybookId}`)
+            markSuccess(result.value.storybookId)
           } else {
-            setFeedback(result.error.message)
+            markError(result.error.message)
           }
-
-          setIsSubmitting(false)
         }}
       />
       {feedback !== null ? (
@@ -140,12 +146,17 @@ function BookshelfSection() {
 }
 
 function SubscriptionFooter() {
+  const createStatus = useStorybookCreationStore((state) => state.createStatus)
+  const isSubmitting = createStatus === 'submitting'
+
   return (
     <footer className="bottom-banner">
       <p>
         신규 회원은 <strong>무료 2편</strong> 또는 <strong>1일 체험</strong>으로 시작할 수 있어요.
       </p>
-      <button type="button">1일 무료 사용 시작</button>
+      <button type="button" disabled={isSubmitting}>
+        {isSubmitting ? '동화 생성 처리 중...' : '1일 무료 사용 시작'}
+      </button>
     </footer>
   )
 }

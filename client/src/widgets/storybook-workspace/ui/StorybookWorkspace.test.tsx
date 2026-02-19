@@ -1,13 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useStorybookCreationStore } from '@features/storybook-creation/model/storybook-creation.store'
 import {
   StorybookWorkspace,
   type StorybookWorkspaceDependencies,
 } from '@widgets/storybook-workspace/ui/StorybookWorkspace'
 
 describe('StorybookWorkspace', () => {
+  beforeEach(() => {
+    useStorybookCreationStore.getState().reset()
+  })
+
   it('동화 생성 성공 시 피드백 메시지를 출력한다', async () => {
     const user = userEvent.setup()
     const execute = vi.fn(async () => ({
@@ -24,6 +29,8 @@ describe('StorybookWorkspace', () => {
 
     render(<StorybookWorkspace dependencies={dependencies} />)
 
+    expect(screen.getByText('2편 남음')).toBeInTheDocument()
+
     await user.type(screen.getByLabelText('그림 설명'), '달빛 아래에서 캠핑을 해요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
@@ -33,5 +40,35 @@ describe('StorybookWorkspace', () => {
       language: 'ko',
     })
     expect(screen.getByText('동화 생성 요청 완료: storybook-101')).toBeInTheDocument()
+    expect(screen.getByText('1편 남음')).toBeInTheDocument()
+  })
+
+  it('생성 진행 중에는 하단 CTA 버튼을 비활성화한다', async () => {
+    const user = userEvent.setup()
+    let resolveRequest!: (value: { ok: true; value: { storybookId: string } }) => void
+    const pending = new Promise<{ ok: true; value: { storybookId: string } }>((resolve) => {
+      resolveRequest = resolve
+    })
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(() => pending),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.type(screen.getByLabelText('그림 설명'), '숲속에서 친구를 만나요')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    const pendingButton = screen.getByRole('button', { name: '동화 생성 처리 중...' })
+    expect(pendingButton).toBeDisabled()
+
+    resolveRequest({ ok: true, value: { storybookId: 'storybook-200' } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
+    })
   })
 })

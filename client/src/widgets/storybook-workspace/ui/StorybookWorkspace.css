@@ -382,6 +382,11 @@
   cursor: pointer;
 }
 
+.bottom-banner button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
 @media (max-width: 767px) and (orientation: landscape) {
   .layout-grid {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);

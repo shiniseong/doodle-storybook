@@ -13,6 +13,12 @@
 - `entities`: domain entity types and pure business models.
 - `shared`: reusable libs/config/ui primitives.
 
+## Global State Rule (Zustand)
+- Use zustand only for cross-widget/shared session state.
+- Keep form input and one-off UI toggles in local component state.
+- Prefer selectors to avoid unnecessary re-renders.
+- Every store should provide a reset action for deterministic tests.
+
 ## Test Strategy
 - Domain tests: pure validation and business rules.
 - Application tests: use-case orchestration with mocked ports.
