@@ -277,14 +277,15 @@ function DrawingBoardSection() {
   const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null)
   const undoSnapshotsRef = useRef<ImageData[]>([])
   const isDrawingRef = useRef(false)
-  const previousPointRef = useRef<CanvasPoint | null>(null)
+  const strokeBaseSnapshotRef = useRef<ImageData | null>(null)
+  const strokePointsRef = useRef<CanvasPoint[]>([])
 
   const pushUndoSnapshot = useCallback(() => {
     const canvas = canvasRef.current
     const context = canvasContextRef.current
 
     if (!canvas || !context) {
-      return
+      return null
     }
 
     // Save pre-stroke state so undo reverts one drawing action at a time.
@@ -296,7 +297,46 @@ function DrawingBoardSection() {
     }
 
     setUndoDepth(undoSnapshotsRef.current.length)
+    return snapshot
   }, [])
+
+  const renderActiveStroke = useCallback(
+    (context: CanvasRenderingContext2D, baseSnapshot: ImageData, points: readonly CanvasPoint[]) => {
+      const canvas = canvasRef.current
+
+      if (!canvas) {
+        return
+      }
+
+      if (baseSnapshot.width !== canvas.width || baseSnapshot.height !== canvas.height) {
+        return
+      }
+
+      context.putImageData(baseSnapshot, 0, 0)
+
+      if (points.length === 0) {
+        return
+      }
+
+      if (points.length === 1) {
+        const [point] = points
+        context.beginPath()
+        context.arc(point.x, point.y, context.lineWidth * 0.5, 0, Math.PI * 2)
+        context.fill()
+        return
+      }
+
+      context.beginPath()
+      context.moveTo(points[0].x, points[0].y)
+
+      for (let index = 1; index < points.length; index += 1) {
+        context.lineTo(points[index].x, points[index].y)
+      }
+
+      context.stroke()
+    },
+    [],
+  )
 
   const stopDrawing = useCallback((event?: ReactPointerEvent<HTMLCanvasElement>) => {
     if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -304,7 +344,8 @@ function DrawingBoardSection() {
     }
 
     isDrawingRef.current = false
-    previousPointRef.current = null
+    strokeBaseSnapshotRef.current = null
+    strokePointsRef.current = []
   }, [])
 
   const handleUndo = useCallback(() => {
@@ -400,24 +441,25 @@ function DrawingBoardSection() {
         return
       }
 
-      pushUndoSnapshot()
+      const strokeBaseSnapshot = pushUndoSnapshot()
+
+      if (!strokeBaseSnapshot) {
+        return
+      }
 
       const nextPoint = resolveCanvasPoint(canvas, event.clientX, event.clientY)
 
       isDrawingRef.current = true
-      previousPointRef.current = nextPoint
+      strokeBaseSnapshotRef.current = strokeBaseSnapshot
+      strokePointsRef.current = [nextPoint]
       event.currentTarget.setPointerCapture(event.pointerId)
       event.currentTarget.focus({ preventScroll: true })
 
-      context.beginPath()
-      context.arc(nextPoint.x, nextPoint.y, context.lineWidth * 0.5, 0, Math.PI * 2)
-      context.fill()
-      context.beginPath()
-      context.moveTo(nextPoint.x, nextPoint.y)
+      renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current)
 
       event.preventDefault()
     },
-    [pushUndoSnapshot],
+    [pushUndoSnapshot, renderActiveStroke],
   )
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -427,22 +469,18 @@ function DrawingBoardSection() {
 
     const canvas = canvasRef.current
     const context = canvasContextRef.current
-    const previousPoint = previousPointRef.current
+    const strokeBaseSnapshot = strokeBaseSnapshotRef.current
 
-    if (!canvas || !context || previousPoint === null) {
+    if (!canvas || !context || !strokeBaseSnapshot) {
       return
     }
 
     const nextPoint = resolveCanvasPoint(canvas, event.clientX, event.clientY)
+    strokePointsRef.current.push(nextPoint)
 
-    context.beginPath()
-    context.moveTo(previousPoint.x, previousPoint.y)
-    context.lineTo(nextPoint.x, nextPoint.y)
-    context.stroke()
-
-    previousPointRef.current = nextPoint
+    renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current)
     event.preventDefault()
-  }, [])
+  }, [renderActiveStroke])
 
   useEffect(() => {
     const stage = canvasStageRef.current
@@ -493,6 +531,9 @@ function DrawingBoardSection() {
 
       undoSnapshotsRef.current = []
       setUndoDepth(0)
+      isDrawingRef.current = false
+      strokeBaseSnapshotRef.current = null
+      strokePointsRef.current = []
     }
 
     resizeCanvas()

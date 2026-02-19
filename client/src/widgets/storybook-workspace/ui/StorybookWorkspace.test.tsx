@@ -345,6 +345,7 @@ describe('StorybookWorkspace', () => {
     const canvasWidth = 880
     const canvasHeight = 440
     const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const putImageDataSpy = mockContext.putImageData as unknown as { mock: { calls: unknown[][] } }
     const getContextSpy = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
@@ -397,12 +398,15 @@ describe('StorybookWorkspace', () => {
     expect(mockContext.stroke).toHaveBeenCalled()
     expect(undoButton).toBeEnabled()
 
+    const putImageDataCallsAfterDraw = putImageDataSpy.mock.calls.length
     await user.click(undoButton)
 
     expect(mockContext.putImageData).toHaveBeenCalled()
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsAfterDraw + 1)
 
+    const putImageDataCallsAfterUndo = putImageDataSpy.mock.calls.length
     await user.click(undoButton)
-    expect(mockContext.putImageData).toHaveBeenCalledTimes(1)
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsAfterUndo)
     expect(undoButton).toBeEnabled()
 
     getContextSpy.mockRestore()
@@ -413,6 +417,7 @@ describe('StorybookWorkspace', () => {
     const canvasWidth = 880
     const canvasHeight = 440
     const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const putImageDataSpy = mockContext.putImageData as unknown as { mock: { calls: unknown[][] } }
     const getContextSpy = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
@@ -460,8 +465,9 @@ describe('StorybookWorkspace', () => {
     fireEvent.pointerUp(canvas, { pointerId: 1 })
 
     expect(undoButton).toBeEnabled()
+    const putImageDataCallsAfterDraw = putImageDataSpy.mock.calls.length
     fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
-    expect(mockContext.putImageData).toHaveBeenCalledTimes(1)
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsAfterDraw + 1)
     expect(undoButton).toBeEnabled()
 
     getContextSpy.mockRestore()
@@ -473,6 +479,7 @@ describe('StorybookWorkspace', () => {
     const canvasWidth = 880
     const canvasHeight = 440
     const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const putImageDataSpy = mockContext.putImageData as unknown as { mock: { calls: unknown[][] } }
     const getContextSpy = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
@@ -521,11 +528,12 @@ describe('StorybookWorkspace', () => {
     fireEvent.pointerUp(canvas, { pointerId: 1 })
 
     expect(undoButton).toBeEnabled()
+    const putImageDataCallsBeforeTextUndo = putImageDataSpy.mock.calls.length
 
     await user.click(textarea)
     fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true })
 
-    expect(mockContext.putImageData).not.toHaveBeenCalled()
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsBeforeTextUndo)
     expect(undoButton).toBeEnabled()
 
     getContextSpy.mockRestore()
