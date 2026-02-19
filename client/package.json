@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "typecheck": "tsc -b",
     "test": "vitest",
     "test:watch": "vitest --watch",
@@ -13,7 +13,7 @@
     "verify": "npm run lint && npm run test:coverage && npm run build",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --host"
   },
   "dependencies": {
     "framer-motion": "^12.34.2",

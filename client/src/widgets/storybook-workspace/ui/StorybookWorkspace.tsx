@@ -51,7 +51,9 @@ const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
 
 const MAX_CANVAS_UNDO_STEPS = 30
 const PEN_STROKE_COLOR = '#184867'
-const BASE_PEN_WIDTH = 3
+const MIN_PEN_WIDTH = 1
+const MAX_PEN_WIDTH = 20
+const DEFAULT_PEN_WIDTH = 3
 
 interface CanvasPoint {
   x: number
@@ -69,7 +71,11 @@ function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY:
   }
 }
 
-function configureCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+function clampPenWidth(width: number): number {
+  return Math.min(MAX_PEN_WIDTH, Math.max(MIN_PEN_WIDTH, width))
+}
+
+function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number): CanvasRenderingContext2D | null {
   const context = canvas.getContext('2d')
 
   if (!context) {
@@ -81,7 +87,7 @@ function configureCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingConte
 
   context.strokeStyle = PEN_STROKE_COLOR
   context.fillStyle = PEN_STROKE_COLOR
-  context.lineWidth = BASE_PEN_WIDTH * scale
+  context.lineWidth = penWidth * scale
   context.lineCap = 'round'
   context.lineJoin = 'round'
 
@@ -139,6 +145,8 @@ function WorkspaceHeader() {
 function DrawingBoardSection() {
   const { t } = useTranslation()
   const [isGridVisible, setIsGridVisible] = useState(true)
+  const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
+  const [isPenWidthPanelOpen, setIsPenWidthPanelOpen] = useState(false)
   const [undoDepth, setUndoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -197,6 +205,18 @@ function DrawingBoardSection() {
 
     setUndoDepth(undoSnapshotsRef.current.length)
   }, [])
+
+  const updatePenWidth = useCallback((nextWidth: number) => {
+    setPenWidth(clampPenWidth(nextWidth))
+  }, [])
+
+  const decreasePenWidth = useCallback(() => {
+    updatePenWidth(penWidth - 1)
+  }, [penWidth, updatePenWidth])
+
+  const increasePenWidth = useCallback(() => {
+    updatePenWidth(penWidth + 1)
+  }, [penWidth, updatePenWidth])
 
   const handleCanvasKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLCanvasElement>) => {
@@ -290,7 +310,7 @@ function DrawingBoardSection() {
       const nextHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
 
       if (canvas.width === nextWidth && canvas.height === nextHeight) {
-        canvasContextRef.current = configureCanvasContext(canvas)
+        canvasContextRef.current = configureCanvasContext(canvas, penWidth)
         return
       }
 
@@ -307,7 +327,7 @@ function DrawingBoardSection() {
       canvas.width = nextWidth
       canvas.height = nextHeight
 
-      const context = configureCanvasContext(canvas)
+      const context = configureCanvasContext(canvas, penWidth)
       canvasContextRef.current = context
 
       if (context && previousBitmap.width > 0 && previousBitmap.height > 0) {
@@ -337,7 +357,21 @@ function DrawingBoardSection() {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [penWidth])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+
+    if (!canvas || !context) {
+      return
+    }
+
+    const bounds = canvas.getBoundingClientRect()
+    const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
+
+    context.lineWidth = penWidth * scale
+  }, [penWidth])
 
   return (
     <motion.section
@@ -367,6 +401,25 @@ function DrawingBoardSection() {
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>
         {drawingTools.map((tool) => {
           const Icon = tool.icon
+
+          if (tool.key === 'brushSize') {
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className={`tool-chip tool-chip--button${isPenWidthPanelOpen ? ' tool-chip--active' : ''}`}
+                  aria-expanded={isPenWidthPanelOpen}
+                  aria-controls="pen-width-panel"
+                  onClick={() => {
+                    setIsPenWidthPanelOpen((previous) => !previous)
+                  }}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
 
           if (tool.key === 'undo') {
             return (
@@ -408,6 +461,44 @@ function DrawingBoardSection() {
           </button>
         </li>
       </ul>
+      {isPenWidthPanelOpen ? (
+        <div className="pen-width-panel" id="pen-width-panel" role="group" aria-label={t('workspace.tools.brushSize')}>
+          <button
+            type="button"
+            className="pen-width-panel__step-button"
+            aria-label={t('workspace.canvas.decreasePenWidth')}
+            onClick={decreasePenWidth}
+            disabled={penWidth <= MIN_PEN_WIDTH}
+          >
+            <span className="pen-width-panel__dot-icon pen-width-panel__dot-icon--thin" aria-hidden="true" />
+          </button>
+          <input
+            id="pen-width-slider"
+            className="pen-width-panel__slider"
+            type="range"
+            min={MIN_PEN_WIDTH}
+            max={MAX_PEN_WIDTH}
+            step={1}
+            value={penWidth}
+            aria-label={t('workspace.tools.brushSize')}
+            onChange={(event) => {
+              updatePenWidth(Number.parseInt(event.target.value, 10))
+            }}
+          />
+          <button
+            type="button"
+            className="pen-width-panel__step-button"
+            aria-label={t('workspace.canvas.increasePenWidth')}
+            onClick={increasePenWidth}
+            disabled={penWidth >= MAX_PEN_WIDTH}
+          >
+            <span className="pen-width-panel__dot-icon pen-width-panel__dot-icon--thick" aria-hidden="true" />
+          </button>
+          <output className="pen-width-panel__value" htmlFor="pen-width-slider">
+            {penWidth}
+          </output>
+        </div>
+      ) : null}
     </motion.section>
   )
 }

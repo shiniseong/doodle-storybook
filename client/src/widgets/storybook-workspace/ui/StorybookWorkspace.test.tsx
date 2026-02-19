@@ -172,6 +172,44 @@ describe('StorybookWorkspace', () => {
     expect(surface).not.toHaveClass('canvas-stage__surface--plain')
   })
 
+  it('펜 굵기 패널에서 슬라이더와 증감 버튼으로 굵기를 조절한다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-324' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const openButton = screen.getByRole('button', { name: '펜 굵기' })
+
+    await user.click(openButton)
+
+    const slider = screen.getByRole('slider', { name: '펜 굵기' })
+    const decreaseButton = screen.getByRole('button', { name: '펜 굵기 줄이기' })
+    const increaseButton = screen.getByRole('button', { name: '펜 굵기 늘리기' })
+    const valueOutput = container.querySelector('.pen-width-panel__value')
+
+    expect(slider).toHaveValue('3')
+    expect(valueOutput).toHaveTextContent('3')
+
+    await user.click(increaseButton)
+    expect(slider).toHaveValue('4')
+    expect(valueOutput).toHaveTextContent('4')
+
+    await user.click(decreaseButton)
+    expect(slider).toHaveValue('3')
+    expect(valueOutput).toHaveTextContent('3')
+
+    fireEvent.change(slider, { target: { value: '11' } })
+    expect(slider).toHaveValue('11')
+    expect(valueOutput).toHaveTextContent('11')
+  })
+
   it('드로잉 시작 전에는 실행취소 버튼이 비활성화된다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

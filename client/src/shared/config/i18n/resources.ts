@@ -37,6 +37,8 @@ export const i18nResources = {
           floatingTwo: '달빛 바다',
           toggleGridOff: '그리드 끄기',
           toggleGridOn: '그리드 켜기',
+          decreasePenWidth: '펜 굵기 줄이기',
+          increasePenWidth: '펜 굵기 늘리기',
         },
         tools: {
           brushSize: '펜 굵기',
@@ -130,6 +132,8 @@ export const i18nResources = {
           floatingTwo: 'Moonlit Sea',
           toggleGridOff: 'Hide Grid',
           toggleGridOn: 'Show Grid',
+          decreasePenWidth: 'Decrease Pen Width',
+          increasePenWidth: 'Increase Pen Width',
         },
         tools: {
           brushSize: 'Brush size',
@@ -223,6 +227,8 @@ export const i18nResources = {
           floatingTwo: '月あかりの海',
           toggleGridOff: 'グリッドをオフ',
           toggleGridOn: 'グリッドをオン',
+          decreasePenWidth: 'ペンの太さを下げる',
+          increasePenWidth: 'ペンの太さを上げる',
         },
         tools: {
           brushSize: 'ペンの太さ',
@@ -316,6 +322,8 @@ export const i18nResources = {
           floatingTwo: '月夜海岸',
           toggleGridOff: '关闭网格',
           toggleGridOn: '开启网格',
+          decreasePenWidth: '减小画笔粗细',
+          increasePenWidth: '增大画笔粗细',
         },
         tools: {
           brushSize: '画笔粗细',
