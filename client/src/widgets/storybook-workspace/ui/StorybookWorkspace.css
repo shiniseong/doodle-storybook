@@ -118,8 +118,15 @@
   gap: 0.7rem;
 }
 
+.workspace-header__top {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .language-switcher {
-  justify-self: end;
   border: 1px solid rgba(108, 150, 179, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
@@ -128,6 +135,24 @@
   align-items: center;
   gap: 0.42rem;
   box-shadow: 0 0.35rem 0.8rem rgba(32, 105, 149, 0.08);
+}
+
+.workspace-header__mascot-frame {
+  border: 1px solid rgba(133, 179, 206, 0.42);
+  border-radius: 0.9rem;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(235, 247, 255, 0.82));
+  box-shadow:
+    0 0.5rem 1rem rgba(38, 102, 140, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  padding: 0.3rem;
+}
+
+.workspace-header__mascot {
+  display: block;
+  width: clamp(3.8rem, 8vw, 5.4rem);
+  height: auto;
+  user-select: none;
+  pointer-events: none;
 }
 
 .language-switcher__icon {

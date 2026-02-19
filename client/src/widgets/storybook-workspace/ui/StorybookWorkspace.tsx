@@ -278,7 +278,12 @@ function WorkspaceHeader() {
         <p className="brand-block__subtitle">{t('common.appSubtitle')}</p>
       </div>
       <div className="workspace-header__side">
-        <LanguageSwitcher />
+        <div className="workspace-header__top">
+          <LanguageSwitcher />
+          <div className="workspace-header__mascot-frame" aria-hidden="true">
+            <img className="workspace-header__mascot" src="/assets/drawing-fairy-detail-logo.png" alt="" />
+          </div>
+        </div>
         <ul className="status-list" aria-label={t('workspace.status.aria')}>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.freeLabel')}</span>
