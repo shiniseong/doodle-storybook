@@ -134,6 +134,22 @@ describe('StorybookWorkspace', () => {
     expect(surface).not.toHaveClass('canvas-stage__surface--plain')
   })
 
+  it('드로잉 시작 전에는 실행취소 버튼이 비활성화된다', () => {
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325' },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
+  })
+
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

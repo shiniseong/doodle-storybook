@@ -11,7 +11,14 @@ import {
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
@@ -40,6 +47,45 @@ const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
   { key: 'stepThree', icon: AudioLines },
   { key: 'stepFour', icon: BookOpenText },
 ]
+
+const MAX_CANVAS_UNDO_STEPS = 30
+const PEN_STROKE_COLOR = '#184867'
+const BASE_PEN_WIDTH = 3
+
+interface CanvasPoint {
+  x: number
+  y: number
+}
+
+function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number): CanvasPoint {
+  const bounds = canvas.getBoundingClientRect()
+  const scaleX = bounds.width === 0 ? 1 : canvas.width / bounds.width
+  const scaleY = bounds.height === 0 ? 1 : canvas.height / bounds.height
+
+  return {
+    x: (clientX - bounds.left) * scaleX,
+    y: (clientY - bounds.top) * scaleY,
+  }
+}
+
+function configureCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    return null
+  }
+
+  const bounds = canvas.getBoundingClientRect()
+  const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
+
+  context.strokeStyle = PEN_STROKE_COLOR
+  context.fillStyle = PEN_STROKE_COLOR
+  context.lineWidth = BASE_PEN_WIDTH * scale
+  context.lineCap = 'round'
+  context.lineJoin = 'round'
+
+  return context
+}
 
 function AmbientBackdrop() {
   return (
@@ -92,6 +138,187 @@ function WorkspaceHeader() {
 function DrawingBoardSection() {
   const { t } = useTranslation()
   const [isGridVisible, setIsGridVisible] = useState(true)
+  const [undoDepth, setUndoDepth] = useState(0)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null)
+  const undoSnapshotsRef = useRef<ImageData[]>([])
+  const isDrawingRef = useRef(false)
+  const previousPointRef = useRef<CanvasPoint | null>(null)
+
+  const pushUndoSnapshot = useCallback(() => {
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+
+    if (!canvas || !context) {
+      return
+    }
+
+    // Save pre-stroke state so undo reverts one drawing action at a time.
+    const snapshot = context.getImageData(0, 0, canvas.width, canvas.height)
+    undoSnapshotsRef.current.push(snapshot)
+
+    if (undoSnapshotsRef.current.length > MAX_CANVAS_UNDO_STEPS) {
+      undoSnapshotsRef.current.shift()
+    }
+
+    setUndoDepth(undoSnapshotsRef.current.length)
+  }, [])
+
+  const stopDrawing = useCallback((event?: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    isDrawingRef.current = false
+    previousPointRef.current = null
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+
+    if (!canvas || !context) {
+      return
+    }
+
+    const previousSnapshot = undoSnapshotsRef.current.pop()
+
+    if (!previousSnapshot) {
+      return
+    }
+
+    if (previousSnapshot.width !== canvas.width || previousSnapshot.height !== canvas.height) {
+      context.clearRect(0, 0, canvas.width, canvas.height)
+    } else {
+      context.putImageData(previousSnapshot, 0, 0)
+    }
+
+    setUndoDepth(undoSnapshotsRef.current.length)
+  }, [])
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (event.button !== 0) {
+        return
+      }
+
+      const canvas = canvasRef.current
+      const context = canvasContextRef.current
+
+      if (!canvas || !context) {
+        return
+      }
+
+      pushUndoSnapshot()
+
+      const nextPoint = resolveCanvasPoint(canvas, event.clientX, event.clientY)
+
+      isDrawingRef.current = true
+      previousPointRef.current = nextPoint
+      event.currentTarget.setPointerCapture(event.pointerId)
+
+      context.beginPath()
+      context.arc(nextPoint.x, nextPoint.y, context.lineWidth * 0.5, 0, Math.PI * 2)
+      context.fill()
+      context.beginPath()
+      context.moveTo(nextPoint.x, nextPoint.y)
+
+      event.preventDefault()
+    },
+    [pushUndoSnapshot],
+  )
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) {
+      return
+    }
+
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+    const previousPoint = previousPointRef.current
+
+    if (!canvas || !context || previousPoint === null) {
+      return
+    }
+
+    const nextPoint = resolveCanvasPoint(canvas, event.clientX, event.clientY)
+
+    context.beginPath()
+    context.moveTo(previousPoint.x, previousPoint.y)
+    context.lineTo(nextPoint.x, nextPoint.y)
+    context.stroke()
+
+    previousPointRef.current = nextPoint
+    event.preventDefault()
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+
+    if (!canvas) {
+      return
+    }
+
+    const resizeCanvas = () => {
+      const bounds = canvas.getBoundingClientRect()
+
+      if (bounds.width === 0 || bounds.height === 0) {
+        return
+      }
+
+      const pixelRatio = window.devicePixelRatio || 1
+      const nextWidth = Math.max(1, Math.round(bounds.width * pixelRatio))
+      const nextHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
+
+      if (canvas.width === nextWidth && canvas.height === nextHeight) {
+        canvasContextRef.current = configureCanvasContext(canvas)
+        return
+      }
+
+      const previousBitmap = document.createElement('canvas')
+      previousBitmap.width = canvas.width
+      previousBitmap.height = canvas.height
+
+      const previousBitmapContext = previousBitmap.getContext('2d')
+
+      if (previousBitmapContext && canvas.width > 0 && canvas.height > 0) {
+        previousBitmapContext.drawImage(canvas, 0, 0)
+      }
+
+      canvas.width = nextWidth
+      canvas.height = nextHeight
+
+      const context = configureCanvasContext(canvas)
+      canvasContextRef.current = context
+
+      if (context && previousBitmap.width > 0 && previousBitmap.height > 0) {
+        context.drawImage(previousBitmap, 0, 0, previousBitmap.width, previousBitmap.height, 0, 0, canvas.width, canvas.height)
+      }
+
+      undoSnapshotsRef.current = []
+      setUndoDepth(0)
+    }
+
+    resizeCanvas()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', resizeCanvas)
+
+      return () => {
+        window.removeEventListener('resize', resizeCanvas)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      resizeCanvas()
+    })
+
+    resizeObserver.observe(canvas)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   return (
     <motion.section
@@ -106,16 +333,42 @@ function DrawingBoardSection() {
         <p>{t('workspace.panels.canvas.description')}</p>
       </div>
       <div className="canvas-stage">
-        <div className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`} />
+        <canvas
+          ref={canvasRef}
+          className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopDrawing}
+          onPointerLeave={stopDrawing}
+          onPointerCancel={stopDrawing}
+        />
       </div>
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>
         {drawingTools.map((tool) => {
           const Icon = tool.icon
 
+          if (tool.key === 'undo') {
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className="tool-chip tool-chip--button"
+                  onClick={handleUndo}
+                  disabled={undoDepth === 0}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
+
           return (
-            <li className="tool-chip" key={tool.key}>
-              <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
-              {t(`workspace.tools.${tool.key}`)}
+            <li key={tool.key}>
+              <span className="tool-chip">
+                <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                {t(`workspace.tools.${tool.key}`)}
+              </span>
             </li>
           )
         })}
