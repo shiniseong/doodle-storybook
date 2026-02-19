@@ -240,6 +240,15 @@ describe('StorybookWorkspace', () => {
     await user.click(colorToolButton)
     expect(colorToolButton).toHaveAttribute('aria-expanded', 'true')
 
+    expect(screen.getByRole('button', { name: /#f97316/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#facc15/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#ffffff/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#f2c6a0/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#ec4899/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#84cc16/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#38bdf8/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /#9ca3af/i })).toBeInTheDocument()
+
     const nextColorButton = screen.getByRole('button', { name: /#dc2626/i })
     expect(nextColorButton).toHaveAttribute('aria-pressed', 'false')
 
