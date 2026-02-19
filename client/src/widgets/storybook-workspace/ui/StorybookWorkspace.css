@@ -200,11 +200,13 @@
 
 .panel--canvas {
   grid-area: canvas;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .panel--compose {
   grid-area: compose;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-header h2 {
@@ -222,6 +224,7 @@
 
 .canvas-stage {
   position: relative;
+  height: 100%;
   min-height: 18rem;
   border-radius: 1.1rem;
   overflow: hidden;
@@ -342,6 +345,11 @@
   gap: 0.62rem;
 }
 
+.panel--compose .compose-form {
+  flex: 1;
+  grid-template-rows: auto minmax(10rem, 1fr) auto;
+}
+
 .compose-form__label {
   font-weight: 700;
   font-size: 0.89rem;
@@ -350,6 +358,7 @@
 .compose-form textarea {
   width: 100%;
   min-height: 10rem;
+  height: 100%;
   border: 1px solid rgba(109, 157, 188, 0.52);
   border-radius: 0.95rem;
   padding: 0.74rem 0.82rem;
