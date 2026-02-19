@@ -274,16 +274,16 @@ function WorkspaceHeader() {
           <Sparkles size={14} strokeWidth={2.2} aria-hidden="true" />
           {t('workspace.eyebrow')}
         </p>
-        <h1 className="brand-block__title">{t('common.appName')}</h1>
-        <p className="brand-block__subtitle">{t('common.appSubtitle')}</p>
-      </div>
-      <div className="workspace-header__side">
-        <div className="workspace-header__top">
-          <LanguageSwitcher />
-          <div className="workspace-header__mascot-frame" aria-hidden="true">
-            <img className="workspace-header__mascot" src="/assets/drawing-fairy-detail-logo.png" alt="" />
+        <div className="brand-block__main">
+          <img className="brand-block__mascot" src="/assets/drawing-fairy-detail-logo.png" alt="" aria-hidden="true" />
+          <div className="brand-block__copy">
+            <h1 className="brand-block__title">{t('common.appName')}</h1>
+            <p className="brand-block__subtitle">{t('common.appSubtitle')}</p>
           </div>
         </div>
+      </div>
+      <div className="workspace-header__side">
+        <LanguageSwitcher />
         <ul className="status-list" aria-label={t('workspace.status.aria')}>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.freeLabel')}</span>

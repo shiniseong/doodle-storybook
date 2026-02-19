@@ -78,7 +78,8 @@
 
 .brand-block {
   display: grid;
-  gap: 0.25rem;
+  gap: clamp(0.36rem, 1.1vw, 0.55rem);
+  min-width: 0;
 }
 
 .brand-block__eyebrow {
@@ -86,15 +87,36 @@
   display: inline-flex;
   align-items: center;
   gap: 0.38rem;
-  width: fit-content;
+  width: 100%;
   font-size: 0.77rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: #2f617f;
-  padding: 0.32rem 0.52rem;
-  border-radius: 999px;
-  background: rgba(139, 211, 244, 0.2);
+  padding: 0 0 0.34rem;
+  border-bottom: 1px solid rgba(124, 176, 209, 0.46);
+}
+
+.brand-block__main {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.55rem, 1.4vw, 0.9rem);
+  min-width: 0;
+}
+
+.brand-block__copy {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.brand-block__mascot {
+  display: block;
+  width: clamp(4.3rem, 8.8vw, 6.3rem);
+  height: auto;
+  flex-shrink: 0;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(21, 78, 116, 0.2));
 }
 
 .brand-block__title {
@@ -118,15 +140,8 @@
   gap: 0.7rem;
 }
 
-.workspace-header__top {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
 .language-switcher {
+  justify-self: end;
   border: 1px solid rgba(108, 150, 179, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
@@ -135,24 +150,6 @@
   align-items: center;
   gap: 0.42rem;
   box-shadow: 0 0.35rem 0.8rem rgba(32, 105, 149, 0.08);
-}
-
-.workspace-header__mascot-frame {
-  border: 1px solid rgba(133, 179, 206, 0.42);
-  border-radius: 0.9rem;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(235, 247, 255, 0.82));
-  box-shadow:
-    0 0.5rem 1rem rgba(38, 102, 140, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  padding: 0.3rem;
-}
-
-.workspace-header__mascot {
-  display: block;
-  width: clamp(3.8rem, 8vw, 5.4rem);
-  height: auto;
-  user-select: none;
-  pointer-events: none;
 }
 
 .language-switcher__icon {
@@ -755,6 +752,14 @@
 }
 
 @media (max-width: 767px) {
+  .brand-block__main {
+    align-items: flex-start;
+  }
+
+  .brand-block__mascot {
+    width: clamp(3.8rem, 22vw, 4.8rem);
+  }
+
   .status-list {
     grid-template-columns: 1fr;
   }
