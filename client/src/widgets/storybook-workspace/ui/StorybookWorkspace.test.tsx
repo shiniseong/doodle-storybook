@@ -104,10 +104,12 @@ describe('StorybookWorkspace', () => {
 
     const pendingButton = screen.getByRole('button', { name: '동화 생성 처리 중...' })
     expect(pendingButton).toBeDisabled()
+    expect(screen.getByTestId('story-loading-mini-game')).toBeInTheDocument()
 
     resolveRequest({ ok: true, value: { storybookId: 'storybook-200' } })
 
     await waitFor(() => {
+      expect(screen.queryByTestId('story-loading-mini-game')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
     })
   })

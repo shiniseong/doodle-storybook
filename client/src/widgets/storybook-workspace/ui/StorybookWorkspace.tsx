@@ -80,6 +80,35 @@ const PEN_COLOR_OPTIONS = [
   '#9333ea',
   '#111827',
 ] as const
+const LOADING_GAME_LANE_COUNT = 4
+const LOADING_GAME_TICK_MS = 34
+const LOADING_GAME_BASE_SPEED = 190
+const LOADING_GAME_MAX_SPEED = 420
+const LOADING_GAME_ACCELERATION_PER_SECOND = 10
+const LOADING_GAME_BASE_SPAWN_INTERVAL = 1.3
+const LOADING_GAME_MIN_SPAWN_INTERVAL = 0.48
+const LOADING_GAME_CAR_X_RATIO = 0.22
+const LOADING_GAME_CAR_WIDTH = 56
+const LOADING_GAME_CAR_HEIGHT = 30
+const LOADING_GAME_OBSTACLE_SIZE = 30
+const LOADING_GAME_BACKGROUND_LOOP_WIDTH = 2400
+const LOADING_GAME_INITIAL_TRACK_WIDTH = 640
+const LOADING_GAME_INITIAL_TRACK_HEIGHT = 208
+const LOADING_GAME_OBSTACLES = [
+  { key: 'banana', icon: '🍌' },
+  { key: 'can', icon: '🥫' },
+  { key: 'poop', icon: '💩' },
+  { key: 'bug', icon: '🐞' },
+] as const
+
+type LoadingGameObstacleType = (typeof LOADING_GAME_OBSTACLES)[number]['key']
+
+const LOADING_GAME_OBSTACLE_ICONS: Record<LoadingGameObstacleType, string> = {
+  banana: '🍌',
+  can: '🥫',
+  poop: '💩',
+  bug: '🐞',
+}
 
 interface CanvasPoint {
   x: number
@@ -100,6 +129,19 @@ interface CanvasDrawingStyleOptions {
   penColor: string
   penOpacity: number
   eraserSize: number
+}
+
+interface LoadingGameTrackMetrics {
+  width: number
+  height: number
+}
+
+interface LoadingGameObstacle {
+  id: number
+  lane: number
+  x: number
+  type: LoadingGameObstacleType
+  counted: boolean
 }
 
 function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number): CanvasPoint {
@@ -131,6 +173,28 @@ function clampEraserSize(size: number): number {
 
 function resolveCanvasOpacity(opacity: number): number {
   return clampPenOpacity(opacity) / 100
+}
+
+function resolveLoadingGameScoreMultiplier(speed: number): number {
+  const normalizedSpeed = Math.max(0, speed - LOADING_GAME_BASE_SPEED)
+  return 1 + Math.floor(normalizedSpeed / 65)
+}
+
+function resolveLoadingGameSpawnInterval(speed: number): number {
+  const speedRatio = clampRangeValue(
+    (speed - LOADING_GAME_BASE_SPEED) / (LOADING_GAME_MAX_SPEED - LOADING_GAME_BASE_SPEED),
+    0,
+    1,
+  )
+  const randomOffset = Math.random() * 0.24
+  const interval = LOADING_GAME_BASE_SPAWN_INTERVAL - speedRatio * 0.64 + randomOffset
+
+  return Math.max(LOADING_GAME_MIN_SPAWN_INTERVAL, interval)
+}
+
+function resolveRandomLoadingGameObstacleType(): LoadingGameObstacleType {
+  const randomIndex = Math.floor(Math.random() * LOADING_GAME_OBSTACLES.length)
+  return LOADING_GAME_OBSTACLES[randomIndex].key
 }
 
 function applyCanvasDrawingStyle(
@@ -1043,6 +1107,318 @@ function resolveFeedbackText(
   return t(`workspace.feedback.error.${feedback.code}`)
 }
 
+function StoryLoadingMiniGame() {
+  const { t } = useTranslation()
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  const obstacleIdRef = useRef(0)
+  const spawnCountdownRef = useRef(resolveLoadingGameSpawnInterval(LOADING_GAME_BASE_SPEED))
+  const speedRef = useRef(LOADING_GAME_BASE_SPEED)
+  const scoreRef = useRef(0)
+  const carLaneRef = useRef(1)
+  const trackMetricsRef = useRef<LoadingGameTrackMetrics>({
+    width: LOADING_GAME_INITIAL_TRACK_WIDTH,
+    height: LOADING_GAME_INITIAL_TRACK_HEIGHT,
+  })
+  const obstaclesRef = useRef<LoadingGameObstacle[]>([])
+  const hitTimeoutRef = useRef<number | null>(null)
+  const [carLane, setCarLane] = useState(1)
+  const [speed, setSpeed] = useState(LOADING_GAME_BASE_SPEED)
+  const [score, setScore] = useState(0)
+  const [trackMetrics, setTrackMetrics] = useState<LoadingGameTrackMetrics>({
+    width: LOADING_GAME_INITIAL_TRACK_WIDTH,
+    height: LOADING_GAME_INITIAL_TRACK_HEIGHT,
+  })
+  const [obstacles, setObstacles] = useState<LoadingGameObstacle[]>([])
+  const [backgroundOffset, setBackgroundOffset] = useState(0)
+  const [isHit, setIsHit] = useState(false)
+
+  const laneHeight = trackMetrics.height / LOADING_GAME_LANE_COUNT
+  const carX = trackMetrics.width * LOADING_GAME_CAR_X_RATIO
+  const carY = laneHeight * (carLane + 0.5)
+  const scoreMultiplier = resolveLoadingGameScoreMultiplier(speed)
+
+  const updateCarLane = useCallback((nextLane: number) => {
+    const clampedLane = clampRangeValue(nextLane, 0, LOADING_GAME_LANE_COUNT - 1)
+
+    setCarLane(clampedLane)
+    carLaneRef.current = clampedLane
+  }, [])
+
+  const moveCar = useCallback(
+    (delta: number) => {
+      updateCarLane(carLaneRef.current + delta)
+    },
+    [updateCarLane],
+  )
+
+  const triggerHitFeedback = useCallback(() => {
+    setIsHit(true)
+
+    if (hitTimeoutRef.current !== null) {
+      window.clearTimeout(hitTimeoutRef.current)
+    }
+
+    hitTimeoutRef.current = window.setTimeout(() => {
+      setIsHit(false)
+      hitTimeoutRef.current = null
+    }, 190)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (hitTimeoutRef.current !== null) {
+        window.clearTimeout(hitTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const track = trackRef.current
+
+    if (!track) {
+      return
+    }
+
+    const updateMetrics = () => {
+      const bounds = track.getBoundingClientRect()
+
+      if (bounds.width === 0 || bounds.height === 0) {
+        return
+      }
+
+      const nextMetrics = {
+        width: bounds.width,
+        height: bounds.height,
+      }
+      trackMetricsRef.current = nextMetrics
+      setTrackMetrics(nextMetrics)
+    }
+
+    updateMetrics()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateMetrics)
+
+      return () => {
+        window.removeEventListener('resize', updateMetrics)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateMetrics()
+    })
+
+    resizeObserver.observe(track)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const deltaSeconds = LOADING_GAME_TICK_MS / 1000
+      const nextSpeed = Math.min(
+        LOADING_GAME_MAX_SPEED,
+        speedRef.current + LOADING_GAME_ACCELERATION_PER_SECOND * deltaSeconds,
+      )
+      const carCenterX = trackMetricsRef.current.width * LOADING_GAME_CAR_X_RATIO
+      const carHalfWidth = LOADING_GAME_CAR_WIDTH * 0.5
+
+      speedRef.current = nextSpeed
+      setSpeed(nextSpeed)
+
+      spawnCountdownRef.current -= deltaSeconds
+      let nextObstacles = obstaclesRef.current
+
+      if (spawnCountdownRef.current <= 0) {
+        obstacleIdRef.current += 1
+        nextObstacles = [
+          ...nextObstacles,
+          {
+            id: obstacleIdRef.current,
+            lane: Math.floor(Math.random() * LOADING_GAME_LANE_COUNT),
+            x: trackMetricsRef.current.width + LOADING_GAME_OBSTACLE_SIZE,
+            type: resolveRandomLoadingGameObstacleType(),
+            counted: false,
+          },
+        ]
+        spawnCountdownRef.current = resolveLoadingGameSpawnInterval(nextSpeed)
+      }
+
+      let nextScore = scoreRef.current
+      let hasCollision = false
+      const shiftedObstacles: LoadingGameObstacle[] = []
+
+      for (const obstacle of nextObstacles) {
+        const shiftedX = obstacle.x - nextSpeed * deltaSeconds
+        const obstacleCenterX = shiftedX + LOADING_GAME_OBSTACLE_SIZE * 0.5
+        const obstacleHalfWidth = LOADING_GAME_OBSTACLE_SIZE * 0.42
+        let counted = obstacle.counted
+
+        if (!counted && shiftedX + LOADING_GAME_OBSTACLE_SIZE < carCenterX - carHalfWidth) {
+          counted = true
+          nextScore += resolveLoadingGameScoreMultiplier(nextSpeed)
+        }
+
+        const isCollision =
+          obstacle.lane === carLaneRef.current &&
+          Math.abs(obstacleCenterX - carCenterX) < carHalfWidth + obstacleHalfWidth
+
+        if (isCollision) {
+          hasCollision = true
+          continue
+        }
+
+        if (shiftedX > -LOADING_GAME_OBSTACLE_SIZE) {
+          shiftedObstacles.push({
+            ...obstacle,
+            x: shiftedX,
+            counted,
+          })
+        }
+      }
+
+      if (hasCollision) {
+        triggerHitFeedback()
+        nextScore = Math.max(0, nextScore - Math.max(2, resolveLoadingGameScoreMultiplier(nextSpeed) * 2))
+      }
+
+      if (nextScore !== scoreRef.current) {
+        scoreRef.current = nextScore
+        setScore(nextScore)
+      }
+
+      obstaclesRef.current = shiftedObstacles
+      setObstacles(shiftedObstacles)
+      setBackgroundOffset((previous) => {
+        const nextOffset = previous + nextSpeed * deltaSeconds
+
+        if (nextOffset >= LOADING_GAME_BACKGROUND_LOOP_WIDTH) {
+          return nextOffset - LOADING_GAME_BACKGROUND_LOOP_WIDTH
+        }
+
+        return nextOffset
+      })
+    }, LOADING_GAME_TICK_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [triggerHitFeedback])
+
+  const handleTrackKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const key = event.key.toLowerCase()
+
+      if (event.key === 'ArrowUp' || key === 'w') {
+        event.preventDefault()
+        moveCar(-1)
+      }
+
+      if (event.key === 'ArrowDown' || key === 's') {
+        event.preventDefault()
+        moveCar(1)
+      }
+    },
+    [moveCar],
+  )
+
+  const handleTrackPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const bounds = event.currentTarget.getBoundingClientRect()
+
+      if (bounds.height === 0) {
+        return
+      }
+
+      const relativeY = clampRangeValue(event.clientY - bounds.top, 0, bounds.height - 1)
+      const nextLane = Math.floor(relativeY / (bounds.height / LOADING_GAME_LANE_COUNT))
+
+      updateCarLane(nextLane)
+      event.currentTarget.focus({ preventScroll: true })
+    },
+    [updateCarLane],
+  )
+
+  return (
+    <section className="story-loading-game" data-testid="story-loading-mini-game" aria-label={t('workspace.miniGame.title')}>
+      <header className="story-loading-game__header">
+        <h3>{t('workspace.miniGame.title')}</h3>
+        <p>{t('workspace.miniGame.description')}</p>
+      </header>
+      <div className="story-loading-game__hud" aria-live="polite">
+        <span>
+          {t('workspace.miniGame.score')}{' '}
+          <strong className="story-loading-game__hud-value">{score}</strong>
+        </span>
+        <span>
+          {t('workspace.miniGame.speed')}{' '}
+          <strong className="story-loading-game__hud-value">{Math.round(speed)}</strong>
+        </span>
+        <span>{t('workspace.miniGame.bonus', { multiplier: scoreMultiplier })}</span>
+      </div>
+      <div
+        ref={trackRef}
+        className={`story-loading-game__track${isHit ? ' story-loading-game__track--hit' : ''}`}
+        tabIndex={0}
+        role="application"
+        aria-label={t('workspace.miniGame.title')}
+        style={{
+          backgroundPosition: `${backgroundOffset * -0.72}px 0, ${backgroundOffset * -1.28}px 0, 0 0`,
+        }}
+        onKeyDown={handleTrackKeyDown}
+        onPointerDown={handleTrackPointerDown}
+      >
+        {Array.from({ length: LOADING_GAME_LANE_COUNT - 1 }, (_, dividerIndex) => (
+          <span
+            key={dividerIndex}
+            className="story-loading-game__lane-divider"
+            style={{ top: `${((dividerIndex + 1) / LOADING_GAME_LANE_COUNT) * 100}%` }}
+            aria-hidden="true"
+          />
+        ))}
+        <span
+          className="story-loading-game__car"
+          style={{
+            left: `${carX}px`,
+            top: `${carY}px`,
+            width: `${LOADING_GAME_CAR_WIDTH}px`,
+            height: `${LOADING_GAME_CAR_HEIGHT}px`,
+          }}
+          aria-hidden="true"
+        >
+          🚗
+        </span>
+        {obstacles.map((obstacle) => (
+          <span
+            key={obstacle.id}
+            className={`story-loading-game__obstacle story-loading-game__obstacle--${obstacle.type}`}
+            style={{
+              left: `${obstacle.x}px`,
+              top: `${laneHeight * (obstacle.lane + 0.5)}px`,
+              width: `${LOADING_GAME_OBSTACLE_SIZE}px`,
+              height: `${LOADING_GAME_OBSTACLE_SIZE}px`,
+            }}
+            aria-hidden="true"
+          >
+            {LOADING_GAME_OBSTACLE_ICONS[obstacle.type]}
+          </span>
+        ))}
+      </div>
+      <div className="story-loading-game__controls">
+        <button type="button" className="story-loading-game__control-button" onClick={() => moveCar(-1)} aria-label={t('workspace.miniGame.moveUp')}>
+          ▲
+        </button>
+        <button type="button" className="story-loading-game__control-button" onClick={() => moveCar(1)} aria-label={t('workspace.miniGame.moveDown')}>
+          ▼
+        </button>
+        <p>{t('workspace.miniGame.controls')}</p>
+      </div>
+    </section>
+  )
+}
+
 interface StoryComposerSectionProps {
   dependencies: StorybookWorkspaceDependencies
 }
@@ -1057,6 +1433,7 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
   const feedbackText = useMemo(() => resolveFeedbackText(feedback, t), [feedback, t])
+  const isSubmitting = createStatus === 'submitting'
 
   return (
     <motion.section
@@ -1071,7 +1448,7 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
         <p>{t('workspace.panels.compose.description')}</p>
       </div>
       <StorybookDescriptionForm
-        isSubmitting={createStatus === 'submitting'}
+        isSubmitting={isSubmitting}
         onSubmit={async ({ title, description }) => {
           startSubmitting()
 
@@ -1103,21 +1480,25 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
           </motion.p>
         )}
       </AnimatePresence>
-      <div className="flow-group">
-        <h3 className="flow-group__title">{t('workspace.flow.title')}</h3>
-        <ol className="flow-step-list">
-          {flowSteps.map((step) => {
-            const Icon = step.icon
+      {isSubmitting ? (
+        <StoryLoadingMiniGame />
+      ) : (
+        <div className="flow-group">
+          <h3 className="flow-group__title">{t('workspace.flow.title')}</h3>
+          <ol className="flow-step-list">
+            {flowSteps.map((step) => {
+              const Icon = step.icon
 
-            return (
-              <li key={step.key}>
-                <Icon size={14} strokeWidth={2.4} aria-hidden="true" />
-                {t(`workspace.flow.${step.key}`)}
-              </li>
-            )
-          })}
-        </ol>
-      </div>
+              return (
+                <li key={step.key}>
+                  <Icon size={14} strokeWidth={2.4} aria-hidden="true" />
+                  {t(`workspace.flow.${step.key}`)}
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      )}
     </motion.section>
   )
 }
