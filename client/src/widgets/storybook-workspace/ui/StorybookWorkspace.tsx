@@ -54,6 +54,9 @@ const DEFAULT_PEN_COLOR = '#184867'
 const MIN_PEN_WIDTH = 1
 const MAX_PEN_WIDTH = 20
 const DEFAULT_PEN_WIDTH = 3
+const MIN_PEN_OPACITY = 5
+const MAX_PEN_OPACITY = 100
+const DEFAULT_PEN_OPACITY = 100
 const PEN_COLOR_OPTIONS = [
   '#184867',
   '#1d4ed8',
@@ -89,11 +92,28 @@ function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY:
   }
 }
 
-function clampPenWidth(width: number): number {
-  return Math.min(MAX_PEN_WIDTH, Math.max(MIN_PEN_WIDTH, width))
+function clampRangeValue(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
-function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number, penColor: string): CanvasRenderingContext2D | null {
+function clampPenWidth(width: number): number {
+  return clampRangeValue(width, MIN_PEN_WIDTH, MAX_PEN_WIDTH)
+}
+
+function clampPenOpacity(opacity: number): number {
+  return clampRangeValue(opacity, MIN_PEN_OPACITY, MAX_PEN_OPACITY)
+}
+
+function resolveCanvasOpacity(opacity: number): number {
+  return clampPenOpacity(opacity) / 100
+}
+
+function configureCanvasContext(
+  canvas: HTMLCanvasElement,
+  penWidth: number,
+  penColor: string,
+  penOpacity: number,
+): CanvasRenderingContext2D | null {
   const context = canvas.getContext('2d')
 
   if (!context) {
@@ -106,10 +126,92 @@ function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number, pen
   context.strokeStyle = penColor
   context.fillStyle = penColor
   context.lineWidth = penWidth * scale
+  context.globalAlpha = resolveCanvasOpacity(penOpacity)
   context.lineCap = 'round'
   context.lineJoin = 'round'
 
   return context
+}
+
+interface RangeControlPanelProps {
+  id: string
+  panelClassName?: string
+  ariaLabel: string
+  sliderId: string
+  sliderAriaLabel: string
+  value: number
+  min: number
+  max: number
+  decreaseAriaLabel: string
+  increaseAriaLabel: string
+  onDecrease: () => void
+  onIncrease: () => void
+  onChange: (nextValue: number) => void
+  decreaseIconClassName: string
+  increaseIconClassName: string
+  valueClassName?: string
+  formatValue?: (value: number) => string
+}
+
+function RangeControlPanel({
+  id,
+  panelClassName,
+  ariaLabel,
+  sliderId,
+  sliderAriaLabel,
+  value,
+  min,
+  max,
+  decreaseAriaLabel,
+  increaseAriaLabel,
+  onDecrease,
+  onIncrease,
+  onChange,
+  decreaseIconClassName,
+  increaseIconClassName,
+  valueClassName,
+  formatValue,
+}: RangeControlPanelProps) {
+  const formattedValue = formatValue ? formatValue(value) : `${value}`
+  const panelClasses = panelClassName ? `range-control-panel ${panelClassName}` : 'range-control-panel'
+  const valueClasses = valueClassName ? `range-control-panel__value ${valueClassName}` : 'range-control-panel__value'
+
+  return (
+    <div className={panelClasses} id={id} role="group" aria-label={ariaLabel}>
+      <button
+        type="button"
+        className="range-control-panel__step-button"
+        aria-label={decreaseAriaLabel}
+        onClick={onDecrease}
+      >
+        <span className={`range-control-panel__dot-icon ${decreaseIconClassName}`} aria-hidden="true" />
+      </button>
+      <input
+        id={sliderId}
+        className="range-control-panel__slider"
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        aria-label={sliderAriaLabel}
+        onChange={(event) => {
+          onChange(Number.parseInt(event.target.value, 10))
+        }}
+      />
+      <button
+        type="button"
+        className="range-control-panel__step-button"
+        aria-label={increaseAriaLabel}
+        onClick={onIncrease}
+      >
+        <span className={`range-control-panel__dot-icon ${increaseIconClassName}`} aria-hidden="true" />
+      </button>
+      <output className={valueClasses} htmlFor={sliderId}>
+        {formattedValue}
+      </output>
+    </div>
+  )
 }
 
 function AmbientBackdrop() {
@@ -165,8 +267,10 @@ function DrawingBoardSection() {
   const [isGridVisible, setIsGridVisible] = useState(true)
   const [penColor, setPenColor] = useState(DEFAULT_PEN_COLOR)
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
+  const [penOpacity, setPenOpacity] = useState(DEFAULT_PEN_OPACITY)
   const [isPenWidthPanelOpen, setIsPenWidthPanelOpen] = useState(false)
   const [isPenColorPanelOpen, setIsPenColorPanelOpen] = useState(false)
+  const [isPenOpacityPanelOpen, setIsPenOpacityPanelOpen] = useState(false)
   const [undoDepth, setUndoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -230,6 +334,10 @@ function DrawingBoardSection() {
     setPenWidth(clampPenWidth(nextWidth))
   }, [])
 
+  const updatePenOpacity = useCallback((nextOpacity: number) => {
+    setPenOpacity(clampPenOpacity(nextOpacity))
+  }, [])
+
   const decreasePenWidth = useCallback(() => {
     updatePenWidth(penWidth - 1)
   }, [penWidth, updatePenWidth])
@@ -238,14 +346,30 @@ function DrawingBoardSection() {
     updatePenWidth(penWidth + 1)
   }, [penWidth, updatePenWidth])
 
+  const decreasePenOpacity = useCallback(() => {
+    updatePenOpacity(penOpacity - 1)
+  }, [penOpacity, updatePenOpacity])
+
+  const increasePenOpacity = useCallback(() => {
+    updatePenOpacity(penOpacity + 1)
+  }, [penOpacity, updatePenOpacity])
+
   const togglePenWidthPanel = useCallback(() => {
     setIsPenWidthPanelOpen((previous) => !previous)
     setIsPenColorPanelOpen(false)
+    setIsPenOpacityPanelOpen(false)
   }, [])
 
   const togglePenColorPanel = useCallback(() => {
     setIsPenColorPanelOpen((previous) => !previous)
     setIsPenWidthPanelOpen(false)
+    setIsPenOpacityPanelOpen(false)
+  }, [])
+
+  const togglePenOpacityPanel = useCallback(() => {
+    setIsPenOpacityPanelOpen((previous) => !previous)
+    setIsPenWidthPanelOpen(false)
+    setIsPenColorPanelOpen(false)
   }, [])
 
   const handleCanvasKeyDown = useCallback(
@@ -340,7 +464,7 @@ function DrawingBoardSection() {
       const nextHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
 
       if (canvas.width === nextWidth && canvas.height === nextHeight) {
-        canvasContextRef.current = configureCanvasContext(canvas, penWidth, penColor)
+        canvasContextRef.current = configureCanvasContext(canvas, penWidth, penColor, penOpacity)
         return
       }
 
@@ -357,11 +481,14 @@ function DrawingBoardSection() {
       canvas.width = nextWidth
       canvas.height = nextHeight
 
-      const context = configureCanvasContext(canvas, penWidth, penColor)
+      const context = configureCanvasContext(canvas, penWidth, penColor, penOpacity)
       canvasContextRef.current = context
 
       if (context && previousBitmap.width > 0 && previousBitmap.height > 0) {
+        const nextGlobalAlpha = context.globalAlpha
+        context.globalAlpha = 1
         context.drawImage(previousBitmap, 0, 0, previousBitmap.width, previousBitmap.height, 0, 0, canvas.width, canvas.height)
+        context.globalAlpha = nextGlobalAlpha
       }
 
       undoSnapshotsRef.current = []
@@ -387,7 +514,7 @@ function DrawingBoardSection() {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [penColor, penWidth])
+  }, [penColor, penOpacity, penWidth])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -403,7 +530,8 @@ function DrawingBoardSection() {
     context.lineWidth = penWidth * scale
     context.strokeStyle = penColor
     context.fillStyle = penColor
-  }, [penColor, penWidth])
+    context.globalAlpha = resolveCanvasOpacity(penOpacity)
+  }, [penColor, penOpacity, penWidth])
 
   return (
     <motion.section
@@ -469,6 +597,23 @@ function DrawingBoardSection() {
             )
           }
 
+          if (tool.key === 'opacity') {
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className={`tool-chip tool-chip--button${isPenOpacityPanelOpen ? ' tool-chip--active' : ''}`}
+                  aria-expanded={isPenOpacityPanelOpen}
+                  aria-controls="pen-opacity-panel"
+                  onClick={togglePenOpacityPanel}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
+
           if (tool.key === 'undo') {
             return (
               <li key={tool.key}>
@@ -476,7 +621,6 @@ function DrawingBoardSection() {
                   type="button"
                   className="tool-chip tool-chip--button"
                   onClick={handleUndo}
-                  disabled={undoDepth === 0}
                 >
                   <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
                   {t(`workspace.tools.${tool.key}`)}
@@ -510,42 +654,44 @@ function DrawingBoardSection() {
         </li>
       </ul>
       {isPenWidthPanelOpen ? (
-        <div className="pen-width-panel" id="pen-width-panel" role="group" aria-label={t('workspace.tools.brushSize')}>
-          <button
-            type="button"
-            className="pen-width-panel__step-button"
-            aria-label={t('workspace.canvas.decreasePenWidth')}
-            onClick={decreasePenWidth}
-            disabled={penWidth <= MIN_PEN_WIDTH}
-          >
-            <span className="pen-width-panel__dot-icon pen-width-panel__dot-icon--thin" aria-hidden="true" />
-          </button>
-          <input
-            id="pen-width-slider"
-            className="pen-width-panel__slider"
-            type="range"
-            min={MIN_PEN_WIDTH}
-            max={MAX_PEN_WIDTH}
-            step={1}
-            value={penWidth}
-            aria-label={t('workspace.tools.brushSize')}
-            onChange={(event) => {
-              updatePenWidth(Number.parseInt(event.target.value, 10))
-            }}
-          />
-          <button
-            type="button"
-            className="pen-width-panel__step-button"
-            aria-label={t('workspace.canvas.increasePenWidth')}
-            onClick={increasePenWidth}
-            disabled={penWidth >= MAX_PEN_WIDTH}
-          >
-            <span className="pen-width-panel__dot-icon pen-width-panel__dot-icon--thick" aria-hidden="true" />
-          </button>
-          <output className="pen-width-panel__value" htmlFor="pen-width-slider">
-            {penWidth}
-          </output>
-        </div>
+        <RangeControlPanel
+          id="pen-width-panel"
+          panelClassName="pen-width-panel"
+          ariaLabel={t('workspace.tools.brushSize')}
+          sliderId="pen-width-slider"
+          sliderAriaLabel={t('workspace.tools.brushSize')}
+          value={penWidth}
+          min={MIN_PEN_WIDTH}
+          max={MAX_PEN_WIDTH}
+          decreaseAriaLabel={t('workspace.canvas.decreasePenWidth')}
+          increaseAriaLabel={t('workspace.canvas.increasePenWidth')}
+          onDecrease={decreasePenWidth}
+          onIncrease={increasePenWidth}
+          onChange={updatePenWidth}
+          decreaseIconClassName="range-control-panel__dot-icon--thin"
+          increaseIconClassName="range-control-panel__dot-icon--thick"
+          valueClassName="pen-width-panel__value"
+        />
+      ) : null}
+      {isPenOpacityPanelOpen ? (
+        <RangeControlPanel
+          id="pen-opacity-panel"
+          panelClassName="pen-opacity-panel"
+          ariaLabel={t('workspace.tools.opacity')}
+          sliderId="pen-opacity-slider"
+          sliderAriaLabel={t('workspace.tools.opacity')}
+          value={penOpacity}
+          min={MIN_PEN_OPACITY}
+          max={MAX_PEN_OPACITY}
+          decreaseAriaLabel={t('workspace.canvas.decreaseOpacity')}
+          increaseAriaLabel={t('workspace.canvas.increaseOpacity')}
+          onDecrease={decreasePenOpacity}
+          onIncrease={increasePenOpacity}
+          onChange={updatePenOpacity}
+          decreaseIconClassName="range-control-panel__dot-icon--opacity-low"
+          increaseIconClassName="range-control-panel__dot-icon--opacity-high"
+          formatValue={(value) => `${value}%`}
+        />
       ) : null}
       {isPenColorPanelOpen ? (
         <div className="pen-color-panel" id="pen-color-panel" role="group" aria-label={t('workspace.tools.brushColor')}>

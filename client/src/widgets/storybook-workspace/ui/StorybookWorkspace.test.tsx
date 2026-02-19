@@ -26,6 +26,7 @@ function createMockCanvasContext(width: number, height: number): CanvasRendering
     putImageData: vi.fn(),
     strokeStyle: '#184867',
     fillStyle: '#184867',
+    globalAlpha: 1,
     lineWidth: 3,
     lineCap: 'round',
     lineJoin: 'round',
@@ -265,7 +266,65 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
-  it('드로잉 시작 전에는 실행취소 버튼이 비활성화된다', () => {
+  it('투명도 패널에서 슬라이더와 증감 버튼으로 투명도를 조절한다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325-o' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const opacityToolButton = screen.getByRole('button', { name: '투명도' })
+
+    expect(opacityToolButton).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(opacityToolButton)
+    expect(opacityToolButton).toHaveAttribute('aria-expanded', 'true')
+
+    const slider = screen.getByRole('slider', { name: '투명도' })
+    const decreaseButton = screen.getByRole('button', { name: '투명도 줄이기' })
+    const increaseButton = screen.getByRole('button', { name: '투명도 늘리기' })
+    const valueOutput = container.querySelector('.pen-opacity-panel .range-control-panel__value')
+
+    expect(slider).toHaveValue('100')
+    expect(valueOutput).toHaveTextContent('100%')
+    expect(mockContext.globalAlpha).toBe(1)
+
+    await user.click(decreaseButton)
+    expect(slider).toHaveValue('99')
+    expect(valueOutput).toHaveTextContent('99%')
+    expect(mockContext.globalAlpha).toBeCloseTo(0.99)
+
+    await user.click(increaseButton)
+    expect(slider).toHaveValue('100')
+    expect(valueOutput).toHaveTextContent('100%')
+    expect(mockContext.globalAlpha).toBe(1)
+
+    fireEvent.change(slider, { target: { value: '35' } })
+    expect(slider).toHaveValue('35')
+    expect(valueOutput).toHaveTextContent('35%')
+    expect(mockContext.globalAlpha).toBeCloseTo(0.35)
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('드로잉 시작 전에도 실행취소 버튼은 활성화된다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
       createStorybookUseCase: {
@@ -278,7 +337,7 @@ describe('StorybookWorkspace', () => {
 
     render(<StorybookWorkspace dependencies={dependencies} />)
 
-    expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '실행취소' })).toBeEnabled()
   })
 
   it('캔버스에 그리면 실행취소가 활성화되고 실행취소 시 다시 비활성화된다', async () => {
@@ -328,7 +387,7 @@ describe('StorybookWorkspace', () => {
       configurable: true,
     })
 
-    expect(undoButton).toBeDisabled()
+    expect(undoButton).toBeEnabled()
 
     fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
     fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
@@ -341,7 +400,10 @@ describe('StorybookWorkspace', () => {
     await user.click(undoButton)
 
     expect(mockContext.putImageData).toHaveBeenCalled()
-    expect(undoButton).toBeDisabled()
+
+    await user.click(undoButton)
+    expect(mockContext.putImageData).toHaveBeenCalledTimes(1)
+    expect(undoButton).toBeEnabled()
 
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()
@@ -400,7 +462,7 @@ describe('StorybookWorkspace', () => {
     expect(undoButton).toBeEnabled()
     fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
     expect(mockContext.putImageData).toHaveBeenCalledTimes(1)
-    expect(undoButton).toBeDisabled()
+    expect(undoButton).toBeEnabled()
 
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()
