@@ -200,6 +200,7 @@
 
 .panel--canvas {
   grid-area: canvas;
+  align-content: start;
 }
 
 .panel--compose {
