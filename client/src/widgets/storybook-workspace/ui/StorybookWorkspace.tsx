@@ -14,6 +14,7 @@ import {
 import {
   useCallback,
   useEffect,
+  type KeyboardEvent as ReactKeyboardEvent,
   useMemo,
   useRef,
   useState,
@@ -197,6 +198,21 @@ function DrawingBoardSection() {
     setUndoDepth(undoSnapshotsRef.current.length)
   }, [])
 
+  const handleCanvasKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLCanvasElement>) => {
+      const isUndoShortcut =
+        (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z'
+
+      if (!isUndoShortcut || undoDepth === 0) {
+        return
+      }
+
+      event.preventDefault()
+      handleUndo()
+    },
+    [handleUndo, undoDepth],
+  )
+
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
       if (event.button !== 0) {
@@ -217,6 +233,7 @@ function DrawingBoardSection() {
       isDrawingRef.current = true
       previousPointRef.current = nextPoint
       event.currentTarget.setPointerCapture(event.pointerId)
+      event.currentTarget.focus({ preventScroll: true })
 
       context.beginPath()
       context.arc(nextPoint.x, nextPoint.y, context.lineWidth * 0.5, 0, Math.PI * 2)
@@ -338,11 +355,13 @@ function DrawingBoardSection() {
         <canvas
           ref={canvasRef}
           className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`}
+          tabIndex={0}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={stopDrawing}
           onPointerLeave={stopDrawing}
           onPointerCancel={stopDrawing}
+          onKeyDown={handleCanvasKeyDown}
         />
       </div>
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>

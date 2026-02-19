@@ -254,6 +254,129 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
+  it('캔버스가 활성화되어 있으면 ctrl+z로 실행취소한다', () => {
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-327' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const undoButton = screen.getByRole('button', { name: '실행취소' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    expect(undoButton).toBeEnabled()
+    fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
+    expect(mockContext.putImageData).toHaveBeenCalledTimes(1)
+    expect(undoButton).toBeDisabled()
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('텍스트 입력이 활성화되어 있으면 ctrl+z가 캔버스 실행취소를 건드리지 않는다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-328' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const undoButton = screen.getByRole('button', { name: '실행취소' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+    const textarea = screen.getByLabelText('그림 설명')
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    expect(undoButton).toBeEnabled()
+
+    await user.click(textarea)
+    fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true })
+
+    expect(mockContext.putImageData).not.toHaveBeenCalled()
+    expect(undoButton).toBeEnabled()
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
