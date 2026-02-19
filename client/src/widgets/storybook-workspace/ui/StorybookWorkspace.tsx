@@ -301,7 +301,12 @@ function DrawingBoardSection() {
   }, [])
 
   const renderActiveStroke = useCallback(
-    (context: CanvasRenderingContext2D, baseSnapshot: ImageData, points: readonly CanvasPoint[]) => {
+    (
+      context: CanvasRenderingContext2D,
+      baseSnapshot: ImageData,
+      points: readonly CanvasPoint[],
+      isStraightLineMode: boolean,
+    ) => {
       const canvas = canvasRef.current
 
       if (!canvas) {
@@ -323,6 +328,17 @@ function DrawingBoardSection() {
         context.beginPath()
         context.arc(point.x, point.y, context.lineWidth * 0.5, 0, Math.PI * 2)
         context.fill()
+        return
+      }
+
+      if (isStraightLineMode) {
+        const firstPoint = points[0]
+        const lastPoint = points[points.length - 1]
+
+        context.beginPath()
+        context.moveTo(firstPoint.x, firstPoint.y)
+        context.lineTo(lastPoint.x, lastPoint.y)
+        context.stroke()
         return
       }
 
@@ -455,7 +471,7 @@ function DrawingBoardSection() {
       event.currentTarget.setPointerCapture(event.pointerId)
       event.currentTarget.focus({ preventScroll: true })
 
-      renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current)
+      renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current, event.shiftKey)
 
       event.preventDefault()
     },
@@ -478,7 +494,7 @@ function DrawingBoardSection() {
     const nextPoint = resolveCanvasPoint(canvas, event.clientX, event.clientY)
     strokePointsRef.current.push(nextPoint)
 
-    renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current)
+    renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current, event.shiftKey)
     event.preventDefault()
   }, [renderActiveStroke])
 

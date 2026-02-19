@@ -413,6 +413,69 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
+  it('캔버스에서 Shift를 누르고 그리면 시작점과 현재점을 직선으로 잇는다', () => {
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const lineToSpy = mockContext.lineTo as unknown as { mock: { calls: Array<[number, number]> } }
+    const moveToSpy = mockContext.moveTo as unknown as { mock: { calls: Array<[number, number]> } }
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-326-shift' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52, shiftKey: true })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 80, clientY: 64, shiftKey: true })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    expect(moveToSpy.mock.calls.length).toBe(2)
+    expect(lineToSpy.mock.calls.length).toBe(2)
+    expect(moveToSpy.mock.calls[0]).toEqual([12, 14])
+    expect(moveToSpy.mock.calls[1]).toEqual([12, 14])
+    expect(lineToSpy.mock.calls[0]).toEqual([46, 52])
+    expect(lineToSpy.mock.calls[1]).toEqual([80, 64])
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('캔버스가 활성화되어 있으면 ctrl+z로 실행취소한다', () => {
     const canvasWidth = 880
     const canvasHeight = 440
