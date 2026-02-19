@@ -97,6 +97,43 @@ describe('StorybookWorkspace', () => {
     ).toBeInTheDocument()
   })
 
+  it('그리드 토글 버튼으로 캔버스 격자 표시를 전환한다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-320' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const surface = container.querySelector('.canvas-stage__surface')
+
+    expect(surface).not.toBeNull()
+    expect(surface).not.toHaveClass('canvas-stage__surface--plain')
+
+    const toggleButton = screen.getByRole('button', { name: '그리드 끄기' })
+    expect(toggleButton).toHaveAttribute('aria-pressed', 'true')
+    expect(toggleButton).toHaveAttribute('title', '그리드 끄기')
+
+    await user.click(toggleButton)
+
+    expect(toggleButton).toHaveAttribute('aria-label', '그리드 켜기')
+    expect(toggleButton).toHaveAttribute('title', '그리드 켜기')
+    expect(toggleButton).toHaveAttribute('aria-pressed', 'false')
+    expect(surface).toHaveClass('canvas-stage__surface--plain')
+
+    await user.click(toggleButton)
+
+    expect(toggleButton).toHaveAttribute('aria-label', '그리드 끄기')
+    expect(toggleButton).toHaveAttribute('title', '그리드 끄기')
+    expect(toggleButton).toHaveAttribute('aria-pressed', 'true')
+    expect(surface).not.toHaveClass('canvas-stage__surface--plain')
+  })
+
   it('지구본 언어 설정으로 전체 UI 문구가 바뀐다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {

@@ -3,6 +3,7 @@ import {
   AudioLines,
   BookOpenText,
   Eraser,
+  Grid3x3,
   Palette,
   PenLine,
   RotateCcw,
@@ -10,7 +11,7 @@ import {
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
@@ -97,6 +98,7 @@ function WorkspaceHeader() {
 
 function DrawingBoardSection() {
   const { t } = useTranslation()
+  const [isGridVisible, setIsGridVisible] = useState(true)
 
   return (
     <motion.section
@@ -111,31 +113,7 @@ function DrawingBoardSection() {
         <p>{t('workspace.panels.canvas.description')}</p>
       </div>
       <div className="canvas-stage">
-        <motion.div
-          className="canvas-stage__surface"
-          whileHover={{
-            rotateX: 6,
-            rotateY: -7,
-            scale: 1.01,
-          }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-        >
-          <div className="canvas-stage__badge">{t('workspace.canvas.ready')}</div>
-        </motion.div>
-        <motion.div
-          className="canvas-stage__floating canvas-stage__floating--one"
-          animate={{ y: [0, -8, 0], rotate: [0, 3, 0] }}
-          transition={{ duration: 4.2, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-        >
-          {t('workspace.canvas.floatingOne')}
-        </motion.div>
-        <motion.div
-          className="canvas-stage__floating canvas-stage__floating--two"
-          animate={{ y: [0, -10, 0], rotate: [0, -3, 0] }}
-          transition={{ duration: 4.8, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-        >
-          {t('workspace.canvas.floatingTwo')}
-        </motion.div>
+        <div className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`} />
       </div>
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>
         {drawingTools.map((tool) => {
@@ -148,6 +126,20 @@ function DrawingBoardSection() {
             </li>
           )
         })}
+        <li className="tool-chip--grid-toggle">
+          <button
+            type="button"
+            className="tool-chip__grid-toggle"
+            aria-pressed={isGridVisible}
+            aria-label={isGridVisible ? t('workspace.canvas.toggleGridOff') : t('workspace.canvas.toggleGridOn')}
+            title={isGridVisible ? t('workspace.canvas.toggleGridOff') : t('workspace.canvas.toggleGridOn')}
+            onClick={() => {
+              setIsGridVisible((previous) => !previous)
+            }}
+          >
+            <Grid3x3 size={14} strokeWidth={2.3} aria-hidden="true" />
+          </button>
+        </li>
       </ul>
     </motion.section>
   )

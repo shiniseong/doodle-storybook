@@ -35,6 +35,8 @@ export const i18nResources = {
           ready: '드로잉 준비 완료',
           floatingOne: '반짝 숲',
           floatingTwo: '달빛 바다',
+          toggleGridOff: '그리드 끄기',
+          toggleGridOn: '그리드 켜기',
         },
         tools: {
           brushSize: '펜 굵기',
@@ -126,6 +128,8 @@ export const i18nResources = {
           ready: 'Drawing stage ready',
           floatingOne: 'Twinkle Forest',
           floatingTwo: 'Moonlit Sea',
+          toggleGridOff: 'Hide Grid',
+          toggleGridOn: 'Show Grid',
         },
         tools: {
           brushSize: 'Brush size',
@@ -217,6 +221,8 @@ export const i18nResources = {
           ready: 'おえかき準備完了',
           floatingOne: 'きらきらの森',
           floatingTwo: '月あかりの海',
+          toggleGridOff: 'グリッドをオフ',
+          toggleGridOn: 'グリッドをオン',
         },
         tools: {
           brushSize: 'ペンの太さ',
@@ -308,6 +314,8 @@ export const i18nResources = {
           ready: '绘画已就绪',
           floatingOne: '星光森林',
           floatingTwo: '月夜海岸',
+          toggleGridOff: '关闭网格',
+          toggleGridOn: '开启网格',
         },
         tools: {
           brushSize: '画笔粗细',

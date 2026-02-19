@@ -226,24 +226,18 @@
 
 .canvas-stage {
   position: relative;
-  min-height: 15.2rem;
+  min-height: 18rem;
   border-radius: 1.1rem;
-  perspective: 1400px;
   overflow: hidden;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(circle at 15% 20%, rgba(255, 240, 204, 0.58), transparent 42%),
-    radial-gradient(circle at 80% 25%, rgba(173, 233, 255, 0.52), transparent 45%),
-    linear-gradient(140deg, #f7fcff, #eef7ff 60%, #f9f6ff);
 }
 
 .canvas-stage__surface {
-  width: min(92%, 34rem);
-  aspect-ratio: 16 / 10;
-  border-radius: 1rem;
+  width: 100%;
+  min-height: inherit;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: inherit;
   position: relative;
-  transform-style: preserve-3d;
   background:
     linear-gradient(0deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
     repeating-linear-gradient(
@@ -264,6 +258,18 @@
   box-shadow:
     0 1.4rem 2rem rgba(44, 116, 160, 0.2),
     inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.canvas-stage__surface--plain {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.canvas-stage__surface:hover {
+  border-color: rgba(123, 178, 208, 0.74);
+  box-shadow:
+    0 1rem 1.6rem rgba(44, 116, 160, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
 .canvas-stage__surface::after {
@@ -271,44 +277,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(128deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.52));
-}
-
-.canvas-stage__badge {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) translateZ(26px);
-  border-radius: 999px;
-  padding: 0.46rem 0.72rem;
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: #1d5375;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0.4rem 1rem rgba(39, 115, 158, 0.15);
-}
-
-.canvas-stage__floating {
-  position: absolute;
-  border-radius: 999px;
-  padding: 0.33rem 0.58rem;
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #1b4c6b;
-  border: 1px solid rgba(96, 159, 199, 0.42);
-  backdrop-filter: blur(0.3rem);
-}
-
-.canvas-stage__floating--one {
-  top: 14%;
-  left: 9%;
-  background: rgba(255, 231, 190, 0.76);
-}
-
-.canvas-stage__floating--two {
-  right: 10%;
-  bottom: 14%;
-  background: rgba(206, 241, 255, 0.8);
+  background: transparent;
 }
 
 .tool-chip-list {
@@ -331,6 +300,41 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+}
+
+.tool-chip--grid-toggle {
+  margin-left: auto;
+}
+
+.tool-chip__grid-toggle {
+  border-radius: 999px;
+  border: 1px solid rgba(104, 163, 198, 0.45);
+  background: rgba(241, 249, 255, 0.88);
+  color: #184867;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.tool-chip__grid-toggle[aria-pressed='false'] {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(125, 176, 208, 0.4);
+}
+
+.tool-chip__grid-toggle:hover {
+  border-color: rgba(84, 152, 191, 0.64);
+  background: rgba(229, 244, 255, 0.95);
+}
+
+.tool-chip__grid-toggle:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
 }
 
 .tool-chip__icon {
@@ -575,7 +579,7 @@
   }
 
   .canvas-stage {
-    min-height: 12.4rem;
+    min-height: 14rem;
   }
 
   .status-list {
@@ -624,7 +628,7 @@
   }
 
   .canvas-stage {
-    min-height: 21.5rem;
+    min-height: 25rem;
   }
 
   .bottom-banner {
@@ -642,6 +646,14 @@
   }
 
   .compose-form__footer button {
+    transition: none;
+  }
+
+  .canvas-stage__surface {
+    transition: none;
+  }
+
+  .tool-chip__grid-toggle {
     transition: none;
   }
 }
