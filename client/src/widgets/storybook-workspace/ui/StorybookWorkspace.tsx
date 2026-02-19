@@ -253,14 +253,7 @@ function RangeControlPanel({
 }
 
 function AmbientBackdrop() {
-  return (
-    <div className="ambient-layer" aria-hidden="true">
-      <span className="orb orb--sunrise" />
-      <span className="orb orb--mint" />
-      <span className="orb orb--sky" />
-      <span className="ambient-grid" />
-    </div>
-  )
+  return <div className="ambient-layer" aria-hidden="true" />
 }
 
 function WorkspaceHeader() {
