@@ -6,7 +6,7 @@ import { MAX_STORY_DESCRIPTION_LENGTH } from '@features/storybook-creation/domai
 const MAX_STORY_TITLE_LENGTH = 30
 
 export interface StorybookDescriptionFormSubmit {
-  title?: string
+  title: string
   description: string
 }
 
@@ -29,10 +29,11 @@ export function StorybookDescriptionForm({
 
   const trimmedTitle = title.trim()
   const trimmedDescription = description.trim()
-  const isEmpty = trimmedDescription.length === 0
+  const isTitleEmpty = trimmedTitle.length === 0
+  const isDescriptionEmpty = trimmedDescription.length === 0
   const isTitleTooLong = title.length > titleMaxLength
   const isTooLong = description.length > maxLength
-  const canSubmit = !isEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
+  const canSubmit = !isTitleEmpty && !isDescriptionEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -40,16 +41,10 @@ export function StorybookDescriptionForm({
       return
     }
 
-    await onSubmit(
-      trimmedTitle.length > 0
-        ? {
-            title: trimmedTitle,
-            description: trimmedDescription,
-          }
-        : {
-            description: trimmedDescription,
-          },
-    )
+    await onSubmit({
+      title: trimmedTitle,
+      description: trimmedDescription,
+    })
   }
 
   return (

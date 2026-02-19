@@ -19,7 +19,7 @@ describe('StorybookDescriptionForm', () => {
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
 
-  it('입력 시 카운터를 갱신하고 제출 가능 상태로 바뀐다', async () => {
+  it('제목과 설명을 모두 입력해야 제출 가능 상태로 바뀐다', async () => {
     const user = userEvent.setup()
 
     render(
@@ -31,24 +31,31 @@ describe('StorybookDescriptionForm', () => {
     )
 
     const textarea = screen.getByLabelText('그림 설명')
+    const titleInput = screen.getByLabelText('동화 제목')
     await user.type(textarea, '달님이 구름 위를 산책해요')
 
     expect(screen.getByText('14 / 500')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
+
+    await user.type(titleInput, '달님 산책')
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeEnabled()
   })
 
-  it('제출 시 trim 된 설명을 전달한다', async () => {
+  it('제출 시 trim 된 제목과 설명을 전달한다', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)
 
     render(<StorybookDescriptionForm onSubmit={onSubmit} />)
 
+    const titleInput = screen.getByLabelText('동화 제목')
     const textarea = screen.getByLabelText('그림 설명')
 
+    await user.type(titleInput, '  달빛 등불  ')
     await user.type(textarea, '  작은 고양이가 등불을 들고 있어요 ')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
+      title: '달빛 등불',
       description: '작은 고양이가 등불을 들고 있어요',
     })
   })

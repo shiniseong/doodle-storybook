@@ -71,11 +71,13 @@ describe('StorybookWorkspace', () => {
 
     expect(screen.getByText('2편 남음')).toBeInTheDocument()
 
+    await user.type(screen.getByLabelText('동화 제목'), '달빛 캠핑')
     await user.type(screen.getByLabelText('그림 설명'), '달빛 아래에서 캠핑을 해요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(execute).toHaveBeenCalledWith({
       userId: 'user-1',
+      title: '달빛 캠핑',
       description: '달빛 아래에서 캠핑을 해요',
       language: 'ko',
     })
@@ -99,6 +101,7 @@ describe('StorybookWorkspace', () => {
 
     render(<StorybookWorkspace dependencies={dependencies} />)
 
+    await user.type(screen.getByLabelText('동화 제목'), '숲속 친구')
     await user.type(screen.getByLabelText('그림 설명'), '숲속에서 친구를 만나요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
@@ -131,6 +134,7 @@ describe('StorybookWorkspace', () => {
 
     render(<StorybookWorkspace dependencies={dependencies} />)
 
+    await user.type(screen.getByLabelText('동화 제목'), '마법 지팡이')
     await user.type(screen.getByLabelText('그림 설명'), '숲속에서 마법 지팡이를 찾았어요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 

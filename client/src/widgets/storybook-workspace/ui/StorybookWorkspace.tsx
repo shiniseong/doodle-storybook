@@ -1454,7 +1454,7 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
 
           const result = await useCase.execute({
             userId: dependencies.currentUserId,
-            ...(title ? { title } : {}),
+            title,
             description,
             language: resolveStoryLanguage(i18n.language),
           })
