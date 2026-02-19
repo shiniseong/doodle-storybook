@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,44 @@ import {
   StorybookWorkspace,
   type StorybookWorkspaceDependencies,
 } from '@widgets/storybook-workspace/ui/StorybookWorkspace'
+
+function createMockCanvasContext(width: number, height: number): CanvasRenderingContext2D {
+  return {
+    beginPath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    clearRect: vi.fn(),
+    drawImage: vi.fn(),
+    getImageData: vi.fn(() => ({
+      data: new Uint8ClampedArray(width * height * 4),
+      width,
+      height,
+    })),
+    putImageData: vi.fn(),
+    strokeStyle: '#184867',
+    fillStyle: '#184867',
+    lineWidth: 3,
+    lineCap: 'round',
+    lineJoin: 'round',
+  } as unknown as CanvasRenderingContext2D
+}
+
+function createFixedDomRect(width: number, height: number): DOMRect {
+  return {
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: height,
+    width,
+    height,
+    toJSON: () => ({}),
+  } as DOMRect
+}
 
 describe('StorybookWorkspace', () => {
   beforeEach(() => {
@@ -148,6 +186,72 @@ describe('StorybookWorkspace', () => {
     render(<StorybookWorkspace dependencies={dependencies} />)
 
     expect(screen.getByRole('button', { name: '실행취소' })).toBeDisabled()
+  })
+
+  it('캔버스에 그리면 실행취소가 활성화되고 실행취소 시 다시 비활성화된다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-326' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const undoButton = screen.getByRole('button', { name: '실행취소' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    expect(undoButton).toBeDisabled()
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    expect(mockContext.getImageData).toHaveBeenCalled()
+    expect(mockContext.stroke).toHaveBeenCalled()
+    expect(undoButton).toBeEnabled()
+
+    await user.click(undoButton)
+
+    expect(mockContext.putImageData).toHaveBeenCalled()
+    expect(undoButton).toBeDisabled()
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
   })
 
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
