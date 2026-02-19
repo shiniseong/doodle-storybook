@@ -50,10 +50,20 @@ const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
 ]
 
 const MAX_CANVAS_UNDO_STEPS = 30
-const PEN_STROKE_COLOR = '#184867'
+const DEFAULT_PEN_COLOR = '#184867'
 const MIN_PEN_WIDTH = 1
 const MAX_PEN_WIDTH = 20
 const DEFAULT_PEN_WIDTH = 3
+const PEN_COLOR_OPTIONS = [
+  '#184867',
+  '#1d4ed8',
+  '#0f766e',
+  '#15803d',
+  '#ca8a04',
+  '#dc2626',
+  '#9333ea',
+  '#111827',
+] as const
 
 interface CanvasPoint {
   x: number
@@ -75,7 +85,7 @@ function clampPenWidth(width: number): number {
   return Math.min(MAX_PEN_WIDTH, Math.max(MIN_PEN_WIDTH, width))
 }
 
-function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number): CanvasRenderingContext2D | null {
+function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number, penColor: string): CanvasRenderingContext2D | null {
   const context = canvas.getContext('2d')
 
   if (!context) {
@@ -85,8 +95,8 @@ function configureCanvasContext(canvas: HTMLCanvasElement, penWidth: number): Ca
   const bounds = canvas.getBoundingClientRect()
   const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
 
-  context.strokeStyle = PEN_STROKE_COLOR
-  context.fillStyle = PEN_STROKE_COLOR
+  context.strokeStyle = penColor
+  context.fillStyle = penColor
   context.lineWidth = penWidth * scale
   context.lineCap = 'round'
   context.lineJoin = 'round'
@@ -145,8 +155,10 @@ function WorkspaceHeader() {
 function DrawingBoardSection() {
   const { t } = useTranslation()
   const [isGridVisible, setIsGridVisible] = useState(true)
+  const [penColor, setPenColor] = useState(DEFAULT_PEN_COLOR)
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
   const [isPenWidthPanelOpen, setIsPenWidthPanelOpen] = useState(false)
+  const [isPenColorPanelOpen, setIsPenColorPanelOpen] = useState(false)
   const [undoDepth, setUndoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -217,6 +229,16 @@ function DrawingBoardSection() {
   const increasePenWidth = useCallback(() => {
     updatePenWidth(penWidth + 1)
   }, [penWidth, updatePenWidth])
+
+  const togglePenWidthPanel = useCallback(() => {
+    setIsPenWidthPanelOpen((previous) => !previous)
+    setIsPenColorPanelOpen(false)
+  }, [])
+
+  const togglePenColorPanel = useCallback(() => {
+    setIsPenColorPanelOpen((previous) => !previous)
+    setIsPenWidthPanelOpen(false)
+  }, [])
 
   const handleCanvasKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLCanvasElement>) => {
@@ -310,7 +332,7 @@ function DrawingBoardSection() {
       const nextHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
 
       if (canvas.width === nextWidth && canvas.height === nextHeight) {
-        canvasContextRef.current = configureCanvasContext(canvas, penWidth)
+        canvasContextRef.current = configureCanvasContext(canvas, penWidth, penColor)
         return
       }
 
@@ -327,7 +349,7 @@ function DrawingBoardSection() {
       canvas.width = nextWidth
       canvas.height = nextHeight
 
-      const context = configureCanvasContext(canvas, penWidth)
+      const context = configureCanvasContext(canvas, penWidth, penColor)
       canvasContextRef.current = context
 
       if (context && previousBitmap.width > 0 && previousBitmap.height > 0) {
@@ -357,7 +379,7 @@ function DrawingBoardSection() {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [penWidth])
+  }, [penColor, penWidth])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -371,7 +393,9 @@ function DrawingBoardSection() {
     const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
 
     context.lineWidth = penWidth * scale
-  }, [penWidth])
+    context.strokeStyle = penColor
+    context.fillStyle = penColor
+  }, [penColor, penWidth])
 
   return (
     <motion.section
@@ -410,11 +434,27 @@ function DrawingBoardSection() {
                   className={`tool-chip tool-chip--button${isPenWidthPanelOpen ? ' tool-chip--active' : ''}`}
                   aria-expanded={isPenWidthPanelOpen}
                   aria-controls="pen-width-panel"
-                  onClick={() => {
-                    setIsPenWidthPanelOpen((previous) => !previous)
-                  }}
+                  onClick={togglePenWidthPanel}
                 >
                   <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
+
+          if (tool.key === 'brushColor') {
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className={`tool-chip tool-chip--button${isPenColorPanelOpen ? ' tool-chip--active' : ''}`}
+                  aria-expanded={isPenColorPanelOpen}
+                  aria-controls="pen-color-panel"
+                  onClick={togglePenColorPanel}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  <span className="tool-chip__color-preview" aria-hidden="true" style={{ backgroundColor: penColor }} />
                   {t(`workspace.tools.${tool.key}`)}
                 </button>
               </li>
@@ -497,6 +537,24 @@ function DrawingBoardSection() {
           <output className="pen-width-panel__value" htmlFor="pen-width-slider">
             {penWidth}
           </output>
+        </div>
+      ) : null}
+      {isPenColorPanelOpen ? (
+        <div className="pen-color-panel" id="pen-color-panel" role="group" aria-label={t('workspace.tools.brushColor')}>
+          {PEN_COLOR_OPTIONS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`pen-color-panel__swatch${penColor === color ? ' pen-color-panel__swatch--active' : ''}`}
+              aria-pressed={penColor === color}
+              aria-label={t('workspace.canvas.selectPenColor', { color })}
+              title={color}
+              style={{ backgroundColor: color }}
+              onClick={() => {
+                setPenColor(color)
+              }}
+            />
+          ))}
         </div>
       ) : null}
     </motion.section>

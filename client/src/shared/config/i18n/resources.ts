@@ -39,6 +39,7 @@ export const i18nResources = {
           toggleGridOn: '그리드 켜기',
           decreasePenWidth: '펜 굵기 줄이기',
           increasePenWidth: '펜 굵기 늘리기',
+          selectPenColor: '펜 색상 선택: {{color}}',
         },
         tools: {
           brushSize: '펜 굵기',
@@ -134,6 +135,7 @@ export const i18nResources = {
           toggleGridOn: 'Show Grid',
           decreasePenWidth: 'Decrease Pen Width',
           increasePenWidth: 'Increase Pen Width',
+          selectPenColor: 'Select pen color: {{color}}',
         },
         tools: {
           brushSize: 'Brush size',
@@ -229,6 +231,7 @@ export const i18nResources = {
           toggleGridOn: 'グリッドをオン',
           decreasePenWidth: 'ペンの太さを下げる',
           increasePenWidth: 'ペンの太さを上げる',
+          selectPenColor: 'ペン色を選択: {{color}}',
         },
         tools: {
           brushSize: 'ペンの太さ',
@@ -324,6 +327,7 @@ export const i18nResources = {
           toggleGridOn: '开启网格',
           decreasePenWidth: '减小画笔粗细',
           increasePenWidth: '增大画笔粗细',
+          selectPenColor: '选择画笔颜色：{{color}}',
         },
         tools: {
           brushSize: '画笔粗细',

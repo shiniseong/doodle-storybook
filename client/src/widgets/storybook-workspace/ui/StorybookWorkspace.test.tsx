@@ -210,6 +210,52 @@ describe('StorybookWorkspace', () => {
     expect(valueOutput).toHaveTextContent('11')
   })
 
+  it('펜 색상 팔레트에서 색상을 고르면 캔버스 펜 색상이 바뀐다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325-c' },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    const colorToolButton = screen.getByRole('button', { name: '펜 색상' })
+    expect(colorToolButton).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(colorToolButton)
+    expect(colorToolButton).toHaveAttribute('aria-expanded', 'true')
+
+    const nextColorButton = screen.getByRole('button', { name: /#dc2626/i })
+    expect(nextColorButton).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(nextColorButton)
+
+    await waitFor(() => {
+      expect(mockContext.strokeStyle).toBe('#dc2626')
+      expect(mockContext.fillStyle).toBe('#dc2626')
+    })
+
+    expect(nextColorButton).toHaveAttribute('aria-pressed', 'true')
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('드로잉 시작 전에는 실행취소 버튼이 비활성화된다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

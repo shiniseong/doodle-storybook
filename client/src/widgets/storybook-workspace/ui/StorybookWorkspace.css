@@ -476,6 +476,61 @@
   color: #256086;
 }
 
+.tool-chip__color-preview {
+  width: 0.76rem;
+  height: 0.76rem;
+  border-radius: 50%;
+  border: 1px solid rgba(96, 154, 191, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    0 1px 3px rgba(38, 98, 134, 0.18);
+  flex-shrink: 0;
+}
+
+.pen-color-panel {
+  border: 1px solid rgba(124, 176, 209, 0.46);
+  border-radius: 1rem;
+  background: rgba(247, 252, 255, 0.9);
+  padding: 0.58rem 0.68rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.46rem;
+  align-items: center;
+}
+
+.pen-color-panel__swatch {
+  appearance: none;
+  width: 1.62rem;
+  height: 1.62rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 241, 249, 0.9),
+    0 2px 6px rgba(38, 98, 134, 0.18);
+  padding: 0;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pen-color-panel__swatch:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px rgba(235, 243, 250, 0.94),
+    0 4px 9px rgba(38, 98, 134, 0.2);
+}
+
+.pen-color-panel__swatch--active {
+  border-color: rgba(67, 145, 193, 0.9);
+  box-shadow:
+    inset 0 0 0 1px rgba(235, 243, 250, 0.94),
+    0 0 0 2px rgba(103, 176, 220, 0.32);
+}
+
+.pen-color-panel__swatch:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
+}
+
 .compose-form {
   display: grid;
   gap: 0.62rem;
@@ -705,6 +760,10 @@
   }
 
   .pen-width-panel__step-button {
+    transition: none;
+  }
+
+  .pen-color-panel__swatch {
     transition: none;
   }
 }
