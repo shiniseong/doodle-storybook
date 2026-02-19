@@ -41,13 +41,6 @@ const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
   { key: 'stepFour', icon: BookOpenText },
 ]
 
-const previewPages: ReadonlyArray<{ key: 'cover' | 'pageOne' | 'pageTwo' | 'pageThree'; tone: string }> = [
-  { key: 'cover', tone: 'sunrise' },
-  { key: 'pageOne', tone: 'sky' },
-  { key: 'pageTwo', tone: 'mint' },
-  { key: 'pageThree', tone: 'violet' },
-]
-
 function AmbientBackdrop() {
   return (
     <div className="ambient-layer" aria-hidden="true">
@@ -242,57 +235,6 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
   )
 }
 
-function BookshelfSection() {
-  const { t } = useTranslation()
-
-  return (
-    <motion.section
-      className="panel panel--bookshelf"
-      aria-labelledby="bookshelf-panel-title"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: 'easeOut', delay: 0.1 }}
-    >
-      <div className="panel-header">
-        <h2 id="bookshelf-panel-title">{t('workspace.panels.preview.title')}</h2>
-        <p>{t('workspace.panels.preview.description')}</p>
-      </div>
-      <ul className="page-preview-list" aria-label={t('workspace.panels.preview.title')}>
-        {previewPages.map((page, index) => (
-          <motion.li
-            className="page-preview-card"
-            key={page.key}
-            whileHover={{
-              y: -4,
-              rotateX: 2,
-              rotateY: index % 2 === 0 ? 2 : -2,
-            }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-          >
-            <div className={`page-preview-card__image page-preview-card__image--${page.tone}`}>
-              <BookOpenText size={18} strokeWidth={2.1} aria-hidden="true" />
-            </div>
-            <div className="page-preview-card__text-group">
-              <h3>{t(`workspace.preview.${page.key}Title`)}</h3>
-              <p>{t(`workspace.preview.${page.key}Text`)}</p>
-              <div className="page-preview-card__actions">
-                <span>
-                  <AudioLines size={13} strokeWidth={2.3} aria-hidden="true" />
-                  {t('workspace.preview.listen')}
-                </span>
-                <span>
-                  <WandSparkles size={13} strokeWidth={2.3} aria-hidden="true" />
-                  {t('workspace.preview.open')}
-                </span>
-              </div>
-            </div>
-          </motion.li>
-        ))}
-      </ul>
-    </motion.section>
-  )
-}
-
 function SubscriptionFooter() {
   const { t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
@@ -329,7 +271,6 @@ export function StorybookWorkspace({ dependencies }: StorybookWorkspaceProps) {
       <main className="layout-grid">
         <DrawingBoardSection />
         <StoryComposerSection dependencies={dependencies} />
-        <BookshelfSection />
       </main>
       <SubscriptionFooter />
     </div>

@@ -134,6 +134,22 @@ describe('StorybookWorkspace', () => {
     expect(surface).not.toHaveClass('canvas-stage__surface--plain')
   })
 
+  it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-330' },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    expect(screen.queryByRole('heading', { name: '라이브 북 미리보기' })).not.toBeInTheDocument()
+  })
+
   it('지구본 언어 설정으로 전체 UI 문구가 바뀐다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {
