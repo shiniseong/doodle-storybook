@@ -43,15 +43,12 @@ describe('StorybookDescriptionForm', () => {
     render(<StorybookDescriptionForm onSubmit={onSubmit} />)
 
     const textarea = screen.getByLabelText('그림 설명')
-    const language = screen.getByLabelText('언어')
 
     await user.type(textarea, '  작은 고양이가 등불을 들고 있어요 ')
-    await user.selectOptions(language, 'ja')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       description: '작은 고양이가 등불을 들고 있어요',
-      language: 'ja',
     })
   })
 

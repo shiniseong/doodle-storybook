@@ -14,18 +14,18 @@ describe('storybookCreationStore', () => {
     const state = useStorybookCreationStore.getState()
 
     expect(state.createStatus).toBe('idle')
-    expect(state.feedbackMessage).toBeNull()
+    expect(state.feedback).toBeNull()
     expect(selectRemainingFreeStories(state)).toBe(2)
   })
 
   it('startSubmitting 은 진행 상태와 피드백 초기화를 수행한다', () => {
     const { markError, startSubmitting } = useStorybookCreationStore.getState()
-    markError('임시 오류')
+    markError('UNEXPECTED')
     startSubmitting()
 
     const nextState = useStorybookCreationStore.getState()
     expect(nextState.createStatus).toBe('submitting')
-    expect(nextState.feedbackMessage).toBeNull()
+    expect(nextState.feedback).toBeNull()
   })
 
   it('markSuccess 는 성공 상태, 메시지, quota 감소를 반영한다', () => {
@@ -34,9 +34,24 @@ describe('storybookCreationStore', () => {
 
     const nextState = useStorybookCreationStore.getState()
     expect(nextState.createStatus).toBe('success')
-    expect(nextState.feedbackMessage).toBe('동화 생성 요청 완료: storybook-100')
+    expect(nextState.feedback).toEqual({
+      kind: 'success',
+      storybookId: 'storybook-100',
+    })
     expect(nextState.lastCreatedStorybookId).toBe('storybook-100')
     expect(selectRemainingFreeStories(nextState)).toBe(1)
+  })
+
+  it('markError 는 에러 코드를 저장한다', () => {
+    const { markError } = useStorybookCreationStore.getState()
+    markError('QUOTA_EXCEEDED')
+
+    const nextState = useStorybookCreationStore.getState()
+    expect(nextState.createStatus).toBe('error')
+    expect(nextState.feedback).toEqual({
+      kind: 'error',
+      code: 'QUOTA_EXCEEDED',
+    })
   })
 
   it('quota 사용량은 전체 quota를 초과하지 않는다', () => {

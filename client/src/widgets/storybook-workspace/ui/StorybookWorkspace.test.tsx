@@ -39,7 +39,7 @@ describe('StorybookWorkspace', () => {
       description: '달빛 아래에서 캠핑을 해요',
       language: 'ko',
     })
-    expect(screen.getByText('동화 생성 요청 완료: storybook-101')).toBeInTheDocument()
+    expect(screen.getByText('동화 생성 요청 완료 · #storybook-101')).toBeInTheDocument()
     expect(screen.getByText('1편 남음')).toBeInTheDocument()
   })
 
@@ -69,6 +69,54 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
+    })
+  })
+
+  it('생성 실패 시 다국어 오류 피드백을 보여준다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: false as const,
+          error: {
+            code: 'QUOTA_EXCEEDED' as const,
+            message: '무료 생성 한도를 초과했습니다. 구독 후 이용해 주세요.',
+          },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.type(screen.getByLabelText('그림 설명'), '숲속에서 마법 지팡이를 찾았어요')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(
+      screen.getByText('무료 제작 횟수를 모두 사용했어요. 구독 후 계속 만들 수 있어요.'),
+    ).toBeInTheDocument()
+  })
+
+  it('지구본 언어 설정으로 전체 UI 문구가 바뀐다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-300' },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.selectOptions(screen.getByLabelText('언어'), 'en')
+
+    await waitFor(() => {
+      expect(screen.getByText('Free stories')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Create Storybook' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Start 1-day free trial' })).toBeInTheDocument()
     })
   })
 })

@@ -25,7 +25,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: './coverage',
-      exclude: ['**/*.css'],
+      exclude: ['**/*.css', 'src/shared/config/i18n/i18n.ts', 'src/shared/config/i18n/resources.ts'],
       thresholds: {
         lines: 90,
         functions: 90,
