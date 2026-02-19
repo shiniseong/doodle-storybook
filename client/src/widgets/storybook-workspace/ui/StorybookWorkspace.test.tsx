@@ -174,6 +174,38 @@ describe('StorybookWorkspace', () => {
     expect(surface).not.toHaveClass('canvas-stage__surface--plain')
   })
 
+  it('캔버스 전체 지우기 버튼을 누르면 현재 캔버스를 비운다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-321' },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.click(screen.getByRole('button', { name: '캔버스 전체 지우기' }))
+
+    expect(mockContext.clearRect).toHaveBeenCalledWith(0, 0, canvasWidth, canvasHeight)
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('펜 굵기 패널에서 슬라이더와 증감 버튼으로 굵기를 조절한다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {

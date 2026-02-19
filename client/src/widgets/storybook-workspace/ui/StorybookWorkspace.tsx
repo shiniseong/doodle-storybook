@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   AudioLines,
   BookOpenText,
+  BrushCleaning,
   Eraser,
   Grid3x3,
   Palette,
@@ -482,6 +483,21 @@ function DrawingBoardSection() {
     setUndoDepth(undoSnapshotsRef.current.length)
   }, [])
 
+  const handleClearCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+
+    if (!canvas || !context) {
+      return
+    }
+
+    pushUndoSnapshot()
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    isDrawingRef.current = false
+    strokeBaseSnapshotRef.current = null
+    strokePointsRef.current = []
+  }, [pushUndoSnapshot])
+
   const updatePenWidth = useCallback((nextWidth: number) => {
     setPenWidth(clampPenWidth(nextWidth))
   }, [])
@@ -903,6 +919,17 @@ function DrawingBoardSection() {
             </li>
           )
         })}
+        <li className="tool-chip--canvas-action-start">
+          <button
+            type="button"
+            className="tool-chip__grid-toggle"
+            aria-label={t('workspace.canvas.clearCanvas')}
+            title={t('workspace.canvas.clearCanvas')}
+            onClick={handleClearCanvas}
+          >
+            <BrushCleaning size={14} strokeWidth={2.3} aria-hidden="true" />
+          </button>
+        </li>
         <li className="tool-chip--grid-toggle">
           <button
             type="button"
