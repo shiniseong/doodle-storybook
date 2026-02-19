@@ -266,6 +266,33 @@
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
+.canvas-stage__surface--eraser {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect x='8.5' y='4.5' width='14' height='8' rx='2' fill='%23ffffff' stroke='%23184867' stroke-width='1.4'/%3E%3Cpath d='M6 14l8 9h10l4-4-8-9z' fill='%23184867'/%3E%3Cpath d='M17 23h7l3-3h-7z' fill='%2388b6d2'/%3E%3C/svg%3E")
+      5 27,
+    crosshair;
+}
+
+.canvas-stage__eraser-preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(17, 24, 39, 0.62);
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.66) inset,
+    0 3px 8px rgba(21, 67, 95, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.canvas-stage__eraser-preview--visible {
+  opacity: 1;
+}
+
 .canvas-stage__surface--plain {
   background: rgba(255, 255, 255, 0.82);
 }
@@ -429,7 +456,7 @@
 .range-control-panel__dot-icon--eraser-small,
 .range-control-panel__dot-icon--eraser-large {
   border: 0;
-  border-radius: 0;
+  border-radius: 50%;
   background: transparent;
 }
 
@@ -437,7 +464,7 @@
 .range-control-panel__dot-icon--eraser-large::after {
   background: #fff;
   border: 1px solid #101010;
-  border-radius: 0.08rem;
+  border-radius: 50%;
   box-sizing: border-box;
 }
 
@@ -775,6 +802,10 @@
   }
 
   .canvas-stage__surface {
+    transition: none;
+  }
+
+  .canvas-stage__eraser-preview {
     transition: none;
   }
 

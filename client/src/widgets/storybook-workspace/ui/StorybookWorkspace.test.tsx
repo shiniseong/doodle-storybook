@@ -445,6 +445,66 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
+  it('지우개 모드에서 커서 클래스와 지우개 크기 미리보기를 표시한다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325-e-preview' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const eraserToolButton = screen.getByRole('button', { name: '지우개' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    expect(canvas).not.toHaveClass('canvas-stage__surface--eraser')
+
+    await user.click(eraserToolButton)
+    expect(canvas).toHaveClass('canvas-stage__surface--eraser')
+
+    const preview = container.querySelector('.canvas-stage__eraser-preview') as HTMLElement | null
+    expect(preview).not.toBeNull()
+
+    if (!preview) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    fireEvent.pointerEnter(canvas, { pointerId: 1, clientX: 40, clientY: 52 })
+
+    expect(preview).toHaveClass('canvas-stage__eraser-preview--visible')
+    expect(preview).toHaveStyle({ width: '20px', height: '20px' })
+
+    fireEvent.pointerLeave(canvas, { pointerId: 1 })
+    expect(preview).not.toHaveClass('canvas-stage__eraser-preview--visible')
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('드로잉 시작 전에도 실행취소 버튼은 활성화된다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

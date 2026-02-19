@@ -85,6 +85,12 @@ interface CanvasPoint {
   y: number
 }
 
+interface EraserPreviewState {
+  x: number
+  y: number
+  visible: boolean
+}
+
 type DrawingToolMode = 'pen' | 'eraser'
 
 interface CanvasDrawingStyleOptions {
@@ -305,6 +311,11 @@ function DrawingBoardSection() {
   const [isPenColorPanelOpen, setIsPenColorPanelOpen] = useState(false)
   const [isPenOpacityPanelOpen, setIsPenOpacityPanelOpen] = useState(false)
   const [isEraserPanelOpen, setIsEraserPanelOpen] = useState(false)
+  const [eraserPreview, setEraserPreview] = useState<EraserPreviewState>({
+    x: 0,
+    y: 0,
+    visible: false,
+  })
   const [undoDepth, setUndoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -396,13 +407,56 @@ function DrawingBoardSection() {
   )
 
   const stopDrawing = useCallback((event?: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (
+      event &&
+      typeof event.currentTarget.hasPointerCapture === 'function' &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
 
     isDrawingRef.current = false
     strokeBaseSnapshotRef.current = null
     strokePointsRef.current = []
+  }, [])
+
+  const showEraserPreview = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (activeToolMode !== 'eraser') {
+        return
+      }
+
+      const canvas = canvasRef.current
+
+      if (!canvas) {
+        return
+      }
+
+      const bounds = canvas.getBoundingClientRect()
+
+      if (bounds.width === 0 || bounds.height === 0) {
+        return
+      }
+
+      const nextX = clampRangeValue(event.clientX - bounds.left, 0, bounds.width)
+      const nextY = clampRangeValue(event.clientY - bounds.top, 0, bounds.height)
+
+      setEraserPreview({ x: nextX, y: nextY, visible: true })
+    },
+    [activeToolMode],
+  )
+
+  const hideEraserPreview = useCallback(() => {
+    setEraserPreview((previous) => {
+      if (!previous.visible) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        visible: false,
+      }
+    })
   }, [])
 
   const handleUndo = useCallback(() => {
@@ -541,14 +595,17 @@ function DrawingBoardSection() {
       event.currentTarget.setPointerCapture(event.pointerId)
       event.currentTarget.focus({ preventScroll: true })
 
+      showEraserPreview(event)
       renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current, event.shiftKey)
 
       event.preventDefault()
     },
-    [pushUndoSnapshot, renderActiveStroke],
+    [pushUndoSnapshot, renderActiveStroke, showEraserPreview],
   )
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
+    showEraserPreview(event)
+
     if (!isDrawingRef.current) {
       return
     }
@@ -566,7 +623,30 @@ function DrawingBoardSection() {
 
     renderActiveStroke(context, strokeBaseSnapshot, strokePointsRef.current, event.shiftKey)
     event.preventDefault()
-  }, [renderActiveStroke])
+  }, [renderActiveStroke, showEraserPreview])
+
+  const handlePointerEnter = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      showEraserPreview(event)
+    },
+    [showEraserPreview],
+  )
+
+  const handlePointerLeave = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      stopDrawing(event)
+      hideEraserPreview()
+    },
+    [hideEraserPreview, stopDrawing],
+  )
+
+  const handlePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      stopDrawing(event)
+      hideEraserPreview()
+    },
+    [hideEraserPreview, stopDrawing],
+  )
 
   useEffect(() => {
     const stage = canvasStageRef.current
@@ -675,6 +755,16 @@ function DrawingBoardSection() {
     })
   }, [activeToolMode, eraserSize, penColor, penOpacity, penWidth])
 
+  useEffect(() => {
+    if (activeToolMode !== 'eraser') {
+      hideEraserPreview()
+    }
+  }, [activeToolMode, hideEraserPreview])
+
+  const canvasSurfaceClassName = `canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}${
+    activeToolMode === 'eraser' ? ' canvas-stage__surface--eraser' : ''
+  }`
+
   return (
     <motion.section
       className="panel panel--canvas"
@@ -690,15 +780,28 @@ function DrawingBoardSection() {
       <div ref={canvasStageRef} className="canvas-stage">
         <canvas
           ref={canvasRef}
-          className={`canvas-stage__surface${isGridVisible ? '' : ' canvas-stage__surface--plain'}`}
+          className={canvasSurfaceClassName}
           tabIndex={0}
           onPointerDown={handlePointerDown}
+          onPointerEnter={handlePointerEnter}
           onPointerMove={handlePointerMove}
           onPointerUp={stopDrawing}
-          onPointerLeave={stopDrawing}
-          onPointerCancel={stopDrawing}
+          onPointerLeave={handlePointerLeave}
+          onPointerCancel={handlePointerCancel}
           onKeyDown={handleCanvasKeyDown}
         />
+        {activeToolMode === 'eraser' ? (
+          <span
+            className={`canvas-stage__eraser-preview${eraserPreview.visible ? ' canvas-stage__eraser-preview--visible' : ''}`}
+            aria-hidden="true"
+            style={{
+              width: `${eraserSize}px`,
+              height: `${eraserSize}px`,
+              left: `${eraserPreview.x}px`,
+              top: `${eraserPreview.y}px`,
+            }}
+          />
+        ) : null}
       </div>
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>
         {drawingTools.map((tool) => {
