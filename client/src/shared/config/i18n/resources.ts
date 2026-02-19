@@ -41,6 +41,8 @@ export const i18nResources = {
           increasePenWidth: '펜 굵기 늘리기',
           decreaseOpacity: '투명도 줄이기',
           increaseOpacity: '투명도 늘리기',
+          decreaseEraserSize: '지우개 크기 줄이기',
+          increaseEraserSize: '지우개 크기 늘리기',
           selectPenColor: '펜 색상 선택: {{color}}',
         },
         tools: {
@@ -139,6 +141,8 @@ export const i18nResources = {
           increasePenWidth: 'Increase Pen Width',
           decreaseOpacity: 'Decrease Opacity',
           increaseOpacity: 'Increase Opacity',
+          decreaseEraserSize: 'Decrease Eraser Size',
+          increaseEraserSize: 'Increase Eraser Size',
           selectPenColor: 'Select pen color: {{color}}',
         },
         tools: {
@@ -237,6 +241,8 @@ export const i18nResources = {
           increasePenWidth: 'ペンの太さを上げる',
           decreaseOpacity: '透明度を下げる',
           increaseOpacity: '透明度を上げる',
+          decreaseEraserSize: 'けしごむサイズを下げる',
+          increaseEraserSize: 'けしごむサイズを上げる',
           selectPenColor: 'ペン色を選択: {{color}}',
         },
         tools: {
@@ -335,6 +341,8 @@ export const i18nResources = {
           increasePenWidth: '增大画笔粗细',
           decreaseOpacity: '降低透明度',
           increaseOpacity: '提高透明度',
+          decreaseEraserSize: '减小橡皮擦尺寸',
+          increaseEraserSize: '增大橡皮擦尺寸',
           selectPenColor: '选择画笔颜色：{{color}}',
         },
         tools: {

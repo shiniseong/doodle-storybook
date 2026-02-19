@@ -57,6 +57,10 @@ const DEFAULT_PEN_WIDTH = 3
 const MIN_PEN_OPACITY = 5
 const MAX_PEN_OPACITY = 100
 const DEFAULT_PEN_OPACITY = 100
+const MIN_ERASER_SIZE = 4
+const MAX_ERASER_SIZE = 64
+const DEFAULT_ERASER_SIZE = 20
+const ERASER_STROKE_COLOR = '#111111'
 const PEN_COLOR_OPTIONS = [
   '#184867',
   '#1d4ed8',
@@ -79,6 +83,16 @@ const PEN_COLOR_OPTIONS = [
 interface CanvasPoint {
   x: number
   y: number
+}
+
+type DrawingToolMode = 'pen' | 'eraser'
+
+interface CanvasDrawingStyleOptions {
+  drawingMode: DrawingToolMode
+  penWidth: number
+  penColor: string
+  penOpacity: number
+  eraserSize: number
 }
 
 function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number): CanvasPoint {
@@ -104,31 +118,48 @@ function clampPenOpacity(opacity: number): number {
   return clampRangeValue(opacity, MIN_PEN_OPACITY, MAX_PEN_OPACITY)
 }
 
+function clampEraserSize(size: number): number {
+  return clampRangeValue(size, MIN_ERASER_SIZE, MAX_ERASER_SIZE)
+}
+
 function resolveCanvasOpacity(opacity: number): number {
   return clampPenOpacity(opacity) / 100
 }
 
-function configureCanvasContext(
+function applyCanvasDrawingStyle(
+  context: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
-  penWidth: number,
-  penColor: string,
-  penOpacity: number,
-): CanvasRenderingContext2D | null {
+  { drawingMode, penWidth, penColor, penOpacity, eraserSize }: CanvasDrawingStyleOptions,
+): void {
+  const bounds = canvas.getBoundingClientRect()
+  const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
+
+  if (drawingMode === 'eraser') {
+    context.globalCompositeOperation = 'destination-out'
+    context.globalAlpha = 1
+    context.lineWidth = clampEraserSize(eraserSize) * scale
+    context.strokeStyle = ERASER_STROKE_COLOR
+    context.fillStyle = ERASER_STROKE_COLOR
+    return
+  }
+
+  context.globalCompositeOperation = 'source-over'
+  context.globalAlpha = resolveCanvasOpacity(penOpacity)
+  context.lineWidth = clampPenWidth(penWidth) * scale
+  context.strokeStyle = penColor
+  context.fillStyle = penColor
+}
+
+function configureCanvasContext(canvas: HTMLCanvasElement, styleOptions: CanvasDrawingStyleOptions): CanvasRenderingContext2D | null {
   const context = canvas.getContext('2d')
 
   if (!context) {
     return null
   }
 
-  const bounds = canvas.getBoundingClientRect()
-  const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
-
-  context.strokeStyle = penColor
-  context.fillStyle = penColor
-  context.lineWidth = penWidth * scale
-  context.globalAlpha = resolveCanvasOpacity(penOpacity)
   context.lineCap = 'round'
   context.lineJoin = 'round'
+  applyCanvasDrawingStyle(context, canvas, styleOptions)
 
   return context
 }
@@ -264,13 +295,16 @@ function WorkspaceHeader() {
 
 function DrawingBoardSection() {
   const { t } = useTranslation()
+  const [activeToolMode, setActiveToolMode] = useState<DrawingToolMode>('pen')
   const [isGridVisible, setIsGridVisible] = useState(true)
   const [penColor, setPenColor] = useState(DEFAULT_PEN_COLOR)
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
   const [penOpacity, setPenOpacity] = useState(DEFAULT_PEN_OPACITY)
+  const [eraserSize, setEraserSize] = useState(DEFAULT_ERASER_SIZE)
   const [isPenWidthPanelOpen, setIsPenWidthPanelOpen] = useState(false)
   const [isPenColorPanelOpen, setIsPenColorPanelOpen] = useState(false)
   const [isPenOpacityPanelOpen, setIsPenOpacityPanelOpen] = useState(false)
+  const [isEraserPanelOpen, setIsEraserPanelOpen] = useState(false)
   const [undoDepth, setUndoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -318,6 +352,13 @@ function DrawingBoardSection() {
       }
 
       context.putImageData(baseSnapshot, 0, 0)
+      applyCanvasDrawingStyle(context, canvas, {
+        drawingMode: activeToolMode,
+        penWidth,
+        penColor,
+        penOpacity,
+        eraserSize,
+      })
 
       if (points.length === 0) {
         return
@@ -351,7 +392,7 @@ function DrawingBoardSection() {
 
       context.stroke()
     },
-    [],
+    [activeToolMode, eraserSize, penColor, penOpacity, penWidth],
   )
 
   const stopDrawing = useCallback((event?: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -395,6 +436,10 @@ function DrawingBoardSection() {
     setPenOpacity(clampPenOpacity(nextOpacity))
   }, [])
 
+  const updateEraserSize = useCallback((nextSize: number) => {
+    setEraserSize(clampEraserSize(nextSize))
+  }, [])
+
   const decreasePenWidth = useCallback(() => {
     updatePenWidth(penWidth - 1)
   }, [penWidth, updatePenWidth])
@@ -411,22 +456,47 @@ function DrawingBoardSection() {
     updatePenOpacity(penOpacity + 1)
   }, [penOpacity, updatePenOpacity])
 
+  const decreaseEraserSize = useCallback(() => {
+    updateEraserSize(eraserSize - 1)
+  }, [eraserSize, updateEraserSize])
+
+  const increaseEraserSize = useCallback(() => {
+    updateEraserSize(eraserSize + 1)
+  }, [eraserSize, updateEraserSize])
+
   const togglePenWidthPanel = useCallback(() => {
     setIsPenWidthPanelOpen((previous) => !previous)
     setIsPenColorPanelOpen(false)
     setIsPenOpacityPanelOpen(false)
+    setIsEraserPanelOpen(false)
+    setActiveToolMode('pen')
   }, [])
 
   const togglePenColorPanel = useCallback(() => {
     setIsPenColorPanelOpen((previous) => !previous)
     setIsPenWidthPanelOpen(false)
     setIsPenOpacityPanelOpen(false)
+    setIsEraserPanelOpen(false)
+    setActiveToolMode('pen')
   }, [])
 
   const togglePenOpacityPanel = useCallback(() => {
     setIsPenOpacityPanelOpen((previous) => !previous)
     setIsPenWidthPanelOpen(false)
     setIsPenColorPanelOpen(false)
+    setIsEraserPanelOpen(false)
+    setActiveToolMode('pen')
+  }, [])
+
+  const toggleEraserPanel = useCallback(() => {
+    setIsPenWidthPanelOpen(false)
+    setIsPenColorPanelOpen(false)
+    setIsPenOpacityPanelOpen(false)
+    setIsEraserPanelOpen((previous) => {
+      const next = !previous
+      setActiveToolMode(next ? 'eraser' : 'pen')
+      return next
+    })
   }, [])
 
   const handleCanvasKeyDown = useCallback(
@@ -518,7 +588,13 @@ function DrawingBoardSection() {
       const nextHeight = Math.max(1, Math.round(bounds.height * pixelRatio))
 
       if (canvas.width === nextWidth && canvas.height === nextHeight) {
-        canvasContextRef.current = configureCanvasContext(canvas, penWidth, penColor, penOpacity)
+        canvasContextRef.current = configureCanvasContext(canvas, {
+          drawingMode: activeToolMode,
+          penWidth,
+          penColor,
+          penOpacity,
+          eraserSize,
+        })
         return
       }
 
@@ -535,14 +611,23 @@ function DrawingBoardSection() {
       canvas.width = nextWidth
       canvas.height = nextHeight
 
-      const context = configureCanvasContext(canvas, penWidth, penColor, penOpacity)
+      const context = configureCanvasContext(canvas, {
+        drawingMode: activeToolMode,
+        penWidth,
+        penColor,
+        penOpacity,
+        eraserSize,
+      })
       canvasContextRef.current = context
 
       if (context && previousBitmap.width > 0 && previousBitmap.height > 0) {
         const nextGlobalAlpha = context.globalAlpha
+        const nextCompositeOperation = context.globalCompositeOperation
+        context.globalCompositeOperation = 'source-over'
         context.globalAlpha = 1
         context.drawImage(previousBitmap, 0, 0, previousBitmap.width, previousBitmap.height, 0, 0, canvas.width, canvas.height)
         context.globalAlpha = nextGlobalAlpha
+        context.globalCompositeOperation = nextCompositeOperation
       }
 
       undoSnapshotsRef.current = []
@@ -571,7 +656,7 @@ function DrawingBoardSection() {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [penColor, penOpacity, penWidth])
+  }, [activeToolMode, eraserSize, penColor, penOpacity, penWidth])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -581,14 +666,14 @@ function DrawingBoardSection() {
       return
     }
 
-    const bounds = canvas.getBoundingClientRect()
-    const scale = bounds.width === 0 ? 1 : canvas.width / bounds.width
-
-    context.lineWidth = penWidth * scale
-    context.strokeStyle = penColor
-    context.fillStyle = penColor
-    context.globalAlpha = resolveCanvasOpacity(penOpacity)
-  }, [penColor, penOpacity, penWidth])
+    applyCanvasDrawingStyle(context, canvas, {
+      drawingMode: activeToolMode,
+      penWidth,
+      penColor,
+      penOpacity,
+      eraserSize,
+    })
+  }, [activeToolMode, eraserSize, penColor, penOpacity, penWidth])
 
   return (
     <motion.section
@@ -663,6 +748,26 @@ function DrawingBoardSection() {
                   aria-expanded={isPenOpacityPanelOpen}
                   aria-controls="pen-opacity-panel"
                   onClick={togglePenOpacityPanel}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
+
+          if (tool.key === 'eraser') {
+            const isEraserActive = activeToolMode === 'eraser'
+
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className={`tool-chip tool-chip--button${isEraserActive ? ' tool-chip--active' : ''}`}
+                  aria-pressed={isEraserActive}
+                  aria-expanded={isEraserPanelOpen}
+                  aria-controls="eraser-size-panel"
+                  onClick={toggleEraserPanel}
                 >
                   <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
                   {t(`workspace.tools.${tool.key}`)}
@@ -748,6 +853,25 @@ function DrawingBoardSection() {
           decreaseIconClassName="range-control-panel__dot-icon--opacity-low"
           increaseIconClassName="range-control-panel__dot-icon--opacity-high"
           formatValue={(value) => `${value}%`}
+        />
+      ) : null}
+      {isEraserPanelOpen ? (
+        <RangeControlPanel
+          id="eraser-size-panel"
+          panelClassName="eraser-size-panel"
+          ariaLabel={t('workspace.tools.eraser')}
+          sliderId="eraser-size-slider"
+          sliderAriaLabel={t('workspace.tools.eraser')}
+          value={eraserSize}
+          min={MIN_ERASER_SIZE}
+          max={MAX_ERASER_SIZE}
+          decreaseAriaLabel={t('workspace.canvas.decreaseEraserSize')}
+          increaseAriaLabel={t('workspace.canvas.increaseEraserSize')}
+          onDecrease={decreaseEraserSize}
+          onIncrease={increaseEraserSize}
+          onChange={updateEraserSize}
+          decreaseIconClassName="range-control-panel__dot-icon--eraser-small"
+          increaseIconClassName="range-control-panel__dot-icon--eraser-large"
         />
       ) : null}
       {isPenColorPanelOpen ? (

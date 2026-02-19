@@ -27,6 +27,7 @@ function createMockCanvasContext(width: number, height: number): CanvasRendering
     strokeStyle: '#184867',
     fillStyle: '#184867',
     globalAlpha: 1,
+    globalCompositeOperation: 'source-over',
     lineWidth: 3,
     lineCap: 'round',
     lineJoin: 'round',
@@ -319,6 +320,126 @@ describe('StorybookWorkspace', () => {
     expect(slider).toHaveValue('35')
     expect(valueOutput).toHaveTextContent('35%')
     expect(mockContext.globalAlpha).toBeCloseTo(0.35)
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('지우개 패널에서 슬라이더와 증감 버튼으로 크기를 조절한다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325-e-size' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const eraserToolButton = screen.getByRole('button', { name: '지우개' })
+
+    expect(eraserToolButton).toHaveAttribute('aria-expanded', 'false')
+    expect(eraserToolButton).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(eraserToolButton)
+    expect(eraserToolButton).toHaveAttribute('aria-expanded', 'true')
+    expect(eraserToolButton).toHaveAttribute('aria-pressed', 'true')
+
+    const slider = screen.getByRole('slider', { name: '지우개' })
+    const decreaseButton = screen.getByRole('button', { name: '지우개 크기 줄이기' })
+    const increaseButton = screen.getByRole('button', { name: '지우개 크기 늘리기' })
+    const valueOutput = container.querySelector('.eraser-size-panel .range-control-panel__value')
+
+    expect(slider).toHaveValue('20')
+    expect(valueOutput).toHaveTextContent('20')
+
+    await user.click(increaseButton)
+    expect(slider).toHaveValue('21')
+    expect(valueOutput).toHaveTextContent('21')
+
+    await user.click(decreaseButton)
+    expect(slider).toHaveValue('20')
+    expect(valueOutput).toHaveTextContent('20')
+
+    fireEvent.change(slider, { target: { value: '31' } })
+    expect(slider).toHaveValue('31')
+    expect(valueOutput).toHaveTextContent('31')
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('지우개 모드에서 그리면 destination-out 합성으로 지워진다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-325-e-mode' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const eraserToolButton = screen.getByRole('button', { name: '지우개' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    await user.click(eraserToolButton)
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    expect(mockContext.globalCompositeOperation).toBe('destination-out')
+    expect(mockContext.globalAlpha).toBe(1)
+    expect(mockContext.lineWidth).toBeGreaterThan(3)
+    expect(mockContext.stroke).toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '펜 굵기' }))
+    expect(mockContext.globalCompositeOperation).toBe('source-over')
 
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()

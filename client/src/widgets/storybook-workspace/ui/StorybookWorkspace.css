@@ -426,6 +426,31 @@
   opacity: 1;
 }
 
+.range-control-panel__dot-icon--eraser-small,
+.range-control-panel__dot-icon--eraser-large {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.range-control-panel__dot-icon--eraser-small::after,
+.range-control-panel__dot-icon--eraser-large::after {
+  background: #fff;
+  border: 1px solid #101010;
+  border-radius: 0.08rem;
+  box-sizing: border-box;
+}
+
+.range-control-panel__dot-icon--eraser-small::after {
+  width: 0.42rem;
+  height: 0.42rem;
+}
+
+.range-control-panel__dot-icon--eraser-large::after {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .range-control-panel__slider {
   grid-area: slider;
   width: 100%;
