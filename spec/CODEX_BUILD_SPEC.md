@@ -12,6 +12,14 @@
 - 스토리지: Cloudflare R2
 - 결제: Polar
 - AI: OpenAI API (텍스트 생성 + 이미지 생성 + TTS)
+- 프론트 테스트/품질:
+  - 모든 테스트 도구는 최신 안정(stable) 버전 사용
+  - 단위/통합/컴포넌트 테스트: Vitest + Testing Library
+  - 사용자 이벤트 테스트: `@testing-library/user-event`
+  - DOM matcher: `@testing-library/jest-dom`
+  - 브라우저 환경 시뮬레이션: `jsdom`
+  - API mocking: `MSW`
+  - 커버리지: `@vitest/coverage-v8`
 
 ## 3) MVP 범위 (필수 구현)
 
@@ -191,16 +199,18 @@
 6. 내가 만든 동화 목록/재열람 UX 강화
 
 ## 12) Codex 작업 순서 (권장)
-1. DB 스키마 + RLS + 최소 시드 작성
-2. Supabase Auth 연동 (회원가입/로그인/세션)
-3. 그림판 컴포넌트 구현
-4. 동화 생성 API(서버) + OpenAI 연동
-5. R2 업로드/조회 연결
-6. 페이지 플립 뷰어 + TTS 재생
-7. 무료쿼터/체험/구독 상태 제어
-8. 목록/상세 조회 화면
-9. i18n + 반응형 마감
-10. E2E 테스트(가입 -> 생성 -> 읽기 -> 결제전환)
+1. 프론트 TDD/FSD/Clean Architecture 부트스트랩 (테스트 러너, alias, 경계 규칙)
+2. DB 스키마 + RLS + 최소 시드 작성
+3. Supabase Auth 연동 (회원가입/로그인/세션)
+4. 그림판 컴포넌트 구현
+5. 동화 생성 API(서버) + OpenAI 연동
+6. R2 업로드/조회 연결
+7. 페이지 플립 뷰어 + TTS 재생
+8. 무료쿼터/체험/구독 상태 제어
+9. 목록/상세 조회 화면
+10. i18n + 반응형 마감
+11. E2E 테스트(가입 -> 생성 -> 읽기 -> 결제전환)
+12. 최종 품질 게이트(`lint`, `test:coverage`, `build`) 통과
 
 ## 13) 완료 기준 (Definition of Done)
 - 회원가입 사용자만 동화 생성 가능
@@ -210,4 +220,62 @@
 - 책장 넘김 UI와 TTS 재생 동작
 - 4개 언어 UI/스토리 생성 흐름 검증
 - 모바일/태블릿/PC에서 주요 기능 깨짐 없이 동작
+- 프론트 변경 시 `lint`, `test:coverage`, `build` 모두 통과
+- TDD 사이클(RED -> GREEN -> REFACTOR) 증빙 가능한 테스트가 함께 존재
 
+## 14) 프론트엔드 아키텍처 원칙 (필수)
+
+### 14.1 FSD 레이어 구조
+- `app`: 앱 초기화, 전역 Provider, 의존성 주입(Composition Root)
+- `pages`: 라우트 단위 화면 조합
+- `widgets`: 화면 섹션 단위 조합
+- `features`: 유즈케이스 중심 기능(도메인/애플리케이션/UI/인프라)
+- `entities`: 핵심 엔티티 타입/모델
+- `shared`: 공통 유틸/설정/UI primitive
+
+### 14.2 Clean Architecture 적용 규칙
+- 의존 방향은 항상 안쪽 정책으로 수렴하며, 코드 흐름은 `UI -> application(port) -> domain`을 따른다.
+- 인프라 구현체(API, Storage, SDK)는 `port interface`를 구현하고 `app`에서 주입한다.
+- `domain`은 React/브라우저/네트워크 의존성을 가지지 않는다.
+- `application(use-case)`은 프레임워크 세부 구현을 모른다.
+
+### 14.3 의존성 경계 규칙
+- 하위 레이어가 상위 레이어를 import 하면 안 된다.
+- 상대경로 난립을 금지하고 path alias 기반 import를 사용한다.
+- 레이어 경계 위반은 lint 단계에서 실패 처리한다.
+
+## 15) 프론트 테스트 전략 (산업 표준)
+
+### 15.1 테스트 피라미드
+- Domain 테스트: 순수 함수/비즈니스 규칙 검증
+- Use-case 테스트: port mock 기반 오케스트레이션 검증
+- UI 테스트: 사용자 관점 상호작용/접근성 기반 검증
+- 화면 통합 테스트: widget + feature 연결 동작 검증
+- E2E 테스트: 핵심 사용자 시나리오(가입 -> 생성 -> 열람 -> 결제)
+
+### 15.2 테스트 작성 원칙
+- 구현 디테일보다는 사용자 행동/결과 중심으로 검증한다.
+- `screen.getByRole`, `getByLabelText` 우선 사용(접근성 친화).
+- 네트워크는 실제 호출 대신 MSW로 모킹한다.
+- 스냅샷 테스트 남용 금지(필요 최소 범위에서만 사용).
+- flaky 테스트 금지: 시간/랜덤/외부상태 의존성 제거.
+
+### 15.3 커버리지 기준
+- 라인/구문/함수: 최소 90%
+- 브랜치: 최소 85%
+- 기준 미달 시 CI 실패
+
+## 16) TDD 실행 프로토콜 (필수)
+1. RED: 먼저 실패하는 테스트를 작성
+2. GREEN: 최소 코드로 테스트 통과
+3. REFACTOR: 중복 제거/구조 개선 후 테스트 재통과 확인
+
+- 모든 코드 수정은 최소 1개 이상의 테스트 변경(신규/보강)을 동반한다.
+- 로컬 개발 중 기본 루틴:
+  - `npm run test:watch`
+  - 기능 완료 시 `npm run verify`
+- PR 머지 조건:
+  - `npm run lint` 통과
+  - `npm run test:coverage` 통과
+  - `npm run build` 통과
+  - 핵심 시나리오 E2E 통과
