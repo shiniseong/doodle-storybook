@@ -3,28 +3,36 @@ import { useTranslation } from 'react-i18next'
 
 import { MAX_STORY_DESCRIPTION_LENGTH } from '@features/storybook-creation/domain/storybook-draft'
 
+const MAX_STORY_TITLE_LENGTH = 30
+
 export interface StorybookDescriptionFormSubmit {
+  title?: string
   description: string
 }
 
 interface StorybookDescriptionFormProps {
+  titleMaxLength?: number
   maxLength?: number
   isSubmitting?: boolean
   onSubmit: (payload: StorybookDescriptionFormSubmit) => void | Promise<void>
 }
 
 export function StorybookDescriptionForm({
+  titleMaxLength = MAX_STORY_TITLE_LENGTH,
   maxLength = MAX_STORY_DESCRIPTION_LENGTH,
   isSubmitting = false,
   onSubmit,
 }: StorybookDescriptionFormProps) {
   const { t } = useTranslation()
+  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
 
+  const trimmedTitle = title.trim()
   const trimmedDescription = description.trim()
   const isEmpty = trimmedDescription.length === 0
+  const isTitleTooLong = title.length > titleMaxLength
   const isTooLong = description.length > maxLength
-  const canSubmit = !isEmpty && !isTooLong && !isSubmitting
+  const canSubmit = !isEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -32,13 +40,32 @@ export function StorybookDescriptionForm({
       return
     }
 
-    await onSubmit({
-      description: trimmedDescription,
-    })
+    await onSubmit(
+      trimmedTitle.length > 0
+        ? {
+            title: trimmedTitle,
+            description: trimmedDescription,
+          }
+        : {
+            description: trimmedDescription,
+          },
+    )
   }
 
   return (
     <form className="compose-form" onSubmit={handleSubmit} noValidate>
+      <label className="compose-form__label" htmlFor="storybook-title">
+        {t('form.titleLabel')}
+      </label>
+      <input
+        id="storybook-title"
+        type="text"
+        maxLength={titleMaxLength}
+        value={title}
+        onChange={(event) => {
+          setTitle(event.target.value)
+        }}
+      />
       <label className="compose-form__label" htmlFor="storybook-description">
         {t('form.descriptionLabel')}
       </label>

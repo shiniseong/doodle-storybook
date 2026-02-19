@@ -4,6 +4,7 @@ import { err, ok, type Result } from '@shared/lib/result'
 
 export interface CreateStorybookRequest {
   userId: string
+  title?: string
   description: string
   language: StoryLanguage
 }
@@ -19,6 +20,7 @@ export interface StorybookQuotaPort {
 export interface StorybookCommandPort {
   createStorybook(draft: {
     userId: string
+    title?: string
     description: string
     language: StoryLanguage
   }): Promise<CreateStorybookResponse>
@@ -50,6 +52,7 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
     request: CreateStorybookRequest,
   ): Promise<Result<CreateStorybookResponse, CreateStorybookError>> {
     const draftResult = createStorybookDraft(request.description, request.language)
+    const normalizedTitle = request.title?.trim()
     if (!draftResult.ok) {
       return err(draftResult.error)
     }
@@ -65,6 +68,7 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
     try {
       const created = await this.commandPort.createStorybook({
         userId: request.userId,
+        ...(normalizedTitle ? { title: normalizedTitle } : {}),
         description: draftResult.value.description,
         language: draftResult.value.language,
       })

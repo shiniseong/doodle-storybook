@@ -1072,11 +1072,12 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
       </div>
       <StorybookDescriptionForm
         isSubmitting={createStatus === 'submitting'}
-        onSubmit={async ({ description }) => {
+        onSubmit={async ({ title, description }) => {
           startSubmitting()
 
           const result = await useCase.execute({
             userId: dependencies.currentUserId,
+            ...(title ? { title } : {}),
             description,
             language: resolveStoryLanguage(i18n.language),
           })

@@ -93,6 +93,7 @@ export const i18nResources = {
         },
       },
       form: {
+        titleLabel: '동화 제목',
         descriptionLabel: '그림 설명',
         counter: '{{current}} / {{max}}',
         submit: '동화 생성하기',
@@ -194,6 +195,7 @@ export const i18nResources = {
         },
       },
       form: {
+        titleLabel: 'Story title',
         descriptionLabel: 'Scene description',
         counter: '{{current}} / {{max}}',
         submit: 'Create Storybook',
@@ -295,6 +297,7 @@ export const i18nResources = {
         },
       },
       form: {
+        titleLabel: '絵本タイトル',
         descriptionLabel: '絵の説明',
         counter: '{{current}} / {{max}}',
         submit: '絵本をつくる',
@@ -396,6 +399,7 @@ export const i18nResources = {
         },
       },
       form: {
+        titleLabel: '绘本标题',
         descriptionLabel: '画面说明',
         counter: '{{current}} / {{max}}',
         submit: '生成绘本',

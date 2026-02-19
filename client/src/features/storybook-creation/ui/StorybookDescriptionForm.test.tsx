@@ -14,6 +14,7 @@ describe('StorybookDescriptionForm', () => {
       />,
     )
 
+    expect(screen.getByLabelText('동화 제목')).toBeInTheDocument()
     expect(screen.getByText('0 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
@@ -36,7 +37,7 @@ describe('StorybookDescriptionForm', () => {
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeEnabled()
   })
 
-  it('제출 시 trim 된 설명과 선택 언어를 전달한다', async () => {
+  it('제출 시 trim 된 설명을 전달한다', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)
 
@@ -49,6 +50,27 @@ describe('StorybookDescriptionForm', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       description: '작은 고양이가 등불을 들고 있어요',
+    })
+  })
+
+  it('제목은 최대 30자로 제한되고 함께 제출된다', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn(async () => undefined)
+    const overLimitTitle = '12345678901234567890123456789012'
+
+    render(<StorybookDescriptionForm onSubmit={onSubmit} />)
+
+    const titleInput = screen.getByLabelText('동화 제목')
+    const textarea = screen.getByLabelText('그림 설명')
+
+    await user.type(titleInput, overLimitTitle)
+    await user.type(textarea, '달빛 정원에서 고양이가 춤춰요')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(titleInput).toHaveValue('123456789012345678901234567890')
+    expect(onSubmit).toHaveBeenCalledWith({
+      title: '123456789012345678901234567890',
+      description: '달빛 정원에서 고양이가 춤춰요',
     })
   })
 

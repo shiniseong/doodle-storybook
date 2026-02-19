@@ -20,6 +20,7 @@ export class InMemoryStorybookQuotaPort implements StorybookQuotaPort {
 export class InMemoryStorybookCommandPort implements StorybookCommandPort {
   async createStorybook(_draft: {
     userId: string
+    title?: string
     description: string
     language: StoryLanguage
   }): Promise<{ storybookId: string }> {

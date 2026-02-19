@@ -18,6 +18,7 @@ describe('CreateStorybookUseCase', () => {
     const useCase = new CreateStorybookUseCase(quotaPort, commandPort)
     const result = await useCase.execute({
       userId: 'user-1',
+      title: '  달빛 숲 모험  ',
       description: '  토끼가 달빛 숲에서 길을 찾아요 ',
       language: 'ko',
     })
@@ -29,6 +30,7 @@ describe('CreateStorybookUseCase', () => {
     expect(quotaPort.canCreateStorybook).toHaveBeenCalledWith('user-1')
     expect(commandPort.createStorybook).toHaveBeenCalledWith({
       userId: 'user-1',
+      title: '달빛 숲 모험',
       description: '토끼가 달빛 숲에서 길을 찾아요',
       language: 'ko',
     })
