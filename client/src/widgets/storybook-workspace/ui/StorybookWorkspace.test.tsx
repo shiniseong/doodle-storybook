@@ -68,7 +68,7 @@ describe('StorybookWorkspace', () => {
     window.localStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   })
 
-  it('동화 생성 성공 시 피드백 메시지를 출력한다', async () => {
+  it('동화 생성 성공 시 uuid 디버그 메시지를 노출하지 않는다', async () => {
     const user = userEvent.setup()
     const execute = vi.fn(async () => ({
       ok: true as const,
@@ -96,7 +96,7 @@ describe('StorybookWorkspace', () => {
       description: '달빛 아래에서 캠핑을 해요',
       language: 'ko',
     })
-    expect(screen.getByText('동화 생성 요청 완료 · #storybook-101')).toBeInTheDocument()
+    expect(screen.queryByText('동화 생성 요청 완료 · #storybook-101')).not.toBeInTheDocument()
     expect(screen.getByText('1편 남음')).toBeInTheDocument()
   })
 
@@ -251,11 +251,20 @@ describe('StorybookWorkspace', () => {
 
     const pendingButton = screen.getByRole('button', { name: '동화 생성 처리 중...' })
     expect(pendingButton).toBeDisabled()
+    expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-mini-game')).toBeInTheDocument()
+    expect(screen.getByTestId('story-loading-game-backdrop')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('story-loading-game-backdrop'))
+    expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
 
     resolveRequest({ ok: true, value: { storybookId: 'storybook-200' } })
 
     await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '동화 생성 처리 중...' })).not.toBeInTheDocument()
       expect(screen.queryByTestId('story-loading-mini-game')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
     })

@@ -1263,16 +1263,12 @@ function resolveStoryLanguage(language: string): StoryLanguage {
   return resolveAppLanguage(language) as StoryLanguage
 }
 
-function resolveFeedbackText(
+function resolveErrorFeedbackText(
   feedback: ReturnType<typeof useStorybookCreationStore.getState>['feedback'],
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
-  if (feedback === null) {
+  if (feedback === null || feedback.kind === 'success') {
     return null
-  }
-
-  if (feedback.kind === 'success') {
-    return t('workspace.feedback.success', { id: feedback.storybookId })
   }
 
   return t(`workspace.feedback.error.${feedback.code}`)
@@ -2092,6 +2088,49 @@ function StoryLoadingMiniGame() {
   )
 }
 
+function StoryLoadingGameDialog() {
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
+
+  return (
+    <motion.div
+      className="story-loading-game-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('workspace.banner.processing')}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      onPointerDownCapture={(event) => {
+        event.stopPropagation()
+      }}
+      onClickCapture={(event) => {
+        event.stopPropagation()
+      }}
+    >
+      <div className="story-loading-game-dialog__backdrop" data-testid="story-loading-game-backdrop" aria-hidden="true" />
+      <motion.article
+        className="story-loading-game-dialog__sheet"
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
+        <StoryLoadingMiniGame />
+      </motion.article>
+    </motion.div>
+  )
+}
+
 interface StoryComposerSectionProps {
   dependencies: StorybookWorkspaceDependencies
   auth?: StorybookWorkspaceAuth
@@ -2190,7 +2229,7 @@ function StoryComposerSection({
   const [isAuthGateDialogOpen, setIsAuthGateDialogOpen] = useState(false)
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
-  const feedbackText = useMemo(() => resolveFeedbackText(feedback, t), [feedback, t])
+  const feedbackText = useMemo(() => resolveErrorFeedbackText(feedback, t), [feedback, t])
   const isSubmitting = createStatus === 'submitting'
   const closeReaderBook = useCallback(() => {
     setReaderBook(null)
@@ -2277,25 +2316,21 @@ function StoryComposerSection({
           </motion.p>
         )}
       </AnimatePresence>
-      {isSubmitting ? (
-        <StoryLoadingMiniGame />
-      ) : (
-        <div className="flow-group">
-          <h3 className="flow-group__title">{t('workspace.flow.title')}</h3>
-          <ol className="flow-step-list">
-            {flowSteps.map((step) => {
-              const Icon = step.icon
+      <div className="flow-group">
+        <h3 className="flow-group__title">{t('workspace.flow.title')}</h3>
+        <ol className="flow-step-list">
+          {flowSteps.map((step) => {
+            const Icon = step.icon
 
-              return (
-                <li key={step.key}>
-                  <Icon size={14} strokeWidth={2.4} aria-hidden="true" />
-                  {t(`workspace.flow.${step.key}`)}
-                </li>
-              )
-            })}
-          </ol>
-        </div>
-      )}
+            return (
+              <li key={step.key}>
+                <Icon size={14} strokeWidth={2.4} aria-hidden="true" />
+                {t(`workspace.flow.${step.key}`)}
+              </li>
+            )
+          })}
+        </ol>
+      </div>
       <AnimatePresence>
         {isAuthGateDialogOpen ? (
           <AuthGateDialog onCancel={closeAuthGateDialog} onConfirm={confirmAuthenticationRequest} />
@@ -2340,6 +2375,8 @@ interface StorybookWorkspaceProps {
 
 export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication }: StorybookWorkspaceProps) {
   const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
+  const createStatus = useStorybookCreationStore((state) => state.createStatus)
+  const isSubmitting = createStatus === 'submitting'
 
   useEffect(() => {
     saveStorybookWorkspaceDraft(draft)
@@ -2397,6 +2434,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
         />
       </main>
       <SubscriptionFooter />
+      <AnimatePresence>{isSubmitting ? <StoryLoadingGameDialog /> : null}</AnimatePresence>
     </div>
   )
 }

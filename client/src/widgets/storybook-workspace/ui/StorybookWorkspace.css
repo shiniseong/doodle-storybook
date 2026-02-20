@@ -995,6 +995,38 @@
   box-shadow: none;
 }
 
+.story-loading-game-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 230;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.story-loading-game-dialog__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.46);
+  backdrop-filter: blur(0.28rem);
+}
+
+.story-loading-game-dialog__sheet {
+  position: relative;
+  width: min(96vw, 42rem);
+  max-height: min(90dvh, 44rem);
+  border-radius: 1.22rem;
+  border: 1px solid rgba(130, 179, 211, 0.55);
+  background:
+    radial-gradient(circle at 16% 14%, rgba(255, 255, 255, 0.45), transparent 34%),
+    linear-gradient(160deg, rgba(242, 251, 255, 0.98), rgba(229, 245, 255, 0.96));
+  box-shadow:
+    0 1.8rem 3.4rem rgba(6, 21, 35, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  padding: clamp(0.72rem, 1.8vw, 0.92rem);
+  overflow: auto;
+}
+
 .auth-gate-dialog {
   position: fixed;
   inset: 0;
@@ -1538,6 +1570,16 @@
 
   .story-loading-game__hud {
     grid-template-columns: 1fr;
+  }
+
+  .story-loading-game-dialog {
+    padding: 0.72rem;
+  }
+
+  .story-loading-game-dialog__sheet {
+    width: min(97vw, 34rem);
+    max-height: 92dvh;
+    border-radius: 1rem;
   }
 
   .storybook-reader-dialog__sheet {
