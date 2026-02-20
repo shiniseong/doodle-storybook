@@ -1556,7 +1556,11 @@ function StorybookBookPageContent({
           className={`storybook-book-page__narration-button${isNarrating ? ' storybook-book-page__narration-button--active' : ''}`}
           aria-label={isNarrating ? t('workspace.reader.stopNarration') : t('workspace.reader.playNarration')}
           title={isNarrating ? t('workspace.reader.stopNarration') : t('workspace.reader.playNarration')}
-          onClick={() => {
+          onPointerDown={(event) => {
+            event.stopPropagation()
+          }}
+          onClick={(event) => {
+            event.stopPropagation()
             onToggleNarration(page)
           }}
         >
@@ -2631,9 +2635,12 @@ function StoryLoadingMiniGame() {
         tabIndex={isGameOver ? -1 : 0}
         role="application"
         aria-label={t('workspace.miniGame.title')}
-        style={{
-          backgroundPosition: `${backgroundOffset * -0.72}px 0, ${backgroundOffset * -1.28}px 0, 0 0`,
-        }}
+        style={
+          {
+            '--story-loading-game-road-offset': `${backgroundOffset * -1.04}px`,
+            backgroundPosition: `${backgroundOffset * -0.38}px 0, ${backgroundOffset * -0.94}px 0, 0 0`,
+          } as CSSProperties
+        }
         onKeyDown={handleTrackKeyDown}
         onPointerDown={handleTrackPointerDown}
       >
@@ -2650,7 +2657,9 @@ function StoryLoadingMiniGame() {
         {Array.from({ length: LOADING_GAME_LANE_COUNT - 1 }, (_, dividerIndex) => (
           <span
             key={dividerIndex}
-            className="story-loading-game__lane-divider"
+            className={`story-loading-game__lane-divider${
+              (dividerIndex + 1) * 2 === LOADING_GAME_LANE_COUNT ? ' story-loading-game__lane-divider--center' : ''
+            }`}
             style={{ top: `${((dividerIndex + 1) / LOADING_GAME_LANE_COUNT) * 100}%` }}
             aria-hidden="true"
           />

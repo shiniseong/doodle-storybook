@@ -1265,6 +1265,93 @@ describe('StorybookWorkspace', () => {
     }
   })
 
+  it('우측 페이지 낭독 버튼 클릭 시 페이지 넘김이 먼저 트리거되지 않는다', async () => {
+    const user = userEvent.setup()
+    const createdAudios: Array<{
+      src: string
+      pause: ReturnType<typeof vi.fn>
+      play: ReturnType<typeof vi.fn>
+      onended: (() => void) | null
+      onerror: (() => void) | null
+      currentTime: number
+      preload: string
+    }> = []
+
+    class MockAudio {
+      src: string
+      onended: (() => void) | null = null
+      onerror: (() => void) | null = null
+      currentTime = 0
+      preload = 'auto'
+      pause = vi.fn()
+      play = vi.fn(async () => {})
+
+      constructor(src: string) {
+        this.src = src
+        createdAudios.push(this)
+      }
+    }
+
+    vi.stubGlobal('Audio', MockAudio as unknown as typeof Audio)
+
+    try {
+      const dependencies: StorybookWorkspaceDependencies = {
+        currentUserId: 'user-1',
+        createStorybookUseCase: {
+          execute: vi.fn(async () => ({
+            ok: true as const,
+            value: {
+              storybookId: 'storybook-tts-right-button',
+              pages: [
+                { page: 1, content: '왼쪽 페이지 텍스트', isHighlight: false },
+                { page: 2, content: '오른쪽 페이지 텍스트', isHighlight: false },
+                { page: 3, content: '다음 스프레드 텍스트', isHighlight: false },
+              ],
+              images: ['data:image/png;base64,cover-right-button'],
+              narrations: [
+                { page: 1, audioDataUrl: 'data:audio/mpeg;base64,right-test-1' },
+                { page: 2, audioDataUrl: 'data:audio/mpeg;base64,right-test-2' },
+                { page: 3, audioDataUrl: 'data:audio/mpeg;base64,right-test-3' },
+              ],
+            },
+          })),
+        },
+      }
+
+      render(<StorybookWorkspace dependencies={dependencies} />)
+
+      await user.type(screen.getByLabelText('동화 제목'), '우측 버튼 클릭 안정성')
+      await user.type(screen.getByLabelText('그림 설명'), '우측 페이지 버튼이 넘김보다 우선인지 확인')
+      await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+      await user.click(await screen.findByRole('button', { name: '표지 넘기기' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('- 1 -')).toBeInTheDocument()
+        expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      })
+
+      const playButtons = screen.getAllByRole('button', { name: '낭독 재생' })
+      await user.click(playButtons[1])
+
+      expect(createdAudios).toHaveLength(1)
+      expect(createdAudios[0].src).toBe('data:audio/mpeg;base64,right-test-2')
+
+      await act(async () => {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => {
+            resolve()
+          }, 900)
+        })
+      })
+
+      expect(screen.getByText('- 1 -')).toBeInTheDocument()
+      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      expect(screen.queryByText('- 3 -')).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('자동 낭독을 누르면 펼쳐진 텍스트를 순서대로 읽고 끝나면 자동으로 페이지를 넘긴다', async () => {
     const user = userEvent.setup()
     const playedSources: string[] = []
