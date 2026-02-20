@@ -1348,6 +1348,117 @@ describe('StorybookWorkspace', () => {
     }
   }, 10000)
 
+  it('모바일 세로모드에서는 한 페이지씩 보이고 자동낭독이 삽화 페이지와 충돌하지 않는다', async () => {
+    const user = userEvent.setup()
+    const playedSources: string[] = []
+
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(max-width: 767px) and (orientation: portrait)',
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(() => true),
+      })) as unknown as typeof window.matchMedia,
+    )
+
+    class MockAudio {
+      src: string
+      onended: (() => void) | null = null
+      onerror: (() => void) | null = null
+      currentTime = 0
+      preload = 'auto'
+      pause = vi.fn()
+      play = vi.fn(async () => {
+        playedSources.push(this.src)
+        window.setTimeout(() => {
+          this.onended?.()
+        }, 0)
+      })
+
+      constructor(src: string) {
+        this.src = src
+      }
+    }
+
+    vi.stubGlobal('Audio', MockAudio as unknown as typeof Audio)
+
+    try {
+      const dependencies: StorybookWorkspaceDependencies = {
+        currentUserId: 'user-1',
+        createStorybookUseCase: {
+          execute: vi.fn(async () => ({
+            ok: true as const,
+            value: {
+              storybookId: 'storybook-tts-mobile-1',
+              pages: [
+                { page: 1, content: '첫 번째 텍스트', isHighlight: false },
+                { page: 2, content: '두 번째 텍스트', isHighlight: true },
+                { page: 3, content: '세 번째 텍스트', isHighlight: false },
+              ],
+              images: [
+                'data:image/png;base64,cover-mobile-1',
+                'data:image/png;base64,highlight-mobile-1',
+                'data:image/png;base64,last-mobile-1',
+              ],
+              narrations: [
+                { page: 1, audioDataUrl: 'data:audio/mpeg;base64,mobile-page-1' },
+                { page: 2, audioDataUrl: 'data:audio/mpeg;base64,mobile-page-2' },
+                { page: 3, audioDataUrl: 'data:audio/mpeg;base64,mobile-page-3' },
+              ],
+            },
+          })),
+        },
+      }
+
+      render(<StorybookWorkspace dependencies={dependencies} />)
+
+      await user.type(screen.getByLabelText('동화 제목'), '모바일 단일 페이지')
+      await user.type(screen.getByLabelText('그림 설명'), '세로 모드 단일 페이지와 자동낭독 검증')
+      await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+      await user.click(await screen.findByRole('button', { name: '표지 넘기기' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('- 1 -')).toBeInTheDocument()
+        expect(screen.queryByText('- 2 -')).not.toBeInTheDocument()
+        expect(document.querySelectorAll('.storybook-book-page')).toHaveLength(1)
+      })
+
+      await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
+      await waitFor(() => {
+        expect(screen.getByAltText('2페이지 삽화')).toBeInTheDocument()
+      })
+      expect(screen.queryByText('- 2 -')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: '이전 장으로 넘기기' }))
+      await waitFor(() => {
+        expect(screen.getByText('- 1 -')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '자동 낭독' }))
+
+      await waitFor(
+        () => {
+          expect(screen.getByText('- 3 -')).toBeInTheDocument()
+          expect(screen.getByRole('button', { name: '자동 낭독' })).toBeInTheDocument()
+        },
+        { timeout: 9000 },
+      )
+
+      expect(playedSources).toEqual([
+        'data:audio/mpeg;base64,mobile-page-1',
+        'data:audio/mpeg;base64,mobile-page-2',
+        'data:audio/mpeg;base64,mobile-page-3',
+      ])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, 12000)
+
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

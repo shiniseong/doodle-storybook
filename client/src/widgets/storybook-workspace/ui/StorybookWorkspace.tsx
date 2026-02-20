@@ -245,6 +245,14 @@ function waitForMilliseconds(durationMs: number): Promise<void> {
   })
 }
 
+function resolveIsSinglePageReaderMode(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+
+  return window.matchMedia('(max-width: 767px) and (orientation: portrait)').matches
+}
+
 function clampPenWidth(width: number): number {
   return clampRangeValue(width, MIN_PEN_WIDTH, MAX_PEN_WIDTH)
 }
@@ -1483,11 +1491,16 @@ function buildStorybookReaderPages(
   })
 }
 
-function resolveNarratablePagesInSpread(
+function resolveNarratablePagesInView(
   pages: readonly StorybookReaderPage[],
-  spreadStartIndex: number,
+  pageStartIndex: number,
+  isSinglePageReaderMode: boolean,
 ): StorybookReaderTextPage[] {
-  return [pages[spreadStartIndex], pages[spreadStartIndex + 1]].filter(
+  const visiblePages = isSinglePageReaderMode
+    ? [pages[pageStartIndex]]
+    : [pages[pageStartIndex], pages[pageStartIndex + 1]]
+
+  return visiblePages.filter(
     (page): page is StorybookReaderTextPage => page?.kind === 'text' && typeof page.narrationAudioUrl === 'string',
   )
 }
@@ -1596,6 +1609,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   const [isCoverOpened, setIsCoverOpened] = useState(false)
   const [isCoverFlipping, setIsCoverFlipping] = useState(false)
   const [isCoverReturning, setIsCoverReturning] = useState(false)
+  const [isSinglePageReaderMode, setIsSinglePageReaderMode] = useState(resolveIsSinglePageReaderMode)
   const [activeSpreadStartIndex, setActiveSpreadStartIndex] = useState(0)
   const [pageTurnState, setPageTurnState] = useState<StorybookPageTurnState | null>(null)
   const [activeNarrationPageNumber, setActiveNarrationPageNumber] = useState<number | null>(null)
@@ -1629,12 +1643,53 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   )
 
   const totalPages = readerPages.length
+  const pageAdvanceStep = isSinglePageReaderMode ? 1 : 2
   const renderedSpreadStartIndex = pageTurnState?.targetSpreadStartIndex ?? activeSpreadStartIndex
   const leftPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex] ?? null) : null
-  const rightPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex + 1] ?? null) : null
+  const rightPage = isSinglePageReaderMode ? null : totalPages > 0 ? (readerPages[renderedSpreadStartIndex + 1] ?? null) : null
   const canGoPreviousSpread = isCoverOpened && activeSpreadStartIndex > 0
-  const canGoNextSpread = isCoverOpened && activeSpreadStartIndex + 2 < totalPages
+  const canGoNextSpread = isCoverOpened && activeSpreadStartIndex + pageAdvanceStep < totalPages
   const canReturnToCover = isCoverOpened && activeSpreadStartIndex === 0
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQueryList = window.matchMedia('(max-width: 767px) and (orientation: portrait)')
+    const updateMode = () => {
+      const nextIsSinglePageReaderMode = mediaQueryList.matches
+
+      setIsSinglePageReaderMode(nextIsSinglePageReaderMode)
+      if (!nextIsSinglePageReaderMode || pageTurnStateRef.current === null) {
+        return
+      }
+
+      if (pageTurnTimeoutRef.current !== null) {
+        window.clearTimeout(pageTurnTimeoutRef.current)
+        pageTurnTimeoutRef.current = null
+      }
+
+      setPageTurnState(null)
+      pageTurnStateRef.current = null
+    }
+
+    updateMode()
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', updateMode)
+      return () => {
+        mediaQueryList.removeEventListener('change', updateMode)
+      }
+    }
+
+    if (typeof mediaQueryList.addListener === 'function') {
+      mediaQueryList.addListener(updateMode)
+      return () => {
+        mediaQueryList.removeListener(updateMode)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     activeSpreadStartIndexRef.current = activeSpreadStartIndex
@@ -1768,11 +1823,18 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
 
     const currentSpreadStartIndex = activeSpreadStartIndexRef.current
-    if (currentSpreadStartIndex + 2 >= totalPages) {
+    if (currentSpreadStartIndex + pageAdvanceStep >= totalPages) {
       return false
     }
 
-    const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), currentSpreadStartIndex + 2)
+    const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), currentSpreadStartIndex + pageAdvanceStep)
+
+    if (isSinglePageReaderMode) {
+      setActiveSpreadStartIndex(nextSpreadStartIndex)
+      activeSpreadStartIndexRef.current = nextSpreadStartIndex
+      return true
+    }
+
     const currentRightPage = readerPages[currentSpreadStartIndex + 1]
     const nextLeftPage = readerPages[nextSpreadStartIndex]
 
@@ -1805,7 +1867,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     })
 
     return true
-  }, [clearPageTurnTimeout, readerPages, totalPages])
+  }, [clearPageTurnTimeout, isSinglePageReaderMode, pageAdvanceStep, readerPages, totalPages])
 
   const handleOpenCover = useCallback(() => {
     if (isCoverOpened || isCoverFlipping || pageTurnState !== null) {
@@ -1860,7 +1922,14 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
 
     stopAutoNarration()
-    const previousSpreadStartIndex = Math.max(0, activeSpreadStartIndex - 2)
+    const previousSpreadStartIndex = Math.max(0, activeSpreadStartIndex - pageAdvanceStep)
+
+    if (isSinglePageReaderMode) {
+      setActiveSpreadStartIndex(previousSpreadStartIndex)
+      activeSpreadStartIndexRef.current = previousSpreadStartIndex
+      return
+    }
+
     const currentLeftPage = readerPages[activeSpreadStartIndex]
     const previousRightPage = readerPages[previousSpreadStartIndex + 1]
 
@@ -1890,6 +1959,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     activeSpreadStartIndex,
     canGoPreviousSpread,
     clearPageTurnTimeout,
+    isSinglePageReaderMode,
+    pageAdvanceStep,
     pageTurnState,
     readerPages,
     stopAutoNarration,
@@ -1901,7 +1972,14 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
 
     stopAutoNarration()
-    const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), activeSpreadStartIndex + 2)
+    const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), activeSpreadStartIndex + pageAdvanceStep)
+
+    if (isSinglePageReaderMode) {
+      setActiveSpreadStartIndex(nextSpreadStartIndex)
+      activeSpreadStartIndexRef.current = nextSpreadStartIndex
+      return
+    }
+
     const currentRightPage = readerPages[activeSpreadStartIndex + 1]
     const nextLeftPage = readerPages[nextSpreadStartIndex]
 
@@ -1931,6 +2009,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     activeSpreadStartIndex,
     canGoNextSpread,
     clearPageTurnTimeout,
+    isSinglePageReaderMode,
+    pageAdvanceStep,
     pageTurnState,
     readerPages,
     stopAutoNarration,
@@ -2000,7 +2080,11 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
 
       while (autoNarrationRunIdRef.current === runId) {
         const spreadStartIndex = activeSpreadStartIndexRef.current
-        const spreadNarrationPages = resolveNarratablePagesInSpread(readerPages, spreadStartIndex)
+        const spreadNarrationPages = resolveNarratablePagesInView(
+          readerPages,
+          spreadStartIndex,
+          isSinglePageReaderMode,
+        )
 
         for (const spreadNarrationPage of spreadNarrationPages) {
           if (autoNarrationRunIdRef.current !== runId) {
@@ -2032,6 +2116,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     goNextSpreadForAutoNarration,
     handleOpenCover,
     isAutoNarrationActive,
+    isSinglePageReaderMode,
     narratablePageCount,
     playNarrationForPage,
     readerPages,
@@ -2150,8 +2235,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
             </button>
           ) : leftPage ? (
             <motion.div
-              key={`spread-${renderedSpreadStartIndex}`}
-              className="storybook-openbook"
+              key={`spread-${renderedSpreadStartIndex}-${isSinglePageReaderMode ? 'single' : 'spread'}`}
+              className={`storybook-openbook${isSinglePageReaderMode ? ' storybook-openbook--single' : ''}`}
               style={openBookInlineStyle}
               initial={{ opacity: 0.84, scale: 0.995 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -2160,20 +2245,22 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
                 ease: [0.22, 0.74, 0.2, 1],
               }}
             >
-              <span className="storybook-openbook__spine" aria-hidden="true" />
+              {isSinglePageReaderMode ? null : <span className="storybook-openbook__spine" aria-hidden="true" />}
               <StorybookBookPage
                 side="left"
                 page={leftPage}
                 activeNarrationPageNumber={activeNarrationPageNumber}
                 onToggleNarration={handleTogglePageNarration}
               />
-              <StorybookBookPage
-                side="right"
-                page={rightPage}
-                activeNarrationPageNumber={activeNarrationPageNumber}
-                onToggleNarration={handleTogglePageNarration}
-              />
-              {pageTurnState ? (
+              {isSinglePageReaderMode ? null : (
+                <StorybookBookPage
+                  side="right"
+                  page={rightPage}
+                  activeNarrationPageNumber={activeNarrationPageNumber}
+                  onToggleNarration={handleTogglePageNarration}
+                />
+              )}
+              {!isSinglePageReaderMode && pageTurnState ? (
                 <span
                   className={`storybook-openbook__flip-sheet storybook-openbook__flip-sheet--${pageTurnState.direction}`}
                   aria-hidden="true"
