@@ -14,7 +14,7 @@ const describeLive = shouldRunLiveCheck ? describe : describe.skip
 
 describeLive('Storybooks OpenAI live check (optional)', () => {
   it(
-    'v9 프롬프트 기반으로 이미지 3장 + TTS 10개를 생성해 ebook payload를 반환한다',
+    '프롬프트 응답 기반으로 이미지 3장 + TTS 10개를 생성해 ebook payload를 반환한다',
     async () => {
       expect(openaiApiKey).toBeTruthy()
       if (!openaiApiKey) {

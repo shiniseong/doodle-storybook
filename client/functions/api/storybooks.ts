@@ -45,6 +45,12 @@ interface ParsedPromptStorybookOutput {
   imagePrompts: StoryImagePrompts
 }
 
+interface PromptOutputFallbackContext {
+  title?: string
+  description?: string
+  language?: StoryLanguage
+}
+
 interface OpenAIResponseTextItem {
   type?: string
   text?: string
@@ -192,6 +198,26 @@ function normalizeNarrationText(content: string): string {
   return content.replace(/\s+/g, ' ').trim()
 }
 
+function parsePositiveInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value > 0) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const compact = value.trim()
+    if (compact.length === 0) {
+      return null
+    }
+
+    const parsed = Number(compact)
+    if (Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
 function parsePromptStoryPagesArray(candidate: unknown): StoryPageTtsSource[] {
   if (!Array.isArray(candidate)) {
     return []
@@ -209,9 +235,10 @@ function parsePromptStoryPagesArray(candidate: unknown): StoryPageTtsSource[] {
         tts?: unknown
       }
 
+      const parsedPage = parsePositiveInteger(pageCandidate.page)
+
       if (
-        typeof pageCandidate.page !== 'number' ||
-        !Number.isFinite(pageCandidate.page) ||
+        parsedPage === null ||
         typeof pageCandidate.content !== 'string' ||
         typeof pageCandidate.tts !== 'string'
       ) {
@@ -226,7 +253,7 @@ function parsePromptStoryPagesArray(candidate: unknown): StoryPageTtsSource[] {
       }
 
       return {
-        page: pageCandidate.page,
+        page: parsedPage,
         tts: normalizedTts,
       }
     })
@@ -257,9 +284,10 @@ function parsePromptStoryPagesForContent(candidate: unknown): Array<{ page: numb
         content?: unknown
       }
 
+      const parsedPage = parsePositiveInteger(pageCandidate.page)
+
       if (
-        typeof pageCandidate.page !== 'number' ||
-        !Number.isFinite(pageCandidate.page) ||
+        parsedPage === null ||
         typeof pageCandidate.content !== 'string'
       ) {
         return null
@@ -271,7 +299,7 @@ function parsePromptStoryPagesForContent(candidate: unknown): Array<{ page: numb
       }
 
       return {
-        page: pageCandidate.page,
+        page: parsedPage,
         content: normalizedContent,
       }
     })
@@ -286,6 +314,28 @@ function parsePromptStoryPagesForContent(candidate: unknown): Array<{ page: numb
   return parsedPages
 }
 
+function resolveImagePromptText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : null
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const candidate = value as { prompt?: unknown; text?: unknown }
+  if (typeof candidate.prompt === 'string' && candidate.prompt.trim().length > 0) {
+    return candidate.prompt.trim()
+  }
+
+  if (typeof candidate.text === 'string' && candidate.text.trim().length > 0) {
+    return candidate.text.trim()
+  }
+
+  return null
+}
+
 function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
   if (!candidate || typeof candidate !== 'object') {
     return null
@@ -297,19 +347,11 @@ function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
     end?: unknown
   }
 
-  if (
-    typeof imagePrompts.cover !== 'string' ||
-    typeof imagePrompts.highlight !== 'string' ||
-    typeof imagePrompts.end !== 'string'
-  ) {
-    return null
-  }
+  const cover = resolveImagePromptText(imagePrompts.cover)
+  const highlight = resolveImagePromptText(imagePrompts.highlight)
+  const end = resolveImagePromptText(imagePrompts.end)
 
-  const cover = imagePrompts.cover.trim()
-  const highlight = imagePrompts.highlight.trim()
-  const end = imagePrompts.end.trim()
-
-  if (cover.length === 0 || highlight.length === 0 || end.length === 0) {
+  if (!cover || !highlight || !end) {
     return null
   }
 
@@ -320,7 +362,167 @@ function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
   }
 }
 
-export function parsePromptStorybookOutput(rawText: string | null): ParsedPromptStorybookOutput | null {
+function hasExpectedPageSequence(pages: Array<{ page: number }>): boolean {
+  return pages.every((page, index) => page.page === index + 1)
+}
+
+function parseStructuredPromptStorybookOutput(parsed: unknown): ParsedPromptStorybookOutput | null {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null
+  }
+
+  const candidate = parsed as {
+    highlightPage?: unknown
+    pages?: unknown
+    imagePrompts?: unknown
+  }
+
+  const highlightPage = parsePositiveInteger(candidate.highlightPage)
+  if (highlightPage === null || highlightPage > MAX_NARRATION_COUNT) {
+    return null
+  }
+
+  const pagesWithContent = parsePromptStoryPagesForContent(candidate.pages)
+  const pagesWithTts = parsePromptStoryPagesArray(candidate.pages)
+
+  if (pagesWithContent.length !== MAX_NARRATION_COUNT || pagesWithTts.length !== MAX_NARRATION_COUNT) {
+    return null
+  }
+
+  if (!hasExpectedPageSequence(pagesWithContent) || !hasExpectedPageSequence(pagesWithTts)) {
+    return null
+  }
+
+  const parsedImagePrompts = parsePromptImagePrompts(candidate.imagePrompts)
+  if (!parsedImagePrompts) {
+    return null
+  }
+
+  return {
+    pages: pagesWithContent.map((page) => ({
+      page: page.page,
+      content: page.content,
+      isHighlight: page.page === highlightPage,
+    })),
+    ttsPages: pagesWithTts,
+    imagePrompts: parsedImagePrompts,
+  }
+}
+
+interface LegacyStoryPage {
+  page: number
+  content: string
+  tts: string
+  isHighlight: boolean
+}
+
+function parseLegacyStoryPages(candidate: unknown): LegacyStoryPage[] {
+  if (!Array.isArray(candidate)) {
+    return []
+  }
+
+  const pages = candidate
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const pageCandidate = item as {
+        page?: unknown
+        content?: unknown
+        tts?: unknown
+        isHighlight?: unknown
+      }
+
+      const page = parsePositiveInteger(pageCandidate.page)
+      if (page === null || typeof pageCandidate.content !== 'string') {
+        return null
+      }
+
+      const content = pageCandidate.content.trim()
+      if (content.length === 0) {
+        return null
+      }
+
+      const ttsCandidate = typeof pageCandidate.tts === 'string' ? normalizeNarrationText(pageCandidate.tts) : ''
+      const tts = ttsCandidate.length > 0 ? ttsCandidate : normalizeNarrationText(content)
+
+      return {
+        page,
+        content,
+        tts,
+        isHighlight: pageCandidate.isHighlight === true || pageCandidate.isHighlight === 'true',
+      }
+    })
+    .filter((value): value is LegacyStoryPage => value !== null)
+    .sort((left, right) => left.page - right.page)
+
+  const hasDuplicatePage = pages.some((page, index) => index > 0 && pages[index - 1]?.page === page.page)
+  if (hasDuplicatePage) {
+    return []
+  }
+
+  return pages
+}
+
+function buildFallbackImagePrompts(
+  pages: LegacyStoryPage[],
+  highlightPage: number,
+  fallbackContext?: PromptOutputFallbackContext,
+): StoryImagePrompts {
+  const title = fallbackContext?.title?.trim() || 'A warm bedtime adventure'
+  const description = fallbackContext?.description?.trim() || pages[0]?.content || title
+  const highlightScene = pages.find((page) => page.page === highlightPage)?.content || pages[5]?.content || description
+  const endingScene = pages[pages.length - 1]?.content || description
+  const language = fallbackContext?.language ? resolvePromptLanguage(fallbackContext.language) : 'korean'
+
+  const styleGuide =
+    'storybook illustration, clean outlines, gentle colors, soft light, cute well-formed faces, simple poses, consistent character design, no text, no letters, no logos, no watermark'
+
+  return {
+    cover: `Language: ${language}. Children's picture-book cover for "${title}". Scene: ${description}. ${styleGuide}.`,
+    highlight: `Language: ${language}. Picture-book highlight scene for page ${highlightPage}. Scene: ${highlightScene}. ${styleGuide}.`,
+    end: `Language: ${language}. Picture-book final scene with warm closure. Scene: ${endingScene}. ${styleGuide}.`,
+  }
+}
+
+function parseLegacyPromptStorybookOutput(
+  parsed: unknown,
+  fallbackContext?: PromptOutputFallbackContext,
+): ParsedPromptStorybookOutput | null {
+  const rootObject = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  const legacyPagesCandidate = Array.isArray(parsed)
+    ? parsed
+    : (rootObject as { pages?: unknown } | null)?.pages
+
+  const legacyPages = parseLegacyStoryPages(legacyPagesCandidate)
+  if (legacyPages.length !== MAX_NARRATION_COUNT || !hasExpectedPageSequence(legacyPages)) {
+    return null
+  }
+
+  const highlightPage = legacyPages.find((page) => page.isHighlight)?.page ?? 6
+  const imagePrompts =
+    parsePromptImagePrompts((rootObject as { imagePrompts?: unknown } | null)?.imagePrompts) ??
+    buildFallbackImagePrompts(legacyPages, highlightPage, fallbackContext)
+
+  return {
+    pages: legacyPages.map((page) => ({
+      page: page.page,
+      content: page.content,
+      isHighlight: page.page === highlightPage,
+    })),
+    ttsPages: legacyPages.map((page) => ({
+      page: page.page,
+      tts: page.tts,
+    })),
+    imagePrompts,
+  }
+}
+
+export function parsePromptStorybookOutput(
+  rawText: string | null,
+  fallbackContext?: PromptOutputFallbackContext,
+): ParsedPromptStorybookOutput | null {
   if (!rawText || rawText.trim().length === 0) {
     return null
   }
@@ -334,55 +536,7 @@ export function parsePromptStorybookOutput(rawText: string | null): ParsedPrompt
     return null
   }
 
-  if (!parsed || typeof parsed !== 'object') {
-    return null
-  }
-
-  const candidate = parsed as {
-    highlightPage?: unknown
-    pages?: unknown
-    imagePrompts?: unknown
-  }
-
-  if (typeof candidate.highlightPage !== 'number' || !Number.isFinite(candidate.highlightPage)) {
-    return null
-  }
-
-  const pagesWithContent = parsePromptStoryPagesForContent(candidate.pages)
-  const pagesWithTts = parsePromptStoryPagesArray(candidate.pages)
-
-  if (pagesWithContent.length !== MAX_NARRATION_COUNT || pagesWithTts.length !== MAX_NARRATION_COUNT) {
-    return null
-  }
-
-  const hasExpectedSequence =
-    pagesWithContent.every((page, index) => page.page === index + 1) &&
-    pagesWithTts.every((page, index) => page.page === index + 1)
-
-  if (!hasExpectedSequence) {
-    return null
-  }
-
-  if (candidate.highlightPage < 1 || candidate.highlightPage > MAX_NARRATION_COUNT) {
-    return null
-  }
-
-  const parsedImagePrompts = parsePromptImagePrompts(candidate.imagePrompts)
-  if (!parsedImagePrompts) {
-    return null
-  }
-
-  const pages: StoryPage[] = pagesWithContent.map((page) => ({
-    page: page.page,
-    content: page.content,
-    isHighlight: page.page === candidate.highlightPage,
-  }))
-
-  return {
-    pages,
-    ttsPages: pagesWithTts,
-    imagePrompts: parsedImagePrompts,
-  }
+  return parseStructuredPromptStorybookOutput(parsed) ?? parseLegacyPromptStorybookOutput(parsed, fallbackContext)
 }
 
 function resolveTtsInstructions(language: StoryLanguage): string {
@@ -711,7 +865,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const openAIResponseBody = upstreamPayload as OpenAIResponsesApiBody
   const storyText = extractStorybookText(openAIResponseBody)
-  const parsedPromptStorybook = parsePromptStorybookOutput(storyText)
+  const parsedPromptStorybook = parsePromptStorybookOutput(storyText, {
+    title: normalizedBody.title,
+    description: normalizedBody.description,
+    language: normalizedBody.language,
+  })
 
   if (!parsedPromptStorybook) {
     return jsonResponse(

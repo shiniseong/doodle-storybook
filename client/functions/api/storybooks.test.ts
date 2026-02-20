@@ -61,6 +61,17 @@ function createStoryPromptSchemaOutput() {
   }
 }
 
+function createLegacyStoryPagesOutput() {
+  return Array.from({ length: 10 }, (_, index) => {
+    const page = index + 1
+    return {
+      page,
+      content: `${page}페이지 본문 내용`,
+      isHighlight: page === 6,
+    }
+  })
+}
+
 function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> = {}) {
   return {
     request: new Request('https://example.test/api/storybooks', {
@@ -105,6 +116,23 @@ describe('storybooks function (v9 pipeline)', () => {
       highlight: 'highlight prompt',
       end: 'end prompt',
     })
+  })
+
+  it('레거시 배열 응답도 파싱해 TTS와 이미지 프롬프트를 보완한다', () => {
+    const parsed = parsePromptStorybookOutput(JSON.stringify(createLegacyStoryPagesOutput()), {
+      title: '레거시 동화',
+      description: '레거시 응답 스키마 테스트',
+      language: 'ko',
+    })
+
+    expect(parsed).not.toBeNull()
+    expect(parsed?.pages).toHaveLength(10)
+    expect(parsed?.ttsPages).toHaveLength(10)
+    expect(parsed?.pages.find((page) => page.page === 6)?.isHighlight).toBe(true)
+    expect(parsed?.ttsPages[0]?.tts).toBe('1페이지 본문 내용')
+    expect(parsed?.imagePrompts.cover.includes('레거시 동화')).toBe(true)
+    expect(parsed?.imagePrompts.highlight.length).toBeGreaterThan(0)
+    expect(parsed?.imagePrompts.end.length).toBeGreaterThan(0)
   })
 
   it('첫 프롬프트 응답 후 이미지 3 + TTS 10 요청을 병렬로 보내고 결과를 매핑한다', async () => {
@@ -177,6 +205,54 @@ describe('storybooks function (v9 pipeline)', () => {
     expect(payload.narrations).toHaveLength(10)
     expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.tts))
+  })
+
+  it('레거시 페이지 배열 응답이어도 이미지 3 + TTS 10 생성 파이프라인을 계속 수행한다', async () => {
+    const legacyOutput = createLegacyStoryPagesOutput()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url === 'https://api.openai.com/v1/responses') {
+        return createJsonResponse({
+          id: 'resp-legacy-1',
+          output_text: JSON.stringify(legacyOutput),
+        })
+      }
+
+      if (url === 'https://api.openai.com/v1/images/generations') {
+        return createJsonResponse({ data: [{ b64_json: 'legacy-image' }] })
+      }
+
+      if (url === 'https://api.openai.com/v1/audio/speech') {
+        return createAudioResponse('legacy-audio')
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext({
+        userId: 'user-legacy',
+        language: 'ko',
+        title: '레거시 테스트',
+        description: '레거시 응답도 처리되어야 함',
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
+
+    const payload = (await response.json()) as {
+      pages: Array<{ page: number; content: string; isHighlight: boolean }>
+      images: string[]
+      narrations: Array<{ page: number; audioDataUrl: string }>
+    }
+
+    expect(payload.pages).toHaveLength(10)
+    expect(payload.pages.find((page) => page.page === 6)?.isHighlight).toBe(true)
+    expect(payload.images).toHaveLength(3)
+    expect(payload.narrations).toHaveLength(10)
   })
 
   it('이미지 3 + TTS 10 요청을 한 번에 시작한다', async () => {
