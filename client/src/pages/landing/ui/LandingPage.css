@@ -102,9 +102,12 @@
   width: clamp(4.95rem, 10.4vw, 6.95rem);
   aspect-ratio: 1;
   z-index: 4;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
   filter: drop-shadow(0 0.65rem 0.95rem rgba(27, 93, 130, 0.22));
   animation: landing-fairy-hover 3.1s ease-in-out infinite;
+  cursor: grab;
   will-change: transform;
 }
 
@@ -113,11 +116,26 @@
   height: 100%;
   display: block;
   object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
-.landing-page__hero-wrap:hover .landing-page__fairy {
+.landing-page__hero-wrap:hover .landing-page__fairy:not(.landing-page__fairy--dragging) {
   --fairy-hover-lift: 0.56rem;
   filter: drop-shadow(0 0.84rem 1.1rem rgba(24, 90, 130, 0.28));
+}
+
+.landing-page__fairy--dragging {
+  animation: none;
+  cursor: grabbing;
+  filter: drop-shadow(0 0.92rem 1.22rem rgba(20, 84, 123, 0.3));
+  transform: translate3d(
+      calc(var(--fairy-shift-x, 0px) + var(--landing-fairy-react-x, 0px)),
+      calc(var(--fairy-shift-y, 0px) + var(--landing-fairy-react-y, 0px)),
+      0
+    )
+    rotate(-7deg);
 }
 
 .landing-page__hero {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,36 +26,16 @@ interface FairyPhysicsState {
   velocityY: number
 }
 
-interface PointerMotionSnapshot {
-  clientX: number
-  clientY: number
-  timestampMs: number
-  velocityX: number
-  velocityY: number
-}
-
 const HERO_MAX_TILT_DEG = 4
 const INTERACTION_EASE = 0.17
 const INTERACTION_EPSILON = 0.015
 const POINTER_STATE_KEYS = ['heroTiltX', 'heroTiltY', 'pointerX', 'pointerY', 'parallaxX', 'parallaxY'] as const
 const ORB_PARALLAX_MAX_PX = 24
-const FAIRY_GENTLE_SPEED_THRESHOLD = 0.38
-const FAIRY_GENTLE_ACCELERATION_THRESHOLD = 0.004
-const FAIRY_GENTLE_MAX_OFFSET_X = 13
-const FAIRY_GENTLE_MAX_OFFSET_Y = 10
-const FAIRY_HIT_SPEED_THRESHOLD = 1.2
-const FAIRY_HIT_ACCELERATION_THRESHOLD = 0.016
-const FAIRY_HIT_IMPULSE_MIN = 24
-const FAIRY_HIT_IMPULSE_MAX = 92
-const FAIRY_HIT_PUSH_DISTANCE_MIN = 14
-const FAIRY_HIT_PUSH_DISTANCE_MAX = 52
-const FAIRY_HIT_CENTER_PASS_RADIUS_RATIO = 0.26
-const FAIRY_HIT_COOLDOWN_MS = 280
-const FAIRY_HIT_RECOVERY_MS = 820
-const FAIRY_SPRING_STIFFNESS = 0.17
-const FAIRY_DAMPING = 0.84
-const FAIRY_RECOVERY_SPRING_STIFFNESS = 0.034
-const FAIRY_RECOVERY_DAMPING = 0.955
+const FAIRY_DRAG_MAX_DISTANCE_PX = 124
+const FAIRY_SPRING_STIFFNESS = 0.12
+const FAIRY_DAMPING = 0.86
+const FAIRY_RELEASE_BOOST = 0.24
+const FAIRY_RELEASE_SPEED_MAX = 38
 const FAIRY_REACTION_EPSILON = 0.05
 const FAIRY_MAX_OFFSET_X = 118
 const FAIRY_MAX_OFFSET_Y = 90
@@ -72,6 +52,24 @@ const INITIAL_POINTER_STATE: PointerState = {
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+
+function clampFairyDragOffset(offsetX: number, offsetY: number): { x: number; y: number; distance: number } {
+  const distance = Math.hypot(offsetX, offsetY)
+  if (distance <= FAIRY_DRAG_MAX_DISTANCE_PX) {
+    return {
+      x: offsetX,
+      y: offsetY,
+      distance,
+    }
+  }
+
+  const scale = FAIRY_DRAG_MAX_DISTANCE_PX / Math.max(distance, 0.0001)
+  return {
+    x: offsetX * scale,
+    y: offsetY * scale,
+    distance: FAIRY_DRAG_MAX_DISTANCE_PX,
+  }
+}
 
 const applyLandingInteractionVars = (container: HTMLElement | null, pointerState: PointerState) => {
   if (!container) {
@@ -96,16 +94,17 @@ export function LandingPage({ onStart }: LandingPageProps) {
   const animationFrameRef = useRef<number | null>(null)
   const currentPointerStateRef = useRef<PointerState>(INITIAL_POINTER_STATE)
   const targetPointerStateRef = useRef<PointerState>(INITIAL_POINTER_STATE)
+  const [isFairyDragging, setIsFairyDragging] = useState(false)
   const fairyPhysicsRef = useRef<FairyPhysicsState>({
     x: 0,
     y: 0,
     velocityX: 0,
     velocityY: 0,
   })
-  const fairyTargetOffsetRef = useRef({ x: 0, y: 0 })
-  const pointerMotionRef = useRef<PointerMotionSnapshot | null>(null)
-  const fairyHitCooldownUntilMsRef = useRef(0)
-  const fairyHitRecoveryUntilMsRef = useRef(0)
+  const isFairyDraggingRef = useRef(false)
+  const activeFairyPointerIdRef = useRef<number | null>(null)
+  const fairyDragStartPointerRef = useRef({ x: 0, y: 0 })
+  const fairyDragStartOffsetRef = useRef({ x: 0, y: 0 })
 
   const requestInteractionAnimationFrame = () => {
     if (animationFrameRef.current !== null) {
@@ -130,26 +129,29 @@ export function LandingPage({ onStart }: LandingPageProps) {
       }
 
       const fairyPhysics = fairyPhysicsRef.current
-      const fairyTargetOffset = fairyTargetOffsetRef.current
-      const nowMs = performance.now()
-      const isRecoveringFromHit = nowMs < fairyHitRecoveryUntilMsRef.current
-      const springStiffness = isRecoveringFromHit ? FAIRY_RECOVERY_SPRING_STIFFNESS : FAIRY_SPRING_STIFFNESS
-      const damping = isRecoveringFromHit ? FAIRY_RECOVERY_DAMPING : FAIRY_DAMPING
-      const fairyTargetX = isRecoveringFromHit ? 0 : fairyTargetOffset.x
-      const fairyTargetY = isRecoveringFromHit ? 0 : fairyTargetOffset.y
-      const fairyAccelerationX = (fairyTargetX - fairyPhysics.x) * springStiffness
-      const fairyAccelerationY = (fairyTargetY - fairyPhysics.y) * springStiffness
-      fairyPhysics.velocityX = (fairyPhysics.velocityX + fairyAccelerationX) * damping
-      fairyPhysics.velocityY = (fairyPhysics.velocityY + fairyAccelerationY) * damping
-      fairyPhysics.x = clamp(fairyPhysics.x + fairyPhysics.velocityX, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
-      fairyPhysics.y = clamp(fairyPhysics.y + fairyPhysics.velocityY, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
+      if (!isFairyDraggingRef.current) {
+        const fairyAccelerationX = -fairyPhysics.x * FAIRY_SPRING_STIFFNESS
+        const fairyAccelerationY = -fairyPhysics.y * FAIRY_SPRING_STIFFNESS
+        fairyPhysics.velocityX = (fairyPhysics.velocityX + fairyAccelerationX) * FAIRY_DAMPING
+        fairyPhysics.velocityY = (fairyPhysics.velocityY + fairyAccelerationY) * FAIRY_DAMPING
+        fairyPhysics.x = clamp(fairyPhysics.x + fairyPhysics.velocityX, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
+        fairyPhysics.y = clamp(fairyPhysics.y + fairyPhysics.velocityY, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
+
+        if (Math.abs(fairyPhysics.x) <= FAIRY_REACTION_EPSILON && Math.abs(fairyPhysics.velocityX) <= FAIRY_REACTION_EPSILON) {
+          fairyPhysics.x = 0
+          fairyPhysics.velocityX = 0
+        }
+
+        if (Math.abs(fairyPhysics.y) <= FAIRY_REACTION_EPSILON && Math.abs(fairyPhysics.velocityY) <= FAIRY_REACTION_EPSILON) {
+          fairyPhysics.y = 0
+          fairyPhysics.velocityY = 0
+        }
+      }
 
       nextPointerState.fairyReactX = fairyPhysics.x
       nextPointerState.fairyReactY = fairyPhysics.y
 
       const isFairyAnimating =
-        Math.abs(fairyTargetOffset.x - fairyPhysics.x) > FAIRY_REACTION_EPSILON ||
-        Math.abs(fairyTargetOffset.y - fairyPhysics.y) > FAIRY_REACTION_EPSILON ||
         Math.abs(fairyPhysics.velocityX) > FAIRY_REACTION_EPSILON ||
         Math.abs(fairyPhysics.velocityY) > FAIRY_REACTION_EPSILON
       if (isFairyAnimating) {
@@ -175,148 +177,64 @@ export function LandingPage({ onStart }: LandingPageProps) {
     requestInteractionAnimationFrame()
   }
 
-  const updateFairyInteraction = (clientX: number, clientY: number, eventTimestampMs: number) => {
-    const fairyElement = fairyRef.current
-    if (!fairyElement) {
-      return
-    }
-
-    const timestampMs = Number.isFinite(eventTimestampMs) ? eventTimestampMs : performance.now()
-    const previousMotionSnapshot = pointerMotionRef.current
-    pointerMotionRef.current = {
-      clientX,
-      clientY,
-      timestampMs,
-      velocityX: previousMotionSnapshot?.velocityX ?? 0,
-      velocityY: previousMotionSnapshot?.velocityY ?? 0,
-    }
-
-    if (!previousMotionSnapshot) {
-      return
-    }
-
-    const deltaTimeMs = Math.max(1, timestampMs - previousMotionSnapshot.timestampMs)
-    const velocityX = (clientX - previousMotionSnapshot.clientX) / deltaTimeMs
-    const velocityY = (clientY - previousMotionSnapshot.clientY) / deltaTimeMs
-    const speed = Math.hypot(velocityX, velocityY)
-    const accelerationX = (velocityX - previousMotionSnapshot.velocityX) / deltaTimeMs
-    const accelerationY = (velocityY - previousMotionSnapshot.velocityY) / deltaTimeMs
-    const accelerationMagnitude = Math.hypot(accelerationX, accelerationY)
-
-    pointerMotionRef.current = {
-      clientX,
-      clientY,
-      timestampMs,
-      velocityX,
-      velocityY,
-    }
-
-    const fairyBounds = fairyElement.getBoundingClientRect()
-    const fairyCenterX = fairyBounds.left + fairyBounds.width / 2
-    const fairyCenterY = fairyBounds.top + fairyBounds.height / 2
-    const relativePointerXFromFairy = clientX - fairyCenterX
-    const relativePointerYFromFairy = clientY - fairyCenterY
-    const distanceFromFairy = Math.hypot(relativePointerXFromFairy, relativePointerYFromFairy)
-    const previousRelativeXFromFairy = previousMotionSnapshot.clientX - fairyCenterX
-    const previousRelativeYFromFairy = previousMotionSnapshot.clientY - fairyCenterY
-    const previousDistanceFromFairy = Math.hypot(previousRelativeXFromFairy, previousRelativeYFromFairy)
-    const interactionRadius = Math.max(fairyBounds.width, fairyBounds.height) * 0.82
-
-    const segmentDeltaX = clientX - previousMotionSnapshot.clientX
-    const segmentDeltaY = clientY - previousMotionSnapshot.clientY
-    const segmentLengthSquared = segmentDeltaX * segmentDeltaX + segmentDeltaY * segmentDeltaY
-    const hasValidSegment = segmentLengthSquared > 0.0001
-    const rawCenterProjection = hasValidSegment
-      ? ((fairyCenterX - previousMotionSnapshot.clientX) * segmentDeltaX +
-          (fairyCenterY - previousMotionSnapshot.clientY) * segmentDeltaY) /
-        segmentLengthSquared
-      : 0
-    const clampedCenterProjection = clamp(rawCenterProjection, 0, 1)
-    const closestPointX = hasValidSegment
-      ? previousMotionSnapshot.clientX + segmentDeltaX * clampedCenterProjection
-      : clientX
-    const closestPointY = hasValidSegment
-      ? previousMotionSnapshot.clientY + segmentDeltaY * clampedCenterProjection
-      : clientY
-    const closestDistanceFromFairy = Math.hypot(closestPointX - fairyCenterX, closestPointY - fairyCenterY)
-    const isPointerInsideNow = distanceFromFairy <= interactionRadius
-    const wasPointerInside = previousDistanceFromFairy <= interactionRadius
-    const didSweepTouchFairy = hasValidSegment && closestDistanceFromFairy <= interactionRadius
-    const isInteractionReachable = isPointerInsideNow || wasPointerInside || didSweepTouchFairy
-
-    if (!isInteractionReachable) {
-      fairyTargetOffsetRef.current = { x: 0, y: 0 }
-      return
-    }
-
-    const isRecoveringFromHit = timestampMs < fairyHitRecoveryUntilMsRef.current
-
-    if (!isRecoveringFromHit && speed <= FAIRY_GENTLE_SPEED_THRESHOLD && accelerationMagnitude <= FAIRY_GENTLE_ACCELERATION_THRESHOLD) {
-      fairyTargetOffsetRef.current = {
-        x: clamp(relativePointerXFromFairy * 0.22, -FAIRY_GENTLE_MAX_OFFSET_X, FAIRY_GENTLE_MAX_OFFSET_X),
-        y: clamp(relativePointerYFromFairy * 0.22, -FAIRY_GENTLE_MAX_OFFSET_Y, FAIRY_GENTLE_MAX_OFFSET_Y),
-      }
-      return
-    }
-
-    fairyTargetOffsetRef.current = { x: 0, y: 0 }
-
-    if (speed < FAIRY_HIT_SPEED_THRESHOLD || accelerationMagnitude < FAIRY_HIT_ACCELERATION_THRESHOLD) {
-      return
-    }
-
-    if (timestampMs < fairyHitCooldownUntilMsRef.current) {
-      return
-    }
-
-    const isApproachingCenter =
-      hasValidSegment &&
-      (fairyCenterX - previousMotionSnapshot.clientX) * segmentDeltaX +
-        (fairyCenterY - previousMotionSnapshot.clientY) * segmentDeltaY >
-        0
-
-    if (!isApproachingCenter) {
-      return
-    }
-
-    const didPassCenterOnSweep =
-      hasValidSegment &&
-      rawCenterProjection >= 0 &&
-      rawCenterProjection <= 1 &&
-      closestDistanceFromFairy <= interactionRadius * FAIRY_HIT_CENTER_PASS_RADIUS_RATIO
-
-    const depthRatio = clamp(
-      1 - (didPassCenterOnSweep ? 0 : closestDistanceFromFairy) / interactionRadius,
-      0,
-      1,
-    )
-    const centerPassBonus = didPassCenterOnSweep ? 1.4 : 0
-    const impactMultiplier = 1 + depthRatio * 0.9 + centerPassBonus
-    const segmentLength = hasValidSegment ? Math.sqrt(segmentLengthSquared) : 0
-    const movementMagnitude = Math.max(segmentLength, Math.hypot(velocityX, velocityY))
-
-    if (movementMagnitude <= 0.0001) {
-      return
-    }
-
-    const impactDirectionX =
-      segmentLength > 0.0001 ? segmentDeltaX / segmentLength : velocityX / movementMagnitude
-    const impactDirectionY =
-      segmentLength > 0.0001 ? segmentDeltaY / segmentLength : velocityY / movementMagnitude
-
-    const rawImpulseStrength = (speed * 14 + accelerationMagnitude * 900) * impactMultiplier
-    const impulseStrength = clamp(rawImpulseStrength, FAIRY_HIT_IMPULSE_MIN, FAIRY_HIT_IMPULSE_MAX)
-    const rawPushDistance =
-      (speed * 8.5 + accelerationMagnitude * 720 + movementMagnitude * 0.32) *
-      (0.9 + depthRatio * 1.4 + centerPassBonus * 0.8)
-    const pushDistance = clamp(rawPushDistance, FAIRY_HIT_PUSH_DISTANCE_MIN, FAIRY_HIT_PUSH_DISTANCE_MAX)
+  const applyFairyDragPosition = (pointerClientX: number, pointerClientY: number) => {
+    const dragDeltaX = pointerClientX - fairyDragStartPointerRef.current.x
+    const dragDeltaY = pointerClientY - fairyDragStartPointerRef.current.y
+    const unclampedOffsetX = fairyDragStartOffsetRef.current.x + dragDeltaX
+    const unclampedOffsetY = fairyDragStartOffsetRef.current.y + dragDeltaY
+    const clampedOffset = clampFairyDragOffset(unclampedOffsetX, unclampedOffsetY)
     const fairyPhysics = fairyPhysicsRef.current
-    fairyPhysics.x = clamp(fairyPhysics.x - impactDirectionX * pushDistance, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
-    fairyPhysics.y = clamp(fairyPhysics.y - impactDirectionY * pushDistance, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
-    fairyPhysics.velocityX += -impactDirectionX * impulseStrength
-    fairyPhysics.velocityY += -impactDirectionY * impulseStrength
-    fairyHitCooldownUntilMsRef.current = timestampMs + FAIRY_HIT_COOLDOWN_MS
-    fairyHitRecoveryUntilMsRef.current = timestampMs + FAIRY_HIT_RECOVERY_MS
+
+    fairyPhysics.x = clamp(clampedOffset.x, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
+    fairyPhysics.y = clamp(clampedOffset.y, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
+    fairyPhysics.velocityX = 0
+    fairyPhysics.velocityY = 0
+    requestInteractionAnimationFrame()
+  }
+
+  const stopFairyDragging = (pointerId: number, withReleaseBoost: boolean) => {
+    if (activeFairyPointerIdRef.current !== pointerId) {
+      return
+    }
+
+    const fairyElement = fairyRef.current
+    if (
+      fairyElement &&
+      typeof fairyElement.hasPointerCapture === 'function' &&
+      fairyElement.hasPointerCapture(pointerId) &&
+      typeof fairyElement.releasePointerCapture === 'function'
+    ) {
+      fairyElement.releasePointerCapture(pointerId)
+    }
+
+    isFairyDraggingRef.current = false
+    activeFairyPointerIdRef.current = null
+    setIsFairyDragging(false)
+
+    if (!withReleaseBoost) {
+      requestInteractionAnimationFrame()
+      return
+    }
+
+    const fairyPhysics = fairyPhysicsRef.current
+    const pullDistance = Math.hypot(fairyPhysics.x, fairyPhysics.y)
+    if (pullDistance <= 1) {
+      requestInteractionAnimationFrame()
+      return
+    }
+
+    const pullRatio = clamp(pullDistance / FAIRY_DRAG_MAX_DISTANCE_PX, 0, 1)
+    const releaseSpeed = clamp(
+      pullDistance * FAIRY_RELEASE_BOOST * (1 + pullRatio * 0.65),
+      0,
+      FAIRY_RELEASE_SPEED_MAX,
+    )
+
+    const towardCenterX = -fairyPhysics.x / pullDistance
+    const towardCenterY = -fairyPhysics.y / pullDistance
+    fairyPhysics.velocityX += towardCenterX * releaseSpeed
+    fairyPhysics.velocityY += towardCenterY * releaseSpeed
+    requestInteractionAnimationFrame()
   }
 
   useEffect(() => {
@@ -354,7 +272,6 @@ export function LandingPage({ onStart }: LandingPageProps) {
             parallaxX: (relativeX - 0.5) * ORB_PARALLAX_MAX_PX,
             parallaxY: (relativeY - 0.5) * ORB_PARALLAX_MAX_PX,
           }
-          updateFairyInteraction(event.clientX, event.clientY, event.timeStamp)
           requestInteractionAnimationFrame()
         }}
         onPointerLeave={(event) => {
@@ -367,14 +284,66 @@ export function LandingPage({ onStart }: LandingPageProps) {
             parallaxX: 0,
             parallaxY: 0,
           }
-          pointerMotionRef.current = null
-          fairyTargetOffsetRef.current = { x: 0, y: 0 }
-          fairyHitRecoveryUntilMsRef.current = 0
           requestInteractionAnimationFrame()
         }}
       >
         <div className="landing-page__hero-wrap">
-          <span ref={fairyRef} className="landing-page__fairy" aria-hidden="true">
+          <span
+            ref={fairyRef}
+            className={`landing-page__fairy${isFairyDragging ? ' landing-page__fairy--dragging' : ''}`}
+            aria-hidden="true"
+            onPointerDown={(event) => {
+              if (event.pointerType === 'mouse' && event.button !== 0) {
+                return
+              }
+
+              if (isFairyDraggingRef.current) {
+                return
+              }
+
+              event.preventDefault()
+              event.stopPropagation()
+
+              isFairyDraggingRef.current = true
+              activeFairyPointerIdRef.current = event.pointerId
+              setIsFairyDragging(true)
+              fairyDragStartPointerRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+              }
+              fairyDragStartOffsetRef.current = {
+                x: fairyPhysicsRef.current.x,
+                y: fairyPhysicsRef.current.y,
+              }
+              event.currentTarget.setPointerCapture(event.pointerId)
+              applyFairyDragPosition(event.clientX, event.clientY)
+            }}
+            onPointerMove={(event) => {
+              if (!isFairyDraggingRef.current || activeFairyPointerIdRef.current !== event.pointerId) {
+                return
+              }
+
+              event.preventDefault()
+              event.stopPropagation()
+              applyFairyDragPosition(event.clientX, event.clientY)
+            }}
+            onPointerUp={(event) => {
+              if (!isFairyDraggingRef.current || activeFairyPointerIdRef.current !== event.pointerId) {
+                return
+              }
+
+              event.preventDefault()
+              event.stopPropagation()
+              applyFairyDragPosition(event.clientX, event.clientY)
+              stopFairyDragging(event.pointerId, true)
+            }}
+            onPointerCancel={(event) => {
+              stopFairyDragging(event.pointerId, false)
+            }}
+            onLostPointerCapture={(event) => {
+              stopFairyDragging(event.pointerId, false)
+            }}
+          >
             <img src="/assets/drawing-fairy-detail-logo.png" alt="" />
           </span>
           <article
