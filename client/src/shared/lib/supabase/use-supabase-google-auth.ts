@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { resolveSupabaseClient } from '@shared/lib/supabase/client'
 
-type SupportedSupabaseOAuthProvider = 'google' | 'apple' | 'kakao'
+type SupportedSupabaseOAuthProvider = 'google' | 'kakao'
 
 interface SignInWithEmailInput {
   readonly email: string
@@ -37,7 +37,6 @@ export interface SupabaseGoogleAuthResult {
   readonly signUpWithEmail: (input: SignUpWithEmailInput) => Promise<SignUpWithEmailResult>
   readonly signInWithProvider: (provider: SupportedSupabaseOAuthProvider) => Promise<void>
   readonly signInWithGoogle: () => Promise<void>
-  readonly signInWithApple: () => Promise<void>
   readonly signInWithKakao: () => Promise<void>
   readonly signOut: () => Promise<void>
 }
@@ -109,10 +108,6 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
 
   const signInWithGoogle = useCallback(async () => {
     await signInWithProvider('google')
-  }, [signInWithProvider])
-
-  const signInWithApple = useCallback(async () => {
-    await signInWithProvider('apple')
   }, [signInWithProvider])
 
   const signInWithKakao = useCallback(async () => {
@@ -229,7 +224,6 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     signUpWithEmail,
     signInWithProvider,
     signInWithGoogle,
-    signInWithApple,
     signInWithKakao,
     signOut,
   }

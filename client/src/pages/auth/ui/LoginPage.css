@@ -155,10 +155,6 @@
   border-color: rgba(107, 144, 167, 0.38);
 }
 
-.auth-provider-button--apple {
-  border-color: rgba(88, 104, 117, 0.34);
-}
-
 .auth-provider-button--kakao {
   border-color: rgba(193, 157, 50, 0.44);
 }

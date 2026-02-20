@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Apple, Chrome, Mail, MessageCircle, UserRound } from 'lucide-react'
+import { Chrome, Mail, MessageCircle, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -15,7 +15,6 @@ interface LoginPageProps {
   isLoading: boolean
   isSigningIn: boolean
   onSignInWithGoogle: () => void | Promise<void>
-  onSignInWithApple: () => void | Promise<void>
   onSignInWithKakao: () => void | Promise<void>
   onSignInWithEmail: (input: { email: string; password: string }) => Promise<SignInWithEmailResult>
   onSignUpWithEmail: (input: { email: string; password: string; authorName: string }) => Promise<SignUpWithEmailResult>
@@ -26,7 +25,6 @@ export function LoginPage({
   isLoading,
   isSigningIn,
   onSignInWithGoogle,
-  onSignInWithApple,
   onSignInWithKakao,
   onSignInWithEmail,
   onSignUpWithEmail,
@@ -157,17 +155,6 @@ export function LoginPage({
           >
             <Chrome size={18} strokeWidth={2.1} aria-hidden="true" />
             <span>{t('authPage.startWithGoogle')}</span>
-          </button>
-          <button
-            type="button"
-            className="auth-provider-button auth-provider-button--apple"
-            disabled={isDisabled}
-            onClick={() => {
-              void onSignInWithApple()
-            }}
-          >
-            <Apple size={18} strokeWidth={2.1} aria-hidden="true" />
-            <span>{t('authPage.startWithApple')}</span>
           </button>
           <button
             type="button"

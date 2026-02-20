@@ -63,7 +63,6 @@ export default function App() {
               isLoading={auth.isLoading}
               isSigningIn={auth.isSigningIn}
               onSignInWithGoogle={auth.signInWithGoogle}
-              onSignInWithApple={auth.signInWithApple}
               onSignInWithKakao={auth.signInWithKakao}
               onSignInWithEmail={auth.signInWithEmail}
               onSignUpWithEmail={auth.signUpWithEmail}

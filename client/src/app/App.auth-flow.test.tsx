@@ -70,7 +70,6 @@ function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): Supa
     signUpWithEmail: vi.fn(async () => ({ ok: true, requiresEmailVerification: true })),
     signInWithProvider: vi.fn(async () => {}),
     signInWithGoogle: vi.fn(async () => {}),
-    signInWithApple: vi.fn(async () => {}),
     signInWithKakao: vi.fn(async () => {}),
     signOut: vi.fn(async () => {}),
     ...overrides,

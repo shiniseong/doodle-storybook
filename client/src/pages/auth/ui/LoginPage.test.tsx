@@ -8,7 +8,6 @@ describe('LoginPage', () => {
   it('소셜 로그인 버튼을 렌더링하고 클릭 콜백을 호출한다', async () => {
     const user = userEvent.setup()
     const onSignInWithGoogle = vi.fn()
-    const onSignInWithApple = vi.fn()
     const onSignInWithKakao = vi.fn()
     const onSignInWithEmail = vi.fn(async () => ({ ok: true }))
     const onSignUpWithEmail = vi.fn(async () => ({ ok: true, requiresEmailVerification: true }))
@@ -19,7 +18,6 @@ describe('LoginPage', () => {
         isLoading={false}
         isSigningIn={false}
         onSignInWithGoogle={onSignInWithGoogle}
-        onSignInWithApple={onSignInWithApple}
         onSignInWithKakao={onSignInWithKakao}
         onSignInWithEmail={onSignInWithEmail}
         onSignUpWithEmail={onSignUpWithEmail}
@@ -27,11 +25,9 @@ describe('LoginPage', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Google로 시작하기' }))
-    await user.click(screen.getByRole('button', { name: 'Apple로 시작하기' }))
     await user.click(screen.getByRole('button', { name: '카카오로 시작하기' }))
 
     expect(onSignInWithGoogle).toHaveBeenCalledTimes(1)
-    expect(onSignInWithApple).toHaveBeenCalledTimes(1)
     expect(onSignInWithKakao).toHaveBeenCalledTimes(1)
   })
 
@@ -45,7 +41,6 @@ describe('LoginPage', () => {
         isLoading={false}
         isSigningIn={false}
         onSignInWithGoogle={vi.fn()}
-        onSignInWithApple={vi.fn()}
         onSignInWithKakao={vi.fn()}
         onSignInWithEmail={onSignInWithEmail}
         onSignUpWithEmail={vi.fn(async () => ({ ok: true, requiresEmailVerification: true }))}
@@ -75,7 +70,6 @@ describe('LoginPage', () => {
         isLoading={false}
         isSigningIn={false}
         onSignInWithGoogle={vi.fn()}
-        onSignInWithApple={vi.fn()}
         onSignInWithKakao={vi.fn()}
         onSignInWithEmail={vi.fn(async () => ({ ok: true }))}
         onSignUpWithEmail={onSignUpWithEmail}
@@ -107,7 +101,6 @@ describe('LoginPage', () => {
         isLoading={false}
         isSigningIn={false}
         onSignInWithGoogle={vi.fn()}
-        onSignInWithApple={vi.fn()}
         onSignInWithKakao={vi.fn()}
         onSignInWithEmail={vi.fn(async () => ({ ok: true }))}
         onSignUpWithEmail={vi.fn(async () => ({ ok: true, requiresEmailVerification: true }))}
@@ -125,7 +118,6 @@ describe('LoginPage', () => {
         isLoading={false}
         isSigningIn={false}
         onSignInWithGoogle={vi.fn()}
-        onSignInWithApple={vi.fn()}
         onSignInWithKakao={vi.fn()}
         onSignInWithEmail={vi.fn(async () => ({ ok: false }))}
         onSignUpWithEmail={vi.fn(async () => ({ ok: false, requiresEmailVerification: true }))}
@@ -134,7 +126,6 @@ describe('LoginPage', () => {
 
     expect(screen.getByText('Supabase 인증 환경설정이 필요해요.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Google로 시작하기' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Apple로 시작하기' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '카카오로 시작하기' })).toBeDisabled()
   })
 })
