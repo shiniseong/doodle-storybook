@@ -9,6 +9,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
+    "test:supabase:live": "VITE_SUPABASE_LIVE_CHECK=1 vitest run src/shared/lib/supabase/supabase.live.test.ts",
     "test:coverage": "vitest run --coverage",
     "verify": "npm run lint && npm run test:coverage && npm run build",
     "build": "tsc -b && vite build",

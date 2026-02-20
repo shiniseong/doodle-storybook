@@ -112,9 +112,11 @@ Google login is wired in the app header via Supabase Auth.
 Set in `client/.env` (or `client/.env.local`):
 
 ```bash
-VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
-VITE_SUPABASE_ANON_KEY="<supabase-anon-key>"
+NEXT_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY="<supabase-publishable-key>"
 ```
+
+This app also accepts `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as aliases.
 
 ### Supabase Dashboard setup
 
@@ -122,6 +124,27 @@ VITE_SUPABASE_ANON_KEY="<supabase-anon-key>"
 - Add your app URL(s) in `Authentication > URL Configuration > Site URL / Redirect URLs` (for local dev usually `http://localhost:5173`).
 - In Google Cloud OAuth client, add Supabase callback URI:
   `https://<project-ref>.supabase.co/auth/v1/callback`
+
+### Optional live API check test
+
+Unit tests always run in CI. Live API checks are optional and skipped by default.
+
+```bash
+VITE_SUPABASE_LIVE_CHECK=1 \
+VITE_SUPABASE_URL="https://<project-ref>.supabase.co" \
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY="<supabase-publishable-key>" \
+npm run test:supabase:live
+```
+
+Optional table read check:
+
+```bash
+VITE_SUPABASE_LIVE_CHECK=1 \
+VITE_SUPABASE_LIVE_CHECK_TABLE="instruments" \
+VITE_SUPABASE_URL="https://<project-ref>.supabase.co" \
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY="<supabase-publishable-key>" \
+npm run test:supabase:live
+```
 
 ### Commands
 
