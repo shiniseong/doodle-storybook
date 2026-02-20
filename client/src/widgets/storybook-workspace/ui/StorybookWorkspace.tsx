@@ -1927,6 +1927,14 @@ function StoryLoadingMiniGame() {
     }
   }, [])
 
+  useEffect(() => {
+    if (isGameOver) {
+      return
+    }
+
+    trackRef.current?.focus({ preventScroll: true })
+  }, [isGameOver])
+
   const resetMiniGame = useCallback(() => {
     if (hitTimeoutRef.current !== null) {
       window.clearTimeout(hitTimeoutRef.current)

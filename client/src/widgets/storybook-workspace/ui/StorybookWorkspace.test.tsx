@@ -258,6 +258,10 @@ describe('StorybookWorkspace', () => {
     expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-mini-game')).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-game-backdrop')).toBeInTheDocument()
+    const gameTrack = screen.getByRole('application', { name: '기다리는 동안 미니 게임' })
+    await waitFor(() => {
+      expect(gameTrack).toHaveFocus()
+    })
     expect(document.querySelectorAll('.story-loading-game__life--active')).toHaveLength(2)
     expect(screen.queryByTestId('story-loading-game-over')).not.toBeInTheDocument()
 
