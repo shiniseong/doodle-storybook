@@ -16,6 +16,7 @@
     "preview": "vite preview --host",
     "cf:types": "npx wrangler types",
     "cf:pages:dev": "npx wrangler pages dev dist",
+    "cf:preview": "npm run build && npm run cf:pages:dev",
     "cf:pages:deploy": "npx wrangler pages deploy dist"
   },
   "dependencies": {

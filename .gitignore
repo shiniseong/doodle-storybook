@@ -46,3 +46,4 @@ bin/
 .idea/
 /.agents/
 /.secrets/
+/client/.wrangler/
