@@ -1867,6 +1867,14 @@
   }
 }
 
+@media (max-width: 1199px) and (orientation: portrait) {
+  .ambient-layer {
+    background-image: url('/assets/background_light_mode_mobile.png');
+    background-size: cover;
+    background-position: center top;
+  }
+}
+
 @media (max-width: 767px) and (orientation: landscape) {
   .layout-grid {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
