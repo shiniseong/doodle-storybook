@@ -9,11 +9,10 @@ export const i18nResources = {
       landing: {
         eyebrow: '아이의 상상이 동화가 되는 순간',
         title: '그리면, 바로 동화가 돼요.',
-        description: '아이와 함께 그리고 한 줄만 적어보세요. 눈앞에서 책장이 넘어가는 동화책이 바로 완성됩니다.',
+        description: '아이와 함께 그리고 한 줄만 적어보세요.\n눈앞에서 책장이 넘어가는 동화책이 바로 완성될거예요.',
         stepDraw: '함께 그리고',
         stepWrite: '간단히 쓰고',
         stepOpen: '책으로 읽기',
-        trust: '로그인 없이 시작하고, 생성할 때만 간단히 로그인',
         cta: '바로 사용해보기',
       },
       authPage: {
@@ -200,7 +199,6 @@ export const i18nResources = {
         stepDraw: 'Draw together',
         stepWrite: 'Add a scene',
         stepOpen: 'Read as a book',
-        trust: 'Start without login. Sign in only when you generate.',
         cta: 'Try it now',
       },
       authPage: {
@@ -387,7 +385,6 @@ export const i18nResources = {
         stepDraw: '一緒に描く',
         stepWrite: '短く書く',
         stepOpen: '絵本で読む',
-        trust: '開始はログイン不要、生成時だけログイン',
         cta: '今すぐ試す',
       },
       authPage: {
@@ -574,7 +571,6 @@ export const i18nResources = {
         stepDraw: '一起画',
         stepWrite: '写一句',
         stepOpen: '翻页读',
-        trust: '无需登录即可开始，生成时再登录',
         cta: '立即体验',
       },
       authPage: {

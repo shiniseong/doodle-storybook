@@ -13,35 +13,43 @@ interface PointerState {
   heroTiltY: number
   pointerX: number
   pointerY: number
+  parallaxX: number
+  parallaxY: number
 }
 
 const HERO_MAX_TILT_DEG = 4
 const INTERACTION_EASE = 0.17
 const INTERACTION_EPSILON = 0.015
-const POINTER_STATE_KEYS = ['heroTiltX', 'heroTiltY', 'pointerX', 'pointerY'] as const
+const POINTER_STATE_KEYS = ['heroTiltX', 'heroTiltY', 'pointerX', 'pointerY', 'parallaxX', 'parallaxY'] as const
+const ORB_PARALLAX_MAX_PX = 24
 
 const INITIAL_POINTER_STATE: PointerState = {
   heroTiltX: 0,
   heroTiltY: 0,
   pointerX: 50,
   pointerY: 50,
+  parallaxX: 0,
+  parallaxY: 0,
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
-const applyStageInteractionVars = (stage: HTMLElement | null, pointerState: PointerState) => {
-  if (!stage) {
+const applyLandingInteractionVars = (container: HTMLElement | null, pointerState: PointerState) => {
+  if (!container) {
     return
   }
 
-  stage.style.setProperty('--landing-hero-tilt-x', `${pointerState.heroTiltX.toFixed(2)}deg`)
-  stage.style.setProperty('--landing-hero-tilt-y', `${pointerState.heroTiltY.toFixed(2)}deg`)
-  stage.style.setProperty('--landing-pointer-x', `${pointerState.pointerX.toFixed(2)}%`)
-  stage.style.setProperty('--landing-pointer-y', `${pointerState.pointerY.toFixed(2)}%`)
+  container.style.setProperty('--landing-hero-tilt-x', `${pointerState.heroTiltX.toFixed(2)}deg`)
+  container.style.setProperty('--landing-hero-tilt-y', `${pointerState.heroTiltY.toFixed(2)}deg`)
+  container.style.setProperty('--landing-pointer-x', `${pointerState.pointerX.toFixed(2)}%`)
+  container.style.setProperty('--landing-pointer-y', `${pointerState.pointerY.toFixed(2)}%`)
+  container.style.setProperty('--landing-parallax-x', `${pointerState.parallaxX.toFixed(2)}px`)
+  container.style.setProperty('--landing-parallax-y', `${pointerState.parallaxY.toFixed(2)}px`)
 }
 
 export function LandingPage({ onStart }: LandingPageProps) {
   const { t } = useTranslation()
+  const sectionRef = useRef<HTMLElement | null>(null)
   const stageRef = useRef<HTMLElement | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const currentPointerStateRef = useRef<PointerState>(INITIAL_POINTER_STATE)
@@ -70,7 +78,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
       }
 
       currentPointerStateRef.current = nextPointerState
-      applyStageInteractionVars(stageRef.current, nextPointerState)
+      applyLandingInteractionVars(sectionRef.current, nextPointerState)
 
       if (hasPendingDelta) {
         animationFrameRef.current = window.requestAnimationFrame(runFrame)
@@ -89,7 +97,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
   }
 
   useEffect(() => {
-    applyStageInteractionVars(stageRef.current, INITIAL_POINTER_STATE)
+    applyLandingInteractionVars(sectionRef.current, INITIAL_POINTER_STATE)
 
     return () => {
       if (animationFrameRef.current !== null) {
@@ -99,7 +107,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
   }, [])
 
   return (
-    <section className="landing-page" aria-labelledby="landing-title">
+    <section ref={sectionRef} className="landing-page" aria-labelledby="landing-title">
       <div className="landing-page__ambient" aria-hidden="true" />
       <div className="landing-page__ambient-grid" aria-hidden="true" />
       <span className="landing-page__orb landing-page__orb--sunrise" aria-hidden="true" />
@@ -109,6 +117,34 @@ export function LandingPage({ onStart }: LandingPageProps) {
       <main
         ref={stageRef}
         className="landing-page__stage"
+        onPointerMove={(event) => {
+          if (event.pointerType !== 'mouse') {
+            return
+          }
+
+          const bounds = event.currentTarget.getBoundingClientRect()
+          const relativeX = clamp((event.clientX - bounds.left) / bounds.width, 0, 1)
+          const relativeY = clamp((event.clientY - bounds.top) / bounds.height, 0, 1)
+
+          targetPointerStateRef.current = {
+            ...targetPointerStateRef.current,
+            parallaxX: (relativeX - 0.5) * ORB_PARALLAX_MAX_PX,
+            parallaxY: (relativeY - 0.5) * ORB_PARALLAX_MAX_PX,
+          }
+          requestInteractionAnimationFrame()
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType !== 'mouse') {
+            return
+          }
+
+          targetPointerStateRef.current = {
+            ...targetPointerStateRef.current,
+            parallaxX: 0,
+            parallaxY: 0,
+          }
+          requestInteractionAnimationFrame()
+        }}
       >
         <article
           className="landing-page__hero"
@@ -121,11 +157,14 @@ export function LandingPage({ onStart }: LandingPageProps) {
             const relativeX = clamp((event.clientX - bounds.left) / bounds.width, 0, 1)
             const relativeY = clamp((event.clientY - bounds.top) / bounds.height, 0, 1)
 
+            const currentTargetState = targetPointerStateRef.current
             setPointerTarget({
               heroTiltX: (0.5 - relativeY) * HERO_MAX_TILT_DEG,
               heroTiltY: (relativeX - 0.5) * HERO_MAX_TILT_DEG,
               pointerX: relativeX * 100,
               pointerY: relativeY * 100,
+              parallaxX: currentTargetState.parallaxX,
+              parallaxY: currentTargetState.parallaxY,
             })
           }}
           onPointerLeave={(event) => {
@@ -133,7 +172,12 @@ export function LandingPage({ onStart }: LandingPageProps) {
               return
             }
 
-            setPointerTarget(INITIAL_POINTER_STATE)
+            const currentTargetState = targetPointerStateRef.current
+            setPointerTarget({
+              ...INITIAL_POINTER_STATE,
+              parallaxX: currentTargetState.parallaxX,
+              parallaxY: currentTargetState.parallaxY,
+            })
           }}
         >
           <p className="landing-page__brand">{t('common.appName')}</p>
@@ -157,7 +201,6 @@ export function LandingPage({ onStart }: LandingPageProps) {
               <p>{t('landing.stepOpen')}</p>
             </article>
           </div>
-          <p className="landing-page__trust">{t('landing.trust')}</p>
           <button type="button" className="landing-page__cta" onClick={onStart}>
             {t('landing.cta')}
           </button>

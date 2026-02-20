@@ -6,6 +6,8 @@
   overflow: hidden;
   display: grid;
   place-items: center;
+  --landing-parallax-x: 0px;
+  --landing-parallax-y: 0px;
 }
 
 .landing-page__ambient {
@@ -34,6 +36,8 @@
 .landing-page__orb {
   position: absolute;
   z-index: -1;
+  --orb-shift-x: 0px;
+  --orb-shift-y: 0px;
   border-radius: 999px;
   filter: blur(0.3rem);
   opacity: 0.78;
@@ -41,6 +45,8 @@
 }
 
 .landing-page__orb--sunrise {
+  --orb-shift-x: calc(var(--landing-parallax-x, 0px) * -0.55);
+  --orb-shift-y: calc(var(--landing-parallax-y, 0px) * -0.35);
   width: min(46vw, 28rem);
   aspect-ratio: 1;
   top: -8rem;
@@ -49,6 +55,8 @@
 }
 
 .landing-page__orb--mint {
+  --orb-shift-x: calc(var(--landing-parallax-x, 0px) * 0.75);
+  --orb-shift-y: calc(var(--landing-parallax-y, 0px) * -0.45);
   width: min(36vw, 20rem);
   aspect-ratio: 1;
   right: -4rem;
@@ -58,6 +66,8 @@
 }
 
 .landing-page__orb--sky {
+  --orb-shift-x: calc(var(--landing-parallax-x, 0px) * 0.88);
+  --orb-shift-y: calc(var(--landing-parallax-y, 0px) * 0.48);
   width: min(44vw, 24rem);
   aspect-ratio: 1;
   right: 14%;
@@ -79,16 +89,14 @@
   position: relative;
   width: min(48rem, 100%);
   border-radius: 1.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.46), rgba(232, 246, 255, 0.22)),
-    linear-gradient(170deg, rgba(255, 255, 255, 0.3), rgba(240, 251, 255, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.34), rgba(224, 244, 255, 0.14));
   box-shadow:
-    0 1.2rem 2rem rgba(21, 87, 123, 0.17),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 -1.3rem 2rem rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(22px) saturate(168%);
-  -webkit-backdrop-filter: blur(22px) saturate(168%);
+    0 1.15rem 2rem rgba(21, 87, 123, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(24px) saturate(165%);
+  -webkit-backdrop-filter: blur(24px) saturate(165%);
   padding: clamp(1.2rem, 3.8vw, 2.4rem);
   display: grid;
   justify-items: center;
@@ -103,9 +111,9 @@
 
 .landing-page__hero:hover {
   box-shadow:
-    0 1.45rem 2.35rem rgba(21, 87, 123, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.74),
-    inset 0 -1.3rem 2rem rgba(255, 255, 255, 0.2);
+    0 1.35rem 2.3rem rgba(21, 87, 123, 0.21),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.38);
 }
 
 .landing-page__hero::before {
@@ -113,8 +121,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(118deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.15) 34%, rgba(255, 255, 255, 0.04) 58%, transparent 72%);
-  opacity: 0.4;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12) 36%, transparent 62%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
 }
 
 .landing-page__hero::after {
@@ -124,9 +133,10 @@
   pointer-events: none;
   background: radial-gradient(
     circle at var(--landing-pointer-x, 50%) var(--landing-pointer-y, 50%),
-    rgba(162, 226, 255, 0.28),
-    rgba(162, 226, 255, 0) 42%
+    rgba(200, 236, 255, 0.38),
+    rgba(204, 240, 255, 0) 44%
   );
+  opacity: 0.88;
 }
 
 .landing-page__hero > * {
@@ -153,11 +163,13 @@
   color: #2f617f;
   padding: 0.25rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(233, 246, 255, 0.22));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(233, 246, 255, 0.18));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px) saturate(158%);
+  -webkit-backdrop-filter: blur(16px) saturate(158%);
 }
 
 .landing-page h1 {
@@ -189,15 +201,16 @@
 
 .landing-page__stack-card {
   border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(255, 255, 255, 0.48);
   background:
-    linear-gradient(154deg, rgba(255, 255, 255, 0.56), rgba(236, 248, 255, 0.2)),
-    linear-gradient(176deg, rgba(255, 255, 255, 0.2), rgba(247, 253, 255, 0.08));
+    linear-gradient(154deg, rgba(255, 255, 255, 0.34), rgba(236, 248, 255, 0.12)),
+    linear-gradient(176deg, rgba(255, 255, 255, 0.12), rgba(247, 253, 255, 0.04));
   box-shadow:
-    0 0.95rem 1.5rem rgba(20, 94, 135, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(14px) saturate(158%);
-  -webkit-backdrop-filter: blur(14px) saturate(158%);
+    0 0.9rem 1.5rem rgba(20, 94, 135, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
   padding: 0.62rem 0.56rem;
   display: grid;
   justify-items: center;
@@ -227,19 +240,6 @@
 
 .landing-page__stack-card--open {
   transform: translateY(0.22rem) rotate(3deg);
-}
-
-.landing-page__trust {
-  margin: 0.35rem 0 0;
-  padding: 0.34rem 0.8rem;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  color: #2e5f7d;
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.56), rgba(228, 244, 255, 0.2));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px) saturate(148%);
-  -webkit-backdrop-filter: blur(12px) saturate(148%);
 }
 
 .landing-page__cta {
@@ -279,10 +279,10 @@
 @keyframes landing-orb-float {
   0%,
   100% {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(var(--orb-shift-x, 0px), var(--orb-shift-y, 0px), 0);
   }
   50% {
-    transform: translate3d(0, -0.8rem, 0);
+    transform: translate3d(var(--orb-shift-x, 0px), calc(var(--orb-shift-y, 0px) - 0.8rem), 0);
   }
 }
 
@@ -316,10 +316,6 @@
   }
 
   .landing-page__stack-card p {
-    font-size: 0.76rem;
-  }
-
-  .landing-page__trust {
     font-size: 0.76rem;
   }
 }
