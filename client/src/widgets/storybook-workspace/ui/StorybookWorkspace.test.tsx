@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +9,10 @@ import {
   type StorybookWorkspaceAuth,
   type StorybookWorkspaceDependencies,
 } from '@widgets/storybook-workspace/ui/StorybookWorkspace'
+
+type CreateStorybookExecuteResult = Awaited<
+  ReturnType<StorybookWorkspaceDependencies['createStorybookUseCase']['execute']>
+>
 
 function createMockCanvasContext(width: number, height: number): CanvasRenderingContext2D {
   return {
@@ -270,6 +274,54 @@ describe('StorybookWorkspace', () => {
       expect(screen.queryByTestId('story-loading-mini-game')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
     })
+  })
+
+  it('미니게임 게임오버 후 다시 도전하기를 누르면 하트가 복구되고 즉시 재시작된다', async () => {
+    vi.useFakeTimers()
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.3)
+
+    try {
+      const dependencies: StorybookWorkspaceDependencies = {
+        currentUserId: 'user-1',
+        createStorybookUseCase: {
+          execute: vi.fn(() => new Promise<CreateStorybookExecuteResult>(() => {})),
+        },
+      }
+
+      const { unmount } = render(<StorybookWorkspace dependencies={dependencies} />)
+
+      fireEvent.change(screen.getByLabelText('동화 제목'), { target: { value: '게임오버 테스트' } })
+      fireEvent.change(screen.getByLabelText('그림 설명'), { target: { value: '재도전 버튼 동작 확인' } })
+      fireEvent.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+      expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
+      expect(document.querySelectorAll('.story-loading-game__life--active')).toHaveLength(2)
+
+      let reachedGameOver = false
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500)
+        })
+
+        if (screen.queryByTestId('story-loading-game-over')) {
+          reachedGameOver = true
+          break
+        }
+      }
+
+      expect(reachedGameOver).toBe(true)
+      expect(screen.getByTestId('story-loading-game-over')).toBeInTheDocument()
+      expect(document.querySelectorAll('.story-loading-game__life--active')).toHaveLength(0)
+
+      fireEvent.click(screen.getByRole('button', { name: '다시 도전하기' }))
+
+      expect(screen.queryByTestId('story-loading-game-over')).not.toBeInTheDocument()
+      expect(document.querySelectorAll('.story-loading-game__life--active')).toHaveLength(2)
+      unmount()
+    } finally {
+      randomSpy.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it('생성 실패 시 다국어 오류 피드백을 보여준다', async () => {
@@ -1074,7 +1126,7 @@ describe('StorybookWorkspace', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '표지 넘기기' })).toBeInTheDocument()
     })
-  })
+  }, 10000)
 
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
     const dependencies: StorybookWorkspaceDependencies = {

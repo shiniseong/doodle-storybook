@@ -796,32 +796,21 @@
   gap: 0.58rem;
 }
 
-.story-loading-game__lives {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.46rem;
-  justify-self: start;
-  border-radius: 999px;
-  border: 1px solid rgba(138, 188, 216, 0.52);
-  background: rgba(255, 255, 255, 0.82);
-  padding: 0.2rem 0.54rem;
-}
-
-.story-loading-game__lives-label {
-  color: #2d607f;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
 .story-loading-game__lives-hearts {
-  display: inline-flex;
+  position: absolute;
+  top: 0.56rem;
+  left: 0.62rem;
+  z-index: 3;
+  display: flex;
   gap: 0.2rem;
+  pointer-events: none;
 }
 
 .story-loading-game__life {
   color: rgba(117, 131, 145, 0.55);
-  font-size: 0.84rem;
+  font-size: 1.02rem;
   line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(5, 18, 31, 0.36));
 }
 
 .story-loading-game__life--active {

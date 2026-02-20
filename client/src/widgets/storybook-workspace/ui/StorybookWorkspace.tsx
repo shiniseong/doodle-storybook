@@ -124,6 +124,46 @@ const LOADING_GAME_OBSTACLE_ICONS: Record<LoadingGameObstacleType, string> = {
   bug: '🐞',
 }
 
+let bodyScrollLockCount = 0
+let bodyOverflowBeforeScrollLock: string | null = null
+
+function acquireBodyScrollLock(): void {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  if (bodyScrollLockCount === 0) {
+    bodyOverflowBeforeScrollLock = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+
+  bodyScrollLockCount += 1
+}
+
+function releaseBodyScrollLock(): void {
+  if (typeof document === 'undefined' || bodyScrollLockCount === 0) {
+    return
+  }
+
+  bodyScrollLockCount -= 1
+  if (bodyScrollLockCount > 0) {
+    return
+  }
+
+  document.body.style.overflow = bodyOverflowBeforeScrollLock ?? ''
+  bodyOverflowBeforeScrollLock = null
+}
+
+function useBodyScrollLock(): void {
+  useEffect(() => {
+    acquireBodyScrollLock()
+
+    return () => {
+      releaseBodyScrollLock()
+    }
+  }, [])
+}
+
 interface CanvasPoint {
   x: number
   y: number
@@ -1632,14 +1672,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
   }, [clearCoverFlipTimeout, clearCoverReturnTimeout, clearPageTurnTimeout])
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
@@ -2071,20 +2104,6 @@ function StoryLoadingMiniGame() {
 
   return (
     <section className="story-loading-game" data-testid="story-loading-mini-game" aria-label={t('workspace.miniGame.title')}>
-      <div className="story-loading-game__lives">
-        <span className="story-loading-game__lives-label">{t('workspace.miniGame.lives')}</span>
-        <span className="story-loading-game__lives-hearts" data-testid="story-loading-game-lives">
-          {Array.from({ length: LOADING_GAME_MAX_LIVES }, (_, lifeIndex) => (
-            <span
-              key={lifeIndex}
-              className={`story-loading-game__life${lifeIndex < lives ? ' story-loading-game__life--active' : ''}`}
-              aria-hidden="true"
-            >
-              ♥
-            </span>
-          ))}
-        </span>
-      </div>
       <header className="story-loading-game__header">
         <h3>{t('workspace.miniGame.title')}</h3>
         <p>{t('workspace.miniGame.description')}</p>
@@ -2114,6 +2133,16 @@ function StoryLoadingMiniGame() {
         onKeyDown={handleTrackKeyDown}
         onPointerDown={handleTrackPointerDown}
       >
+        <span className="story-loading-game__lives-hearts" data-testid="story-loading-game-lives" aria-hidden="true">
+          {Array.from({ length: LOADING_GAME_MAX_LIVES }, (_, lifeIndex) => (
+            <span
+              key={lifeIndex}
+              className={`story-loading-game__life${lifeIndex < lives ? ' story-loading-game__life--active' : ''}`}
+            >
+              ♥
+            </span>
+          ))}
+        </span>
         {Array.from({ length: LOADING_GAME_LANE_COUNT - 1 }, (_, dividerIndex) => (
           <span
             key={dividerIndex}
@@ -2187,14 +2216,7 @@ function StoryLoadingMiniGame() {
 function StoryLoadingGameDialog() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [])
+  useBodyScrollLock()
 
   return (
     <motion.div
@@ -2206,12 +2228,6 @@ function StoryLoadingGameDialog() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      onPointerDownCapture={(event) => {
-        event.stopPropagation()
-      }}
-      onClickCapture={(event) => {
-        event.stopPropagation()
-      }}
     >
       <div className="story-loading-game-dialog__backdrop" data-testid="story-loading-game-backdrop" aria-hidden="true" />
       <motion.article
@@ -2245,10 +2261,9 @@ interface AuthGateDialogProps {
 function AuthGateDialog({ onConfirm, onCancel }: AuthGateDialogProps) {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+  useBodyScrollLock()
 
+  useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') {
         return
@@ -2262,7 +2277,6 @@ function AuthGateDialog({ onConfirm, onCancel }: AuthGateDialogProps) {
 
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown)
-      document.body.style.overflow = previousOverflow
     }
   }, [onCancel])
 
