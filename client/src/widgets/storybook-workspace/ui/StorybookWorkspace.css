@@ -1326,6 +1326,12 @@
   border-radius: 0.64rem;
 }
 
+.storybook-book-page__surface--illustrated {
+  padding: 0;
+  gap: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
 .storybook-book-page__surface--text-only {
   display: flex;
   align-items: center;
@@ -1342,6 +1348,13 @@
   min-height: clamp(9rem, 24vw, 15rem);
 }
 
+.storybook-book-page__surface--illustrated .storybook-book-page__figure {
+  min-height: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0.3rem 0.3rem 0 0;
+}
+
 .storybook-book-page__figure img {
   display: block;
   width: 100%;
@@ -1356,6 +1369,16 @@
   line-height: 1.72;
   white-space: pre-line;
   overflow: auto;
+}
+
+.storybook-book-page__surface--illustrated .storybook-book-page__text {
+  margin: 0;
+  padding: clamp(0.58rem, 1.5vw, 0.82rem) clamp(0.62rem, 1.6vw, 0.9rem) clamp(0.68rem, 1.7vw, 0.92rem);
+  border-top: 1px solid rgba(217, 224, 233, 0.94);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 255, 0.98));
+  max-height: 44%;
+  font-size: clamp(0.9rem, 1.75vw, 1.04rem);
+  line-height: 1.62;
 }
 
 .storybook-book-page__surface--text-only .storybook-book-page__text {
@@ -1522,13 +1545,28 @@
     gap: 0.42rem;
   }
 
+  .storybook-book-page__surface--illustrated {
+    padding: 0;
+    gap: 0;
+  }
+
   .storybook-book-page__figure {
     min-height: min(22dvh, 9rem);
+  }
+
+  .storybook-book-page__surface--illustrated .storybook-book-page__figure {
+    min-height: 0;
   }
 
   .storybook-book-page__text {
     font-size: clamp(0.84rem, 2.9vw, 0.98rem);
     line-height: 1.6;
+  }
+
+  .storybook-book-page__surface--illustrated .storybook-book-page__text {
+    padding: 0.46rem 0.52rem 0.56rem;
+    max-height: 46%;
+    font-size: clamp(0.8rem, 2.6vw, 0.9rem);
   }
 
   .storybook-book-page__surface--text-only .storybook-book-page__text {

@@ -1360,8 +1360,9 @@ function StorybookBookPageContent({
   image,
   surfaceClassName,
 }: StorybookBookPageContentProps) {
+  const hasIllustration = typeof image === 'string' && image.length > 0
   const modifierClasses = [
-    image ? 'storybook-book-page__surface--image' : 'storybook-book-page__surface--text-only',
+    hasIllustration ? 'storybook-book-page__surface--illustrated' : 'storybook-book-page__surface--text-only',
     surfaceClassName,
   ]
     .filter((classNameValue): classNameValue is string => typeof classNameValue === 'string' && classNameValue.length > 0)
@@ -1370,14 +1371,13 @@ function StorybookBookPageContent({
 
   return (
     <div className={className}>
-      {image ? (
+      {hasIllustration ? (
         <figure className="storybook-book-page__figure">
           <img src={image} alt={`${page.page}페이지 삽화`} />
         </figure>
-      ) : (
-        <p className="storybook-book-page__text">{page.content}</p>
-      )}
-      <p className="storybook-book-page__number">- {page.page} -</p>
+      ) : null}
+      <p className="storybook-book-page__text">{page.content}</p>
+      {hasIllustration ? null : <p className="storybook-book-page__number">- {page.page} -</p>}
     </div>
   )
 }

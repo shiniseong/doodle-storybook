@@ -1008,7 +1008,7 @@ describe('StorybookWorkspace', () => {
     await waitFor(
       () => {
         expect(screen.getByText('- 1 -')).toBeInTheDocument()
-        expect(screen.getByText('- 2 -')).toBeInTheDocument()
+        expect(screen.queryByText('- 2 -')).not.toBeInTheDocument()
       },
       { timeout: 1200 },
     )
@@ -1019,19 +1019,22 @@ describe('StorybookWorkspace', () => {
 
     const highlightImage = screen.getByAltText('2페이지 삽화') as HTMLImageElement
     expect(highlightImage.src).toContain('data:image/png;base64,highlightimg')
+    expect(screen.getAllByText('강조 장면').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
     await waitFor(() => {
-      expect(screen.getByText('- 3 -')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '이전 장으로 넘기기' })).toBeEnabled()
     })
 
-    const lastImage = screen.getByAltText('3페이지 삽화') as HTMLImageElement
-    expect(lastImage.src).toContain('data:image/png;base64,lastimg')
+    const lastImages = screen.getAllByAltText('3페이지 삽화') as HTMLImageElement[]
+    expect(lastImages.some((image) => image.src.includes('data:image/png;base64,lastimg'))).toBe(true)
+    expect(screen.getAllByText('마지막 장면').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: '이전 장으로 넘기기' }))
     await waitFor(() => {
       expect(screen.getByText('- 1 -')).toBeInTheDocument()
-      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      expect(screen.queryByText('- 2 -')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '표지로 돌아가기' })).toBeEnabled()
     })
 
     await user.click(screen.getByRole('button', { name: '표지로 돌아가기' }))
