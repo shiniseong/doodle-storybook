@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+import { ensureAuthStorageLifecycle } from '@shared/lib/supabase/auth-storage-lifecycle'
+
 interface SupabaseCredentials {
   readonly url: string
   readonly publishableKey: string
@@ -59,6 +61,8 @@ export function resolveSupabaseClient(): SupabaseClient | null {
     cachedSupabaseClient = null
     return cachedSupabaseClient
   }
+
+  ensureAuthStorageLifecycle()
 
   cachedSupabaseClient = createClient(credentials.url, credentials.publishableKey, {
     auth: {

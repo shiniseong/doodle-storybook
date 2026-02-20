@@ -2,6 +2,7 @@ import { type User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { resolveSupabaseClient } from '@shared/lib/supabase/client'
+import { clearAllBrowserStorage } from '@shared/lib/supabase/auth-storage-lifecycle'
 
 type SupportedSupabaseOAuthProvider = 'google' | 'kakao'
 
@@ -208,10 +209,18 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
 
   const signOut = useCallback(async () => {
     if (!supabaseClient) {
+      clearAllBrowserStorage()
       return
     }
 
-    await supabaseClient.auth.signOut()
+    try {
+      await supabaseClient.auth.signOut()
+    } finally {
+      clearAllBrowserStorage()
+      setUser(null)
+      setIsSigningIn(false)
+      setIsLoading(false)
+    }
   }, [supabaseClient])
 
   return {

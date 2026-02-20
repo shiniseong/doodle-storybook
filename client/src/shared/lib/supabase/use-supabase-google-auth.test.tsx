@@ -5,10 +5,15 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveSupabaseClient } from '@shared/lib/supabase/client'
+import { clearAllBrowserStorage } from '@shared/lib/supabase/auth-storage-lifecycle'
 import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
 
 vi.mock('@shared/lib/supabase/client', () => ({
   resolveSupabaseClient: vi.fn(),
+}))
+
+vi.mock('@shared/lib/supabase/auth-storage-lifecycle', () => ({
+  clearAllBrowserStorage: vi.fn(),
 }))
 
 type AuthStateChangeHandler = (
@@ -167,6 +172,7 @@ function HookHarness() {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(resolveSupabaseClient).mockReset()
+  vi.mocked(clearAllBrowserStorage).mockReset()
 })
 
 describe('useSupabaseGoogleAuth', () => {
@@ -185,6 +191,7 @@ describe('useSupabaseGoogleAuth', () => {
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
     await user.click(screen.getByRole('button', { name: 'sign-up' }))
     await user.click(screen.getByRole('button', { name: 'sign-out' }))
+    expect(clearAllBrowserStorage).toHaveBeenCalledTimes(1)
   })
 
   it('초기 사용자 정보를 읽고 auth 상태 구독을 등록한다', async () => {
@@ -382,6 +389,7 @@ describe('useSupabaseGoogleAuth', () => {
     await waitFor(() => {
       expect(supabase.signOut).toHaveBeenCalledTimes(1)
     })
+    expect(clearAllBrowserStorage).toHaveBeenCalledTimes(1)
   })
 
   it('언마운트 시 auth 구독을 해제한다', () => {

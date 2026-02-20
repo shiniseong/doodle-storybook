@@ -5,6 +5,12 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
 }))
 
+vi.mock('@shared/lib/supabase/auth-storage-lifecycle', () => ({
+  ensureAuthStorageLifecycle: vi.fn(),
+}))
+
+import { ensureAuthStorageLifecycle } from '@shared/lib/supabase/auth-storage-lifecycle'
+
 const VITE_SUPABASE_URL = 'https://vite-project.supabase.co'
 const VITE_SUPABASE_KEY = 'sb_publishable_vite_key'
 const NEXT_PUBLIC_SUPABASE_URL = 'https://next-project.supabase.co'
@@ -28,6 +34,10 @@ function getCreateClientMock(): ReturnType<typeof vi.fn> {
   return createClient as unknown as ReturnType<typeof vi.fn>
 }
 
+function getEnsureAuthStorageLifecycleMock(): ReturnType<typeof vi.fn> {
+  return ensureAuthStorageLifecycle as unknown as ReturnType<typeof vi.fn>
+}
+
 async function loadClientModule() {
   return import('@shared/lib/supabase/client')
 }
@@ -39,6 +49,7 @@ beforeEach(() => {
     vi.stubEnv(envKey, '')
   }
   getCreateClientMock().mockReset()
+  getEnsureAuthStorageLifecycleMock().mockReset()
 })
 
 describe('supabase client module', () => {
@@ -72,14 +83,15 @@ describe('supabase client module', () => {
       VITE_SUPABASE_URL,
       VITE_SUPABASE_KEY,
       expect.objectContaining({
-        auth: {
+        auth: expect.objectContaining({
           autoRefreshToken: true,
           persistSession: true,
           detectSessionInUrl: true,
           flowType: 'pkce',
-        },
+        }),
       }),
     )
+    expect(ensureAuthStorageLifecycle).toHaveBeenCalledTimes(1)
     expect(module.supabase).toBe(mockClient)
     expect(firstResolved).toBe(mockClient)
     expect(secondResolved).toBe(mockClient)
@@ -98,6 +110,7 @@ describe('supabase client module', () => {
       publishableKey: NEXT_PUBLIC_SUPABASE_KEY,
     })
     expect(module.resolveSupabaseClient()).toBe(mockClient)
+    expect(ensureAuthStorageLifecycle).toHaveBeenCalledTimes(1)
   })
 
   it('legacy anon key도 fallback으로 허용한다', async () => {
@@ -113,5 +126,6 @@ describe('supabase client module', () => {
       publishableKey: 'sb_legacy_anon_key',
     })
     expect(module.resolveSupabaseClient()).toBe(mockClient)
+    expect(ensureAuthStorageLifecycle).toHaveBeenCalledTimes(1)
   })
 })
