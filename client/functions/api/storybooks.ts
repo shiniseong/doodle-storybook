@@ -64,6 +64,10 @@ interface OpenAIResponsesApiBody {
   id?: string
   output_text?: string
   output?: OpenAIResponseOutputItem[]
+  prompt?: {
+    id?: string
+    version?: string | number
+  }
 }
 
 const CORS_HEADERS = {
@@ -758,6 +762,19 @@ async function readResponseBody(response: Response): Promise<unknown> {
   }
 }
 
+function normalizePromptVersion(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : null
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value)
+  }
+
+  return null
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
@@ -865,6 +882,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const openAIResponseBody = upstreamPayload as OpenAIResponsesApiBody
   const storyText = extractStorybookText(openAIResponseBody)
+  const upstreamPromptVersion = normalizePromptVersion(openAIResponseBody.prompt?.version)
   const parsedPromptStorybook = parsePromptStorybookOutput(storyText, {
     title: normalizedBody.title,
     description: normalizedBody.description,
@@ -898,6 +916,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     storybookId: `storybook-${crypto.randomUUID()}`,
     openaiResponseId: openAIResponseBody.id ?? null,
     promptVersion,
+    upstreamPromptVersion,
     pages: parsedPromptStorybook.pages,
     images: [
       coverImage ?? TRANSPARENT_PNG_DATA_URL,

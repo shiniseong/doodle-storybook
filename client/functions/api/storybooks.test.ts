@@ -144,6 +144,10 @@ describe('storybooks function (v9 pipeline)', () => {
       if (url === 'https://api.openai.com/v1/responses') {
         return createJsonResponse({
           id: 'resp-v9-1',
+          prompt: {
+            id: 'pmpt_test',
+            version: '9',
+          },
           output_text: JSON.stringify(schema),
         })
       }
@@ -189,10 +193,12 @@ describe('storybooks function (v9 pipeline)', () => {
       images: string[]
       narrations: Array<{ page: number; audioDataUrl: string }>
       promptVersion: string
+      upstreamPromptVersion: string | null
       openaiResponseId: string
     }
 
     expect(payload.promptVersion).toBe('9')
+    expect(payload.upstreamPromptVersion).toBe('9')
     expect(payload.openaiResponseId).toBe('resp-v9-1')
     expect(payload.pages).toHaveLength(10)
     expect(payload.pages.filter((page) => page.isHighlight)).toHaveLength(1)

@@ -48,12 +48,14 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
 
       const payload = (await response.json()) as {
         promptVersion: string
+        upstreamPromptVersion: string | null
         pages: Array<{ page: number; content: string; isHighlight: boolean }>
         images: string[]
         narrations: Array<{ page: number; audioDataUrl: string }>
       }
 
       expect(payload.promptVersion).toBe(openaiPromptVersion)
+      expect(payload.upstreamPromptVersion).toBe(openaiPromptVersion)
       expect(payload.pages).toHaveLength(10)
       expect(payload.images).toHaveLength(3)
       expect(payload.images.every((image) => image.startsWith('data:image/'))).toBe(true)
