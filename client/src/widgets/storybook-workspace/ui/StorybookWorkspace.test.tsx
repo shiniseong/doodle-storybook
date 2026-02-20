@@ -1350,6 +1350,56 @@ describe('StorybookWorkspace', () => {
     })
   }, 10000)
 
+  it('마지막 페이지에서 처음으로 버튼을 누르면 표지로 이동한다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: {
+            storybookId: 'storybook-ebook-back-to-cover',
+            pages: [
+              { page: 1, content: '첫 페이지 텍스트', isHighlight: false },
+              { page: 2, content: '마지막 페이지 텍스트', isHighlight: false },
+            ],
+            images: [
+              'data:image/png;base64,coverimg-2',
+              'data:image/png;base64,highlightimg-2',
+              'data:image/png;base64,lastimg-2',
+            ],
+          },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.type(screen.getByLabelText('동화 제목'), '처음으로 테스트')
+    await user.type(screen.getByLabelText('지은이'), '작가')
+    await user.type(screen.getByLabelText('그림 설명'), '마지막 페이지 버튼 테스트')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(await screen.findByRole('dialog', { name: '생성된 동화책: 처음으로 테스트' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '표지 넘기기' }))
+    await waitFor(() => {
+      expect(screen.getByText('- 1 -')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
+    await waitFor(() => {
+      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '다음 장으로 넘기기' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: '처음으로' })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole('button', { name: '처음으로' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '표지 넘기기' })).toBeInTheDocument()
+    })
+  })
+
   it('삽화 페이지를 제외한 텍스트 페이지에만 낭독 버튼을 보여준다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {

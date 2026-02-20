@@ -82,6 +82,7 @@ export const i18nResources = {
           stopNarration: '낭독 정지',
           startAutoNarration: '자동 낭독',
           stopAutoNarration: '자동 낭독 중지',
+          backToCover: '처음으로',
         },
         panels: {
           canvas: {
@@ -268,6 +269,7 @@ export const i18nResources = {
           stopNarration: 'Stop narration',
           startAutoNarration: 'Auto narration',
           stopAutoNarration: 'Stop auto narration',
+          backToCover: 'To cover',
         },
         panels: {
           canvas: {
@@ -454,6 +456,7 @@ export const i18nResources = {
           stopNarration: '読み上げ停止',
           startAutoNarration: '自動読み上げ',
           stopAutoNarration: '自動読み上げ停止',
+          backToCover: '表紙へ',
         },
         panels: {
           canvas: {
@@ -640,6 +643,7 @@ export const i18nResources = {
           stopNarration: '停止朗读',
           startAutoNarration: '自动朗读',
           stopAutoNarration: '停止自动朗读',
+          backToCover: '回到封面',
         },
         panels: {
           canvas: {

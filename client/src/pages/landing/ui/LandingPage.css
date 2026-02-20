@@ -8,6 +8,8 @@
   place-items: center;
   --landing-parallax-x: 0px;
   --landing-parallax-y: 0px;
+  --landing-fairy-react-x: 0px;
+  --landing-fairy-react-y: 0px;
 }
 
 .landing-page__ambient {
@@ -85,9 +87,42 @@
   perspective: 1400px;
 }
 
-.landing-page__hero {
+.landing-page__hero-wrap {
   position: relative;
   width: min(48rem, 100%);
+}
+
+.landing-page__fairy {
+  --fairy-shift-x: calc(var(--landing-parallax-x, 0px) * -0.17);
+  --fairy-shift-y: calc(var(--landing-parallax-y, 0px) * -0.17);
+  --fairy-hover-lift: 0.4rem;
+  position: absolute;
+  top: clamp(-2.2rem, -4vw, -1.25rem);
+  left: clamp(-1.9rem, -3.4vw, -1.15rem);
+  width: clamp(4.95rem, 10.4vw, 6.95rem);
+  aspect-ratio: 1;
+  z-index: 4;
+  pointer-events: none;
+  filter: drop-shadow(0 0.65rem 0.95rem rgba(27, 93, 130, 0.22));
+  animation: landing-fairy-hover 3.1s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-page__fairy img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.landing-page__hero-wrap:hover .landing-page__fairy {
+  --fairy-hover-lift: 0.56rem;
+  filter: drop-shadow(0 0.84rem 1.1rem rgba(24, 90, 130, 0.28));
+}
+
+.landing-page__hero {
+  position: relative;
+  width: 100%;
   border-radius: 1.55rem;
   border: 1px solid rgba(255, 255, 255, 0.38);
   background: linear-gradient(142deg, rgba(255, 255, 255, 0.13), rgba(224, 244, 255, 0.03));
@@ -286,6 +321,26 @@
   }
 }
 
+@keyframes landing-fairy-hover {
+  0%,
+  100% {
+    transform: translate3d(
+        calc(var(--fairy-shift-x, 0px) + var(--landing-fairy-react-x, 0px)),
+        calc(var(--fairy-shift-y, 0px) + var(--landing-fairy-react-y, 0px)),
+        0
+      )
+      rotate(-9deg);
+  }
+  50% {
+    transform: translate3d(
+        calc(var(--fairy-shift-x, 0px) + var(--landing-fairy-react-x, 0px)),
+        calc(var(--fairy-shift-y, 0px) + var(--landing-fairy-react-y, 0px) - var(--fairy-hover-lift, 0.4rem)),
+        0
+      )
+      rotate(-5deg);
+  }
+}
+
 @media (max-width: 920px) {
   .landing-page__stage {
     min-height: min(38rem, calc(100dvh - 1.4rem));
@@ -293,6 +348,12 @@
 
   .landing-page__stack {
     width: min(27rem, 100%);
+  }
+
+  .landing-page__fairy {
+    top: -1.4rem;
+    left: -0.95rem;
+    width: clamp(4.3rem, 13.8vw, 5.4rem);
   }
 }
 
@@ -309,6 +370,12 @@
   .landing-page__hero {
     border-radius: 1.15rem;
     padding: 1rem;
+  }
+
+  .landing-page__fairy {
+    top: -1.15rem;
+    left: -0.68rem;
+    width: clamp(3.9rem, 17.8vw, 4.95rem);
   }
 
   .landing-page__stack {
@@ -329,6 +396,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .landing-page__orb {
+    animation: none;
+  }
+
+  .landing-page__fairy {
     animation: none;
   }
 

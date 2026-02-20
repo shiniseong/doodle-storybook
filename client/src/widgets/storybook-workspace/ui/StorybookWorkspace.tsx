@@ -100,7 +100,7 @@ const PEN_COLOR_OPTIONS = [
 const LOADING_GAME_LANE_COUNT = 4
 const LOADING_GAME_TICK_MS = 34
 const LOADING_GAME_BASE_SPEED = 190
-const LOADING_GAME_MAX_SPEED = 500
+const LOADING_GAME_MAX_SPEED = 650
 const LOADING_GAME_ACCELERATION_PER_SECOND = 10
 const LOADING_GAME_BASE_SPAWN_INTERVAL = 1.3
 const LOADING_GAME_MIN_SPAWN_INTERVAL = 0.48
@@ -1819,6 +1819,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   const canGoPreviousSpread = isCoverOpened && activeSpreadStartIndex > 0
   const canGoNextSpread = isCoverOpened && activeSpreadStartIndex + pageAdvanceStep < totalPages
   const canReturnToCover = isCoverOpened && activeSpreadStartIndex === 0
+  const isLastSpread = isCoverOpened && totalPages > 0 && activeSpreadStartIndex + pageAdvanceStep >= totalPages
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -2057,8 +2058,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }, STORYBOOK_COVER_FLIP_DURATION_MS)
   }, [clearCoverFlipTimeout, clearCoverReturnTimeout, isCoverFlipping, isCoverOpened, pageTurnState])
 
-  const handleReturnToCover = useCallback(() => {
-    if (!canReturnToCover || pageTurnState !== null) {
+  const closeBookToCover = useCallback(() => {
+    if (!isCoverOpenedRef.current || pageTurnStateRef.current !== null) {
       return
     }
 
@@ -2069,6 +2070,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     setPageTurnState(null)
     pageTurnStateRef.current = null
     setIsCoverFlipping(false)
+    setActiveSpreadStartIndex(0)
+    activeSpreadStartIndexRef.current = 0
     setIsCoverOpened(false)
     isCoverOpenedRef.current = false
     setIsCoverReturning(true)
@@ -2076,14 +2079,23 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       setIsCoverReturning(false)
       coverReturnTimeoutRef.current = null
     }, STORYBOOK_COVER_FLIP_DURATION_MS)
-  }, [
-    canReturnToCover,
-    clearCoverFlipTimeout,
-    clearCoverReturnTimeout,
-    clearPageTurnTimeout,
-    pageTurnState,
-    stopAutoNarration,
-  ])
+  }, [clearCoverFlipTimeout, clearCoverReturnTimeout, clearPageTurnTimeout, stopAutoNarration])
+
+  const handleReturnToCover = useCallback(() => {
+    if (!canReturnToCover || pageTurnState !== null) {
+      return
+    }
+
+    closeBookToCover()
+  }, [canReturnToCover, closeBookToCover, pageTurnState])
+
+  const handleGoToCoverFromLastSpread = useCallback(() => {
+    if (!isLastSpread || pageTurnState !== null) {
+      return
+    }
+
+    closeBookToCover()
+  }, [closeBookToCover, isLastSpread, pageTurnState])
 
   const handleGoPreviousSpread = useCallback(() => {
     if (!canGoPreviousSpread || pageTurnState !== null) {
@@ -2464,6 +2476,16 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
                 disabled={!canGoNextSpread || pageTurnState !== null}
                 onClick={handleGoNextSpread}
               />
+              {isLastSpread && pageTurnState === null ? (
+                <button
+                  type="button"
+                  className="storybook-openbook__back-to-cover"
+                  aria-label={t('workspace.reader.backToCover')}
+                  onClick={handleGoToCoverFromLastSpread}
+                >
+                  {t('workspace.reader.backToCover')}
+                </button>
+              ) : null}
             </motion.div>
           ) : (
             <div className="storybook-reader-page__empty">
