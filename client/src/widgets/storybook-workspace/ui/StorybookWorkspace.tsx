@@ -1338,31 +1338,71 @@ function resolveReaderPageImage(
   return undefined
 }
 
+interface StorybookReaderTextPage {
+  kind: 'text'
+  pageNumber: number
+  content: string
+}
+
+interface StorybookReaderIllustrationPage {
+  kind: 'illustration'
+  pageNumber: number
+  image: string
+}
+
+type StorybookReaderPage = StorybookReaderTextPage | StorybookReaderIllustrationPage
+
+function buildStorybookReaderPages(
+  pages: readonly StorybookGeneratedPage[],
+  highlightImage?: string,
+  finalImage?: string,
+): StorybookReaderPage[] {
+  const totalPages = pages.length
+
+  return pages.flatMap((page, pageIndex) => {
+    const textPage: StorybookReaderTextPage = {
+      kind: 'text',
+      pageNumber: page.page,
+      content: page.content,
+    }
+    const illustration = resolveReaderPageImage(page, pageIndex, totalPages, highlightImage, finalImage)
+
+    if (!illustration) {
+      return [textPage]
+    }
+
+    return [
+      {
+        kind: 'illustration',
+        pageNumber: page.page,
+        image: illustration,
+      },
+      textPage,
+    ]
+  })
+}
+
 type StorybookPageTurnDirection = 'next' | 'previous'
 
 interface StorybookPageTurnState {
   direction: StorybookPageTurnDirection
   targetSpreadStartIndex: number
-  frontPage: StorybookGeneratedPage
-  backPage: StorybookGeneratedPage
-  frontImage?: string
-  backImage?: string
+  frontPage: StorybookReaderPage
+  backPage: StorybookReaderPage
 }
 
 interface StorybookBookPageContentProps {
-  page: StorybookGeneratedPage
-  image?: string
+  page: StorybookReaderPage
   surfaceClassName?: string
 }
 
 function StorybookBookPageContent({
   page,
-  image,
   surfaceClassName,
 }: StorybookBookPageContentProps) {
-  const hasIllustration = typeof image === 'string' && image.length > 0
+  const isIllustrationPage = page.kind === 'illustration'
   const modifierClasses = [
-    hasIllustration ? 'storybook-book-page__surface--illustrated' : 'storybook-book-page__surface--text-only',
+    isIllustrationPage ? 'storybook-book-page__surface--illustration-only' : 'storybook-book-page__surface--text-only',
     surfaceClassName,
   ]
     .filter((classNameValue): classNameValue is string => typeof classNameValue === 'string' && classNameValue.length > 0)
@@ -1371,24 +1411,24 @@ function StorybookBookPageContent({
 
   return (
     <div className={className}>
-      {hasIllustration ? (
+      {isIllustrationPage ? (
         <figure className="storybook-book-page__figure">
-          <img src={image} alt={`${page.page}페이지 삽화`} />
+          <img src={page.image} alt={`${page.pageNumber}페이지 삽화`} />
         </figure>
-      ) : null}
-      <p className="storybook-book-page__text">{page.content}</p>
-      {hasIllustration ? null : <p className="storybook-book-page__number">- {page.page} -</p>}
+      ) : (
+        <p className="storybook-book-page__text">{page.content}</p>
+      )}
+      {isIllustrationPage ? null : <p className="storybook-book-page__number">- {page.pageNumber} -</p>}
     </div>
   )
 }
 
 interface StorybookBookPageProps {
   side: 'left' | 'right'
-  page: StorybookGeneratedPage | null
-  image?: string
+  page: StorybookReaderPage | null
 }
 
-function StorybookBookPage({ side, page, image }: StorybookBookPageProps) {
+function StorybookBookPage({ side, page }: StorybookBookPageProps) {
   if (!page) {
     return (
       <article className={`storybook-book-page storybook-book-page--${side} storybook-book-page--blank`} aria-hidden="true">
@@ -1399,7 +1439,7 @@ function StorybookBookPage({ side, page, image }: StorybookBookPageProps) {
 
   return (
     <article className={`storybook-book-page storybook-book-page--${side}`}>
-      <StorybookBookPageContent page={page} image={image} />
+      <StorybookBookPageContent page={page} />
     </article>
   )
 }
@@ -1418,24 +1458,16 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   const coverFlipTimeoutRef = useRef<number | null>(null)
   const coverReturnTimeoutRef = useRef<number | null>(null)
   const pageTurnTimeoutRef = useRef<number | null>(null)
+  const readerPages = useMemo(
+    () => buildStorybookReaderPages(book.pages, book.highlightImage, book.finalImage),
+    [book.finalImage, book.highlightImage, book.pages],
+  )
 
-  const totalPages = book.pages.length
+  const totalPages = readerPages.length
   const renderedSpreadStartIndex =
     pageTurnState?.targetSpreadStartIndex ?? activeSpreadStartIndex
-  const leftPage = totalPages > 0 ? (book.pages[renderedSpreadStartIndex] ?? null) : null
-  const rightPage = totalPages > 0 ? (book.pages[renderedSpreadStartIndex + 1] ?? null) : null
-  const leftPageImage = leftPage
-    ? resolveReaderPageImage(leftPage, renderedSpreadStartIndex, totalPages, book.highlightImage, book.finalImage)
-    : undefined
-  const rightPageImage = rightPage
-    ? resolveReaderPageImage(
-        rightPage,
-        renderedSpreadStartIndex + 1,
-        totalPages,
-        book.highlightImage,
-        book.finalImage,
-      )
-    : undefined
+  const leftPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex] ?? null) : null
+  const rightPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex + 1] ?? null) : null
   const canGoPreviousSpread = isCoverOpened && activeSpreadStartIndex > 0
   const canGoNextSpread = isCoverOpened && activeSpreadStartIndex + 2 < totalPages
   const canReturnToCover = isCoverOpened && activeSpreadStartIndex === 0
@@ -1514,8 +1546,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
 
     const previousSpreadStartIndex = Math.max(0, activeSpreadStartIndex - 2)
-    const currentLeftPage = book.pages[activeSpreadStartIndex]
-    const previousRightPage = book.pages[previousSpreadStartIndex + 1]
+    const currentLeftPage = readerPages[activeSpreadStartIndex]
+    const previousRightPage = readerPages[previousSpreadStartIndex + 1]
 
     if (!currentLeftPage || !previousRightPage) {
       setActiveSpreadStartIndex(previousSpreadStartIndex)
@@ -1527,20 +1559,6 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       targetSpreadStartIndex: previousSpreadStartIndex,
       frontPage: currentLeftPage,
       backPage: previousRightPage,
-      frontImage: resolveReaderPageImage(
-        currentLeftPage,
-        activeSpreadStartIndex,
-        totalPages,
-        book.highlightImage,
-        book.finalImage,
-      ),
-      backImage: resolveReaderPageImage(
-        previousRightPage,
-        previousSpreadStartIndex + 1,
-        totalPages,
-        book.highlightImage,
-        book.finalImage,
-      ),
     })
     clearPageTurnTimeout()
     pageTurnTimeoutRef.current = window.setTimeout(() => {
@@ -1550,13 +1568,10 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }, STORYBOOK_PAGE_TURN_DURATION_MS)
   }, [
     activeSpreadStartIndex,
-    book.finalImage,
-    book.highlightImage,
-    book.pages,
     canGoPreviousSpread,
     clearPageTurnTimeout,
     pageTurnState,
-    totalPages,
+    readerPages,
   ])
 
   const handleGoNextSpread = useCallback(() => {
@@ -1565,8 +1580,8 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
 
     const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), activeSpreadStartIndex + 2)
-    const currentRightPage = book.pages[activeSpreadStartIndex + 1]
-    const nextLeftPage = book.pages[nextSpreadStartIndex]
+    const currentRightPage = readerPages[activeSpreadStartIndex + 1]
+    const nextLeftPage = readerPages[nextSpreadStartIndex]
 
     if (!currentRightPage || !nextLeftPage) {
       setActiveSpreadStartIndex(nextSpreadStartIndex)
@@ -1578,20 +1593,6 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       targetSpreadStartIndex: nextSpreadStartIndex,
       frontPage: currentRightPage,
       backPage: nextLeftPage,
-      frontImage: resolveReaderPageImage(
-        currentRightPage,
-        activeSpreadStartIndex + 1,
-        totalPages,
-        book.highlightImage,
-        book.finalImage,
-      ),
-      backImage: resolveReaderPageImage(
-        nextLeftPage,
-        nextSpreadStartIndex,
-        totalPages,
-        book.highlightImage,
-        book.finalImage,
-      ),
     })
     clearPageTurnTimeout()
     pageTurnTimeoutRef.current = window.setTimeout(() => {
@@ -1601,12 +1602,10 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }, STORYBOOK_PAGE_TURN_DURATION_MS)
   }, [
     activeSpreadStartIndex,
-    book.finalImage,
-    book.highlightImage,
-    book.pages,
     canGoNextSpread,
     clearPageTurnTimeout,
     pageTurnState,
+    readerPages,
     totalPages,
   ])
 
@@ -1735,26 +1734,18 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
               }}
             >
               <span className="storybook-openbook__spine" aria-hidden="true" />
-              <StorybookBookPage side="left" page={leftPage} image={leftPageImage} />
-              <StorybookBookPage side="right" page={rightPage} image={rightPageImage} />
+              <StorybookBookPage side="left" page={leftPage} />
+              <StorybookBookPage side="right" page={rightPage} />
               {pageTurnState ? (
                 <span
                   className={`storybook-openbook__flip-sheet storybook-openbook__flip-sheet--${pageTurnState.direction}`}
                   aria-hidden="true"
                 >
                   <span className="storybook-openbook__flip-face storybook-openbook__flip-face--front">
-                    <StorybookBookPageContent
-                      page={pageTurnState.frontPage}
-                      image={pageTurnState.frontImage}
-                      surfaceClassName="storybook-book-page__surface--flip"
-                    />
+                    <StorybookBookPageContent page={pageTurnState.frontPage} surfaceClassName="storybook-book-page__surface--flip" />
                   </span>
                   <span className="storybook-openbook__flip-face storybook-openbook__flip-face--back">
-                    <StorybookBookPageContent
-                      page={pageTurnState.backPage}
-                      image={pageTurnState.backImage}
-                      surfaceClassName="storybook-book-page__surface--flip"
-                    />
+                    <StorybookBookPageContent page={pageTurnState.backPage} surfaceClassName="storybook-book-page__surface--flip" />
                   </span>
                 </span>
               ) : null}

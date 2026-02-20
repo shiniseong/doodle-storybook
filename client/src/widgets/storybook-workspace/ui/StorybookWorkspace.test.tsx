@@ -1009,6 +1009,7 @@ describe('StorybookWorkspace', () => {
       () => {
         expect(screen.getByText('- 1 -')).toBeInTheDocument()
         expect(screen.queryByText('- 2 -')).not.toBeInTheDocument()
+        expect(screen.queryByText('강조 장면')).not.toBeInTheDocument()
       },
       { timeout: 1200 },
     )
@@ -1019,16 +1020,35 @@ describe('StorybookWorkspace', () => {
 
     const highlightImage = screen.getByAltText('2페이지 삽화') as HTMLImageElement
     expect(highlightImage.src).toContain('data:image/png;base64,highlightimg')
-    expect(screen.getAllByText('강조 장면').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
     await waitFor(() => {
+      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      expect(screen.queryByText('- 3 -')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '이전 장으로 넘기기' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: '다음 장으로 넘기기' })).toBeEnabled()
     })
 
     const lastImages = screen.getAllByAltText('3페이지 삽화') as HTMLImageElement[]
     expect(lastImages.some((image) => image.src.includes('data:image/png;base64,lastimg'))).toBe(true)
+    expect(screen.getAllByText('강조 장면').length).toBeGreaterThan(0)
+    expect(screen.queryByText('마지막 장면')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
+    await waitFor(() => {
+      expect(screen.getByText('- 3 -')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '다음 장으로 넘기기' })).toBeDisabled()
+    })
+
     expect(screen.getAllByText('마지막 장면').length).toBeGreaterThan(0)
+    expect(screen.queryByAltText('3페이지 삽화')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '이전 장으로 넘기기' }))
+    await waitFor(() => {
+      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+      expect(screen.queryByText('- 3 -')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '이전 장으로 넘기기' })).toBeEnabled()
+    })
 
     await user.click(screen.getByRole('button', { name: '이전 장으로 넘기기' }))
     await waitFor(() => {
