@@ -100,6 +100,8 @@ const LOADING_GAME_CAR_X_RATIO = 0.22
 const LOADING_GAME_CAR_WIDTH = 56
 const LOADING_GAME_CAR_HEIGHT = 30
 const LOADING_GAME_OBSTACLE_SIZE = 30
+const LOADING_GAME_MAX_LIVES = 2
+const LOADING_GAME_INITIAL_LANE = 1
 const LOADING_GAME_BACKGROUND_LOOP_WIDTH = 2400
 const LOADING_GAME_INITIAL_TRACK_WIDTH = 640
 const LOADING_GAME_INITIAL_TRACK_HEIGHT = 208
@@ -1783,16 +1785,20 @@ function StoryLoadingMiniGame() {
   const spawnCountdownRef = useRef(resolveLoadingGameSpawnInterval(LOADING_GAME_BASE_SPEED))
   const speedRef = useRef(LOADING_GAME_BASE_SPEED)
   const scoreRef = useRef(0)
-  const carLaneRef = useRef(1)
+  const carLaneRef = useRef(LOADING_GAME_INITIAL_LANE)
+  const livesRef = useRef(LOADING_GAME_MAX_LIVES)
+  const isGameOverRef = useRef(false)
   const trackMetricsRef = useRef<LoadingGameTrackMetrics>({
     width: LOADING_GAME_INITIAL_TRACK_WIDTH,
     height: LOADING_GAME_INITIAL_TRACK_HEIGHT,
   })
   const obstaclesRef = useRef<LoadingGameObstacle[]>([])
   const hitTimeoutRef = useRef<number | null>(null)
-  const [carLane, setCarLane] = useState(1)
+  const [carLane, setCarLane] = useState(LOADING_GAME_INITIAL_LANE)
   const [speed, setSpeed] = useState(LOADING_GAME_BASE_SPEED)
   const [score, setScore] = useState(0)
+  const [lives, setLives] = useState(LOADING_GAME_MAX_LIVES)
+  const [isGameOver, setIsGameOver] = useState(false)
   const [trackMetrics, setTrackMetrics] = useState<LoadingGameTrackMetrics>({
     width: LOADING_GAME_INITIAL_TRACK_WIDTH,
     height: LOADING_GAME_INITIAL_TRACK_HEIGHT,
@@ -1815,6 +1821,10 @@ function StoryLoadingMiniGame() {
 
   const moveCar = useCallback(
     (delta: number) => {
+      if (isGameOverRef.current) {
+        return
+      }
+
       updateCarLane(carLaneRef.current + delta)
     },
     [updateCarLane],
@@ -1884,8 +1894,37 @@ function StoryLoadingMiniGame() {
     }
   }, [])
 
+  const resetMiniGame = useCallback(() => {
+    if (hitTimeoutRef.current !== null) {
+      window.clearTimeout(hitTimeoutRef.current)
+      hitTimeoutRef.current = null
+    }
+
+    obstacleIdRef.current = 0
+    spawnCountdownRef.current = resolveLoadingGameSpawnInterval(LOADING_GAME_BASE_SPEED)
+    speedRef.current = LOADING_GAME_BASE_SPEED
+    scoreRef.current = 0
+    carLaneRef.current = LOADING_GAME_INITIAL_LANE
+    obstaclesRef.current = []
+    livesRef.current = LOADING_GAME_MAX_LIVES
+    isGameOverRef.current = false
+    setCarLane(LOADING_GAME_INITIAL_LANE)
+    setSpeed(LOADING_GAME_BASE_SPEED)
+    setScore(0)
+    setLives(LOADING_GAME_MAX_LIVES)
+    setIsGameOver(false)
+    setObstacles([])
+    setBackgroundOffset(0)
+    setIsHit(false)
+    trackRef.current?.focus({ preventScroll: true })
+  }, [])
+
   useEffect(() => {
     const intervalId = window.setInterval(() => {
+      if (isGameOverRef.current) {
+        return
+      }
+
       const deltaSeconds = LOADING_GAME_TICK_MS / 1000
       const nextSpeed = Math.min(
         LOADING_GAME_MAX_SPEED,
@@ -1950,6 +1989,18 @@ function StoryLoadingMiniGame() {
 
       if (hasCollision) {
         triggerHitFeedback()
+        const nextLives = Math.max(0, livesRef.current - 1)
+
+        if (nextLives !== livesRef.current) {
+          livesRef.current = nextLives
+          setLives(nextLives)
+        }
+
+        if (nextLives === 0) {
+          isGameOverRef.current = true
+          setIsGameOver(true)
+        }
+
         nextScore = Math.max(0, nextScore - Math.max(2, resolveLoadingGameScoreMultiplier(nextSpeed) * 2))
       }
 
@@ -1978,6 +2029,10 @@ function StoryLoadingMiniGame() {
 
   const handleTrackKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (isGameOverRef.current) {
+        return
+      }
+
       const key = event.key.toLowerCase()
 
       if (event.key === 'ArrowUp' || key === 'w') {
@@ -1995,6 +2050,10 @@ function StoryLoadingMiniGame() {
 
   const handleTrackPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (isGameOverRef.current) {
+        return
+      }
+
       const bounds = event.currentTarget.getBoundingClientRect()
 
       if (bounds.height === 0) {
@@ -2012,6 +2071,20 @@ function StoryLoadingMiniGame() {
 
   return (
     <section className="story-loading-game" data-testid="story-loading-mini-game" aria-label={t('workspace.miniGame.title')}>
+      <div className="story-loading-game__lives">
+        <span className="story-loading-game__lives-label">{t('workspace.miniGame.lives')}</span>
+        <span className="story-loading-game__lives-hearts" data-testid="story-loading-game-lives">
+          {Array.from({ length: LOADING_GAME_MAX_LIVES }, (_, lifeIndex) => (
+            <span
+              key={lifeIndex}
+              className={`story-loading-game__life${lifeIndex < lives ? ' story-loading-game__life--active' : ''}`}
+              aria-hidden="true"
+            >
+              ♥
+            </span>
+          ))}
+        </span>
+      </div>
       <header className="story-loading-game__header">
         <h3>{t('workspace.miniGame.title')}</h3>
         <p>{t('workspace.miniGame.description')}</p>
@@ -2029,8 +2102,10 @@ function StoryLoadingMiniGame() {
       </div>
       <div
         ref={trackRef}
-        className={`story-loading-game__track${isHit ? ' story-loading-game__track--hit' : ''}`}
-        tabIndex={0}
+        className={`story-loading-game__track${isHit ? ' story-loading-game__track--hit' : ''}${
+          isGameOver ? ' story-loading-game__track--game-over' : ''
+        }`}
+        tabIndex={isGameOver ? -1 : 0}
         role="application"
         aria-label={t('workspace.miniGame.title')}
         style={{
@@ -2074,12 +2149,33 @@ function StoryLoadingMiniGame() {
             {LOADING_GAME_OBSTACLE_ICONS[obstacle.type]}
           </span>
         ))}
+        {isGameOver ? (
+          <div className="story-loading-game__game-over" data-testid="story-loading-game-over" role="status" aria-live="polite">
+            <strong>{t('workspace.miniGame.gameOverTitle')}</strong>
+            <p>{t('workspace.miniGame.gameOverScore', { score })}</p>
+            <button type="button" className="story-loading-game__retry-button" onClick={resetMiniGame}>
+              {t('workspace.miniGame.retry')}
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="story-loading-game__controls">
-        <button type="button" className="story-loading-game__control-button" onClick={() => moveCar(-1)} aria-label={t('workspace.miniGame.moveUp')}>
+        <button
+          type="button"
+          className="story-loading-game__control-button"
+          onClick={() => moveCar(-1)}
+          aria-label={t('workspace.miniGame.moveUp')}
+          disabled={isGameOver}
+        >
           ▲
         </button>
-        <button type="button" className="story-loading-game__control-button" onClick={() => moveCar(1)} aria-label={t('workspace.miniGame.moveDown')}>
+        <button
+          type="button"
+          className="story-loading-game__control-button"
+          onClick={() => moveCar(1)}
+          aria-label={t('workspace.miniGame.moveDown')}
+          disabled={isGameOver}
+        >
           ▼
         </button>
         <p>{t('workspace.miniGame.controls')}</p>

@@ -796,6 +796,39 @@
   gap: 0.58rem;
 }
 
+.story-loading-game__lives {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.46rem;
+  justify-self: start;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 188, 216, 0.52);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.2rem 0.54rem;
+}
+
+.story-loading-game__lives-label {
+  color: #2d607f;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.story-loading-game__lives-hearts {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.story-loading-game__life {
+  color: rgba(117, 131, 145, 0.55);
+  font-size: 0.84rem;
+  line-height: 1;
+}
+
+.story-loading-game__life--active {
+  color: #ef4444;
+  text-shadow: 0 1px 2px rgba(111, 17, 29, 0.24);
+}
+
 .story-loading-game__header h3 {
   margin: 0;
   font-size: 0.95rem;
@@ -868,6 +901,10 @@
   animation: loading-game-hit 180ms ease-out;
 }
 
+.story-loading-game__track--game-over {
+  cursor: default;
+}
+
 .story-loading-game__lane-divider {
   position: absolute;
   left: 0;
@@ -925,6 +962,47 @@
   background: rgba(34, 79, 53, 0.7);
 }
 
+.story-loading-game__game-over {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.56rem;
+  padding: 0.86rem;
+  text-align: center;
+  background: rgba(5, 18, 31, 0.72);
+}
+
+.story-loading-game__game-over strong {
+  color: #ffffff;
+  font-size: 1.12rem;
+  letter-spacing: 0.01em;
+}
+
+.story-loading-game__game-over p {
+  margin: 0;
+  color: rgba(236, 246, 255, 0.96);
+  font-size: 0.9rem;
+}
+
+.story-loading-game__retry-button {
+  border: 1px solid rgba(255, 195, 116, 0.82);
+  border-radius: 999px;
+  padding: 0.46rem 0.78rem;
+  font-weight: 800;
+  color: #3a220d;
+  background: linear-gradient(135deg, #ffd57a, #ff9e61);
+  box-shadow: 0 0.52rem 1rem rgba(44, 18, 4, 0.24);
+  cursor: pointer;
+}
+
+.story-loading-game__retry-button:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
+}
+
 .story-loading-game__controls {
   display: grid;
   grid-template-columns: auto auto 1fr;
@@ -951,6 +1029,11 @@
 .story-loading-game__control-button:focus-visible {
   outline: 3px solid rgba(81, 183, 225, 0.3);
   outline-offset: 2px;
+}
+
+.story-loading-game__control-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .story-loading-game__controls p {

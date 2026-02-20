@@ -254,6 +254,8 @@ describe('StorybookWorkspace', () => {
     expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-mini-game')).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-game-backdrop')).toBeInTheDocument()
+    expect(document.querySelectorAll('.story-loading-game__life--active')).toHaveLength(2)
+    expect(screen.queryByTestId('story-loading-game-over')).not.toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
