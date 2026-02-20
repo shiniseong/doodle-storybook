@@ -105,8 +105,9 @@ const LOADING_GAME_ACCELERATION_PER_SECOND = 10
 const LOADING_GAME_BASE_SPAWN_INTERVAL = 1.3
 const LOADING_GAME_MIN_SPAWN_INTERVAL = 0.48
 const LOADING_GAME_CAR_X_RATIO = 0.22
-const LOADING_GAME_CAR_WIDTH = 56
-const LOADING_GAME_CAR_HEIGHT = 30
+const LOADING_GAME_CAR_WIDTH = 30
+const LOADING_GAME_CAR_HEIGHT = 20
+const LOADING_GAME_CAR_COLLISION_WIDTH = 30
 const LOADING_GAME_OBSTACLE_SIZE = 30
 const LOADING_GAME_MAX_LIVES = 2
 const LOADING_GAME_INITIAL_LANE = 1
@@ -2636,7 +2637,7 @@ function StoryLoadingMiniGame() {
         speedRef.current + LOADING_GAME_ACCELERATION_PER_SECOND * deltaSeconds,
       )
       const carCenterX = trackMetricsRef.current.width * LOADING_GAME_CAR_X_RATIO
-      const carHalfWidth = LOADING_GAME_CAR_WIDTH * 0.5
+      const carHalfWidth = LOADING_GAME_CAR_COLLISION_WIDTH * 0.5
 
       speedRef.current = nextSpeed
       setSpeed(nextSpeed)
