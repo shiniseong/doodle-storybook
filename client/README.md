@@ -85,7 +85,7 @@ Set in Cloudflare Pages project:
 
 - `OPENAI_API_KEY` (secret)
 - `OPENAI_PROMPT_ID` (var, default configured in `wrangler.jsonc`)
-- `OPENAI_PROMPT_VERSION` (var, default `2`)
+- `OPENAI_PROMPT_VERSION` (var, default `5`)
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1`)
 
 For local Pages dev, create `client/.dev.vars`:
@@ -93,7 +93,7 @@ For local Pages dev, create `client/.dev.vars`:
 ```bash
 OPENAI_API_KEY="sk-..."
 OPENAI_PROMPT_ID="pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697"
-OPENAI_PROMPT_VERSION="2"
+OPENAI_PROMPT_VERSION="5"
 OPENAI_IMAGE_MODEL="gpt-image-1"
 ```
 

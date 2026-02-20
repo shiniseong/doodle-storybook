@@ -1,8 +1,16 @@
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
-import { type StorybookCommandPort } from '@features/storybook-creation/application/create-storybook.use-case'
+import {
+  type StorybookCommandPort,
+  type StorybookGeneratedPage,
+} from '@features/storybook-creation/application/create-storybook.use-case'
 
 interface CreateStorybookApiResponse {
   storybookId: string
+  openaiResponseId?: string | null
+  pages?: unknown
+  images?: unknown
+  storyText?: string | null
+  promptVersion?: string | number | null
 }
 
 interface CreateStorybookApiRequest {
@@ -16,6 +24,140 @@ interface CreateStorybookApiRequest {
 interface HttpStorybookCommandPortOptions {
   baseUrl?: string
   endpointPath?: string
+}
+
+function parseStorybookPagesArray(candidate: unknown): StorybookGeneratedPage[] {
+  if (!Array.isArray(candidate)) {
+    return []
+  }
+
+  return candidate
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const pageCandidate = item as {
+        page?: unknown
+        content?: unknown
+        isHighlight?: unknown
+      }
+
+      if (
+        typeof pageCandidate.page !== 'number' ||
+        !Number.isFinite(pageCandidate.page) ||
+        typeof pageCandidate.content !== 'string' ||
+        typeof pageCandidate.isHighlight !== 'boolean'
+      ) {
+        return null
+      }
+
+      return {
+        page: pageCandidate.page,
+        content: pageCandidate.content.trim(),
+        isHighlight: pageCandidate.isHighlight,
+      }
+    })
+    .filter((page): page is StorybookGeneratedPage => page !== null)
+    .sort((left, right) => left.page - right.page)
+}
+
+function parseStorybookPagesFromObject(candidate: unknown): StorybookGeneratedPage[] {
+  if (!candidate || typeof candidate !== 'object') {
+    return []
+  }
+
+  const pagesCandidate = (candidate as { pages?: unknown }).pages
+  if (typeof pagesCandidate === 'string' || Array.isArray(pagesCandidate)) {
+    return parseStorybookPages(pagesCandidate)
+  }
+
+  return parseStorybookPagesArray(pagesCandidate)
+}
+
+function extractJsonLikeBlock(rawText: string): string {
+  const fencedBlockMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  if (fencedBlockMatch?.[1]) {
+    return fencedBlockMatch[1].trim()
+  }
+
+  return rawText.trim()
+}
+
+function parseStorybookPages(rawValue: unknown): StorybookGeneratedPage[] {
+  if (Array.isArray(rawValue)) {
+    return parseStorybookPagesArray(rawValue)
+  }
+
+  if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
+    return parseStorybookPagesFromObject(rawValue)
+  }
+
+  const normalized = extractJsonLikeBlock(rawValue)
+
+  try {
+    const parsed = JSON.parse(normalized) as unknown
+    const parsedAsArray = parseStorybookPagesArray(parsed)
+
+    if (parsedAsArray.length > 0) {
+      return parsedAsArray
+    }
+
+    return parseStorybookPagesFromObject(parsed)
+  } catch {
+    const startIndex = normalized.indexOf('[')
+    const endIndex = normalized.lastIndexOf(']')
+
+    if (startIndex === -1 || endIndex <= startIndex) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(normalized.slice(startIndex, endIndex + 1)) as unknown
+      return parseStorybookPagesArray(parsed)
+    } catch {
+      return []
+    }
+  }
+}
+
+function normalizeGeneratedImageDataUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+
+  const compact = value.trim().replace(/\s+/g, '')
+  const normalized = compact
+    .replace(/^data:\s*/i, 'data:')
+    .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
+
+  if (normalized.startsWith('data:image/')) {
+    return normalized
+  }
+
+  return `data:image/png;base64,${normalized}`
+}
+
+function parseGeneratedImages(rawValue: unknown): string[] {
+  if (!Array.isArray(rawValue)) {
+    return []
+  }
+
+  return rawValue
+    .map((image) => normalizeGeneratedImageDataUrl(image))
+    .filter((image): image is string => image !== null)
+}
+
+function parsePromptVersion(rawValue: unknown): string | undefined {
+  if (typeof rawValue === 'string' && rawValue.trim().length > 0) {
+    return rawValue.trim()
+  }
+
+  if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+    return `${rawValue}`
+  }
+
+  return undefined
 }
 
 function resolveCanvasImageDataUrl(): string | undefined {
@@ -59,7 +201,14 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
     title?: string
     description: string
     language: StoryLanguage
-  }): Promise<{ storybookId: string }> {
+  }): Promise<{
+    storybookId: string
+    openaiResponseId?: string | null
+    pages?: StorybookGeneratedPage[]
+    images?: string[]
+    storyText?: string | null
+    promptVersion?: string | null
+  }> {
     const endpointUrl = `${this.baseUrl}${this.endpointPath}`
     const imageDataUrl = resolveCanvasImageDataUrl()
     const payload: CreateStorybookApiRequest = {
@@ -88,8 +237,23 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
       throw new Error('Invalid API response: storybookId is missing.')
     }
 
+    const parsedPages = parseStorybookPages(data.pages)
+    const fallbackPages =
+      parsedPages.length > 0 || typeof data.storyText !== 'string'
+        ? parsedPages
+        : parseStorybookPages(data.storyText)
+    const parsedImages = parseGeneratedImages(data.images)
+    const normalizedPromptVersion = parsePromptVersion(data.promptVersion)
+
     return {
       storybookId: data.storybookId,
+      ...(typeof data.openaiResponseId === 'string' || data.openaiResponseId === null
+        ? { openaiResponseId: data.openaiResponseId }
+        : {}),
+      ...(fallbackPages.length > 0 ? { pages: fallbackPages } : {}),
+      ...(parsedImages.length > 0 ? { images: parsedImages } : {}),
+      ...(typeof data.storyText === 'string' || data.storyText === null ? { storyText: data.storyText } : {}),
+      ...(normalizedPromptVersion ? { promptVersion: normalizedPromptVersion } : {}),
     }
   }
 }

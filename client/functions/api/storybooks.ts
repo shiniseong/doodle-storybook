@@ -45,7 +45,7 @@ const CORS_HEADERS = {
 } as const
 
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
-const DEFAULT_PROMPT_VERSION = '2'
+const DEFAULT_PROMPT_VERSION = '5'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1'
 
 function withCors(headers?: HeadersInit): Headers {
@@ -156,13 +156,79 @@ function extractStorybookText(responseBody: OpenAIResponsesApiBody): string | nu
   return null
 }
 
+function parseStoryPagesArray(candidate: unknown): StoryPage[] {
+  if (!Array.isArray(candidate)) {
+    return []
+  }
+
+  return candidate
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const pageCandidate = item as Partial<StoryPage>
+
+      if (
+        typeof pageCandidate.page !== 'number' ||
+        typeof pageCandidate.content !== 'string' ||
+        typeof pageCandidate.isHighlight !== 'boolean'
+      ) {
+        return null
+      }
+
+      return {
+        page: pageCandidate.page,
+        content: pageCandidate.content.trim(),
+        isHighlight: pageCandidate.isHighlight,
+      }
+    })
+    .filter((value): value is StoryPage => value !== null)
+    .sort((left, right) => left.page - right.page)
+}
+
+function extractJsonLikeText(rawText: string): string {
+  const fencedBlockMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  return (fencedBlockMatch?.[1] ?? rawText).trim()
+}
+
+function parseStoryPagesObject(candidate: unknown): StoryPage[] {
+  if (!candidate || typeof candidate !== 'object') {
+    return []
+  }
+
+  const pagesCandidate = (candidate as { pages?: unknown }).pages
+
+  if (typeof pagesCandidate === 'string') {
+    return extractStoryPages(pagesCandidate)
+  }
+
+  return parseStoryPagesArray(pagesCandidate)
+}
+
 function extractStoryPages(text: string | null): StoryPage[] {
   if (!text) {
     return []
   }
 
-  const fencedBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
-  const candidateRawText = fencedBlockMatch?.[1] ?? text
+  const candidateRawText = extractJsonLikeText(text)
+
+  try {
+    const parsed = JSON.parse(candidateRawText) as unknown
+    const directPages = parseStoryPagesArray(parsed)
+
+    if (directPages.length > 0) {
+      return directPages
+    }
+
+    const pagesInObject = parseStoryPagesObject(parsed)
+    if (pagesInObject.length > 0) {
+      return pagesInObject
+    }
+  } catch {
+    // Continue to legacy [ ... ] range extraction below.
+  }
+
   const startIndex = candidateRawText.indexOf('[')
   const endIndex = candidateRawText.lastIndexOf(']')
 
@@ -172,39 +238,19 @@ function extractStoryPages(text: string | null): StoryPage[] {
 
   try {
     const parsed = JSON.parse(candidateRawText.slice(startIndex, endIndex + 1)) as unknown
-
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-
-    const pages = parsed
-      .map((item) => {
-        if (!item || typeof item !== 'object') {
-          return null
-        }
-
-        const pageCandidate = item as Partial<StoryPage>
-
-        if (
-          typeof pageCandidate.page !== 'number' ||
-          typeof pageCandidate.content !== 'string' ||
-          typeof pageCandidate.isHighlight !== 'boolean'
-        ) {
-          return null
-        }
-
-        return {
-          page: pageCandidate.page,
-          content: pageCandidate.content,
-          isHighlight: pageCandidate.isHighlight,
-        }
-      })
-      .filter((value): value is StoryPage => value !== null)
-
-    return pages
+    return parseStoryPagesArray(parsed)
   } catch {
     return []
   }
+}
+
+function normalizeImageResult(result: string): string {
+  const compact = result.trim().replace(/\s+/g, '')
+  const normalized = compact
+    .replace(/^data:\s*/i, 'data:')
+    .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
+
+  return normalized.startsWith('data:image/') ? normalized : `data:image/png;base64,${normalized}`
 }
 
 function extractGeneratedImages(responseBody: OpenAIResponsesApiBody): string[] {
@@ -222,9 +268,7 @@ function extractGeneratedImages(responseBody: OpenAIResponsesApiBody): string[] 
     })
     .filter((result): result is string => result !== null)
 
-  return imageResults.map((result) =>
-    result.startsWith('data:image/') ? result : `data:image/png;base64,${result}`,
-  )
+  return imageResults.map((result) => normalizeImageResult(result))
 }
 
 function resolveUpstreamErrorMessage(payload: unknown): string {
@@ -308,6 +352,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     })
   }
 
+  const promptVersion = context.env.OPENAI_PROMPT_VERSION || DEFAULT_PROMPT_VERSION
+
   let upstreamResponse: Response
 
   try {
@@ -320,7 +366,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       body: JSON.stringify({
         prompt: {
           id: context.env.OPENAI_PROMPT_ID || DEFAULT_PROMPT_ID,
-          version: context.env.OPENAI_PROMPT_VERSION || DEFAULT_PROMPT_VERSION,
+          version: promptVersion,
           variables: {
             language: resolvePromptLanguage(normalizedBody.language),
             title: normalizedBody.title,
@@ -375,6 +421,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   return jsonResponse({
     storybookId: `storybook-${crypto.randomUUID()}`,
     openaiResponseId: openAIResponseBody.id ?? null,
+    promptVersion,
     pages: storyPages,
     images,
     storyText,

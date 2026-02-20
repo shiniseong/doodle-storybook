@@ -24,7 +24,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
-import type { CreateStorybookUseCasePort } from '@features/storybook-creation/application/create-storybook.use-case'
+import type {
+  CreateStorybookUseCasePort,
+  StorybookGeneratedPage,
+} from '@features/storybook-creation/application/create-storybook.use-case'
 import {
   selectRemainingFreeStories,
   useStorybookCreationStore,
@@ -94,6 +97,7 @@ const LOADING_GAME_OBSTACLE_SIZE = 30
 const LOADING_GAME_BACKGROUND_LOOP_WIDTH = 2400
 const LOADING_GAME_INITIAL_TRACK_WIDTH = 640
 const LOADING_GAME_INITIAL_TRACK_HEIGHT = 208
+const STORYBOOK_COVER_FLIP_DURATION_MS = 760
 const LOADING_GAME_OBSTACLES = [
   { key: 'banana', icon: '🍌' },
   { key: 'can', icon: '🥫' },
@@ -142,6 +146,17 @@ interface LoadingGameObstacle {
   x: number
   type: LoadingGameObstacleType
   counted: boolean
+}
+
+interface StorybookReaderBook {
+  title: string
+  storybookId: string
+  openaiResponseId: string | null
+  promptVersion: string | null
+  pages: StorybookGeneratedPage[]
+  coverImage?: string
+  highlightImage?: string
+  finalImage?: string
 }
 
 function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number): CanvasPoint {
@@ -1107,6 +1122,265 @@ function resolveFeedbackText(
   return t(`workspace.feedback.error.${feedback.code}`)
 }
 
+function normalizeStorybookGeneratedPages(pages: readonly StorybookGeneratedPage[] | undefined): StorybookGeneratedPage[] {
+  if (!pages || pages.length === 0) {
+    return []
+  }
+
+  return pages
+    .map((page) => ({
+      page: page.page,
+      content: page.content.trim(),
+      isHighlight: page.isHighlight,
+    }))
+    .filter((page) => Number.isFinite(page.page) && page.content.length > 0)
+    .sort((left, right) => left.page - right.page)
+}
+
+function normalizeStorybookImageDataUrl(candidate: string): string | null {
+  const compact = candidate.trim().replace(/\s+/g, '')
+  if (compact.length === 0) {
+    return null
+  }
+
+  const normalized = compact
+    .replace(/^data:\s*/i, 'data:')
+    .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
+
+  if (normalized.startsWith('data:image/')) {
+    return normalized
+  }
+
+  return `data:image/png;base64,${normalized}`
+}
+
+function normalizeStorybookGeneratedImages(images: readonly string[] | undefined): string[] {
+  if (!images || images.length === 0) {
+    return []
+  }
+
+  return images
+    .map((image) => normalizeStorybookImageDataUrl(image))
+    .filter((image): image is string => image !== null)
+}
+
+function resolveReaderPageImage(
+  page: StorybookGeneratedPage,
+  pageIndex: number,
+  totalPages: number,
+  highlightImage?: string,
+  finalImage?: string,
+): string | undefined {
+  const isLastPage = pageIndex === totalPages - 1
+  if (isLastPage) {
+    return finalImage
+  }
+
+  if (page.isHighlight) {
+    return highlightImage
+  }
+
+  return undefined
+}
+
+interface StorybookReaderDialogProps {
+  book: StorybookReaderBook
+  onClose: () => void
+}
+
+function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
+  const [isCoverOpened, setIsCoverOpened] = useState(false)
+  const [isCoverFlipping, setIsCoverFlipping] = useState(false)
+  const [activePageIndex, setActivePageIndex] = useState(0)
+  const coverFlipTimeoutRef = useRef<number | null>(null)
+
+  const totalPages = book.pages.length
+  const currentPage = totalPages > 0 ? book.pages[activePageIndex] : null
+  const currentPageImage = currentPage
+    ? resolveReaderPageImage(currentPage, activePageIndex, totalPages, book.highlightImage, book.finalImage)
+    : undefined
+  const canGoPreviousPage = isCoverOpened && activePageIndex > 0
+  const canGoNextPage = isCoverOpened && activePageIndex < totalPages - 1
+
+  const clearCoverFlipTimeout = useCallback(() => {
+    if (coverFlipTimeoutRef.current === null) {
+      return
+    }
+
+    window.clearTimeout(coverFlipTimeoutRef.current)
+    coverFlipTimeoutRef.current = null
+  }, [])
+
+  const handleOpenCover = useCallback(() => {
+    if (isCoverOpened || isCoverFlipping) {
+      return
+    }
+
+    clearCoverFlipTimeout()
+    setIsCoverFlipping(true)
+    coverFlipTimeoutRef.current = window.setTimeout(() => {
+      setIsCoverOpened(true)
+      setIsCoverFlipping(false)
+      setActivePageIndex(0)
+      coverFlipTimeoutRef.current = null
+    }, STORYBOOK_COVER_FLIP_DURATION_MS)
+  }, [clearCoverFlipTimeout, isCoverFlipping, isCoverOpened])
+
+  const handleGoPreviousPage = useCallback(() => {
+    setActivePageIndex((previous) => Math.max(0, previous - 1))
+  }, [])
+
+  const handleGoNextPage = useCallback(() => {
+    setActivePageIndex((previous) => Math.min(totalPages - 1, previous + 1))
+  }, [totalPages])
+
+  useEffect(() => {
+    setIsCoverOpened(false)
+    setIsCoverFlipping(false)
+    setActivePageIndex(0)
+
+    return () => {
+      clearCoverFlipTimeout()
+    }
+  }, [book.storybookId, clearCoverFlipTimeout])
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (!isCoverOpened || totalPages === 0) {
+        return
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        handleGoPreviousPage()
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        handleGoNextPage()
+      }
+    }
+
+    window.addEventListener('keydown', handleWindowKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
+    }
+  }, [handleGoNextPage, handleGoPreviousPage, isCoverOpened, onClose, totalPages])
+
+  return (
+    <motion.div
+      className="storybook-reader-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`생성된 동화책: ${book.title}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.24, ease: 'easeOut' }}
+    >
+      <button
+        type="button"
+        className="storybook-reader-dialog__backdrop"
+        aria-label="이북 닫기"
+        onClick={onClose}
+      />
+      <div className="storybook-reader-dialog__sheet">
+        <header className="storybook-reader-dialog__header">
+          <div className="storybook-reader-dialog__header-copy">
+            <p className="storybook-reader-dialog__eyebrow">
+              {book.promptVersion ? `Prompt v${book.promptVersion}` : 'Generated storybook'}
+            </p>
+            <h2>{book.title}</h2>
+            <p>
+              #{book.storybookId}
+              {book.openaiResponseId ? ` · ${book.openaiResponseId}` : ''}
+            </p>
+          </div>
+          <button type="button" className="storybook-reader-dialog__close" onClick={onClose}>
+            닫기
+          </button>
+        </header>
+        <div className="storybook-reader-dialog__stage">
+          {!isCoverOpened ? (
+            <button
+              type="button"
+              className={`storybook-cover${isCoverFlipping ? ' storybook-cover--flipping' : ''}`}
+              onClick={handleOpenCover}
+              aria-label={isCoverFlipping ? '표지 넘김 중' : '표지 넘기기'}
+              disabled={isCoverFlipping}
+            >
+              <span className="storybook-cover__art">
+                {book.coverImage ? (
+                  <img src={book.coverImage} alt={`${book.title} 표지`} />
+                ) : (
+                  <span className="storybook-cover__fallback" aria-hidden="true" />
+                )}
+              </span>
+              <span className="storybook-cover__title-overlay">
+                <strong>{book.title}</strong>
+                <small>{isCoverFlipping ? '책장을 넘기는 중...' : '표지를 눌러서 첫 장으로 넘어가요'}</small>
+              </span>
+            </button>
+          ) : currentPage ? (
+            <motion.article
+              key={currentPage.page}
+              className="storybook-reader-page"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              {currentPageImage ? (
+                <figure className="storybook-reader-page__figure">
+                  <img src={currentPageImage} alt={`${currentPage.page}페이지 삽화`} />
+                </figure>
+              ) : null}
+              <div className="storybook-reader-page__body">
+                <p className="storybook-reader-page__label">
+                  Page {currentPage.page}
+                  {currentPage.isHighlight ? ' · Highlight' : ''}
+                </p>
+                <p className="storybook-reader-page__content">{currentPage.content}</p>
+              </div>
+            </motion.article>
+          ) : (
+            <div className="storybook-reader-page__empty">
+              <p>표시할 페이지가 아직 없어요.</p>
+            </div>
+          )}
+        </div>
+        {isCoverOpened && totalPages > 0 ? (
+          <footer className="storybook-reader-dialog__footer">
+            <button type="button" onClick={handleGoPreviousPage} disabled={!canGoPreviousPage}>
+              이전
+            </button>
+            <p>
+              {activePageIndex + 1} / {totalPages}
+            </p>
+            <button type="button" onClick={handleGoNextPage} disabled={!canGoNextPage}>
+              다음
+            </button>
+          </footer>
+        ) : null}
+      </div>
+    </motion.div>
+  )
+}
+
 function StoryLoadingMiniGame() {
   const { t } = useTranslation()
   const trackRef = useRef<HTMLDivElement | null>(null)
@@ -1430,10 +1704,14 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
   const startSubmitting = useStorybookCreationStore((state) => state.startSubmitting)
   const markSuccess = useStorybookCreationStore((state) => state.markSuccess)
   const markError = useStorybookCreationStore((state) => state.markError)
+  const [readerBook, setReaderBook] = useState<StorybookReaderBook | null>(null)
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
   const feedbackText = useMemo(() => resolveFeedbackText(feedback, t), [feedback, t])
   const isSubmitting = createStatus === 'submitting'
+  const closeReaderBook = useCallback(() => {
+    setReaderBook(null)
+  }, [])
 
   return (
     <motion.section
@@ -1450,6 +1728,7 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
       <StorybookDescriptionForm
         isSubmitting={isSubmitting}
         onSubmit={async ({ title, description }) => {
+          setReaderBook(null)
           startSubmitting()
 
           const result = await useCase.execute({
@@ -1461,6 +1740,23 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
 
           if (result.ok) {
             markSuccess(result.value.storybookId)
+            const generatedPages = normalizeStorybookGeneratedPages(result.value.pages)
+            const generatedImages = normalizeStorybookGeneratedImages(result.value.images)
+
+            if (generatedPages.length > 0) {
+              setReaderBook({
+                title: title.trim().length > 0 ? title.trim() : t('common.appName'),
+                storybookId: result.value.storybookId,
+                openaiResponseId:
+                  typeof result.value.openaiResponseId === 'string' ? result.value.openaiResponseId : null,
+                promptVersion:
+                  typeof result.value.promptVersion === 'string' ? result.value.promptVersion : null,
+                pages: generatedPages,
+                ...(generatedImages[0] ? { coverImage: generatedImages[0] } : {}),
+                ...(generatedImages[1] ? { highlightImage: generatedImages[1] } : {}),
+                ...(generatedImages[2] ? { finalImage: generatedImages[2] } : {}),
+              })
+            }
           } else {
             markError(result.error.code)
           }
@@ -1499,6 +1795,9 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
           </ol>
         </div>
       )}
+      <AnimatePresence>
+        {readerBook ? <StorybookReaderDialog book={readerBook} onClose={closeReaderBook} /> : null}
+      </AnimatePresence>
     </motion.section>
   )
 }

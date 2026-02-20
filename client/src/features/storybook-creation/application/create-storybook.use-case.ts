@@ -11,10 +11,21 @@ export interface CreateStorybookRequest {
 
 export interface CreateStorybookResponse {
   storybookId: string
+  openaiResponseId?: string | null
+  pages?: StorybookGeneratedPage[]
+  images?: string[]
+  storyText?: string | null
+  promptVersion?: string | null
 }
 
 export interface StorybookQuotaPort {
   canCreateStorybook(userId: string): Promise<boolean>
+}
+
+export interface StorybookGeneratedPage {
+  page: number
+  content: string
+  isHighlight: boolean
 }
 
 export interface StorybookCommandPort {

@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "OPENAI_PROMPT_ID": "pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697",
-    "OPENAI_PROMPT_VERSION": "2",
+    "OPENAI_PROMPT_VERSION": "5",
     "OPENAI_IMAGE_MODEL": "gpt-image-1"
   }
 }
