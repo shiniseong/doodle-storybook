@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@app/App'
 import { createAppDependencies } from '@app/providers/dependencies'
-import { STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY } from '@features/storybook-creation/model/storybook-compose-draft.storage'
+import {
+  STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY,
+  clearStorybookWorkspaceDraft,
+} from '@features/storybook-creation/model/storybook-compose-draft.storage'
 import { useSupabaseGoogleAuth, type SupabaseGoogleAuthResult } from '@shared/lib/supabase/use-supabase-google-auth'
 
 vi.mock('@shared/lib/supabase/use-supabase-google-auth', () => ({
@@ -62,6 +65,7 @@ function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): Supa
     isSigningIn: false,
     userId: 'user-1',
     userEmail: 'user-1@example.com',
+    signInWithEmail: vi.fn(async () => ({ ok: true })),
     signUpWithEmail: vi.fn(async () => ({ ok: true, requiresEmailVerification: true })),
     signInWithProvider: vi.fn(async () => {}),
     signInWithGoogle: vi.fn(async () => {}),
@@ -135,7 +139,7 @@ describe('App auth flow persistence', () => {
       })
     }
 
-    window.localStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+    clearStorybookWorkspaceDraft()
     vi.mocked(createAppDependencies).mockImplementation((options?: { currentUserId?: string }) => ({
       currentUserId: options?.currentUserId ?? 'demo-user',
       createStorybookUseCase: {

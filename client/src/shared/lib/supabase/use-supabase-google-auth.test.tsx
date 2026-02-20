@@ -23,6 +23,7 @@ interface MockSupabaseAuthClient {
   getUser: ReturnType<typeof vi.fn>
   onAuthStateChange: ReturnType<typeof vi.fn>
   signInWithOAuth: ReturnType<typeof vi.fn>
+  signInWithPassword: ReturnType<typeof vi.fn>
   signUp: ReturnType<typeof vi.fn>
   signOut: ReturnType<typeof vi.fn>
   unsubscribe: ReturnType<typeof vi.fn>
@@ -60,6 +61,13 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
     }
   })
   const signInWithOAuth = vi.fn(async () => ({ error: null }))
+  const signInWithPassword = vi.fn(async () => ({
+    data: {
+      session: null,
+      user: null,
+    },
+    error: null,
+  }))
   const signUp = vi.fn(async () => ({
     data: {
       session: null,
@@ -74,6 +82,7 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
         getUser,
         onAuthStateChange,
         signInWithOAuth,
+        signInWithPassword,
         signUp,
         signOut,
       },
@@ -81,6 +90,7 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
     getUser,
     onAuthStateChange,
     signInWithOAuth,
+    signInWithPassword,
     signUp,
     signOut,
     unsubscribe,
@@ -97,6 +107,7 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
 
 function HookHarness() {
   const auth = useSupabaseGoogleAuth()
+  const [signInResult, setSignInResult] = useState('')
   const [signUpResult, setSignUpResult] = useState('')
 
   return (
@@ -117,9 +128,22 @@ function HookHarness() {
       <button
         type="button"
         onClick={async () => {
+          const result = await auth.signInWithEmail({
+            email: ' user@example.com ',
+            password: 'passw0rd',
+          })
+          setSignInResult(`${result.ok}:${result.errorMessage ?? ''}`)
+        }}
+      >
+        sign-in-email
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
           const result = await auth.signUpWithEmail({
             email: ' user@example.com ',
             password: 'passw0rd',
+            authorName: 'Moon Writer',
           })
           setSignUpResult(`${result.ok}:${result.requiresEmailVerification}:${result.errorMessage ?? ''}`)
         }}
@@ -134,6 +158,7 @@ function HookHarness() {
       >
         sign-out
       </button>
+      <p data-testid="signin-result">{signInResult}</p>
       <p data-testid="signup-result">{signUpResult}</p>
     </div>
   )
@@ -214,7 +239,25 @@ describe('useSupabaseGoogleAuth', () => {
     })
   })
 
-  it('이메일 회원가입 호출 시 signUp에 email/password를 전달한다', async () => {
+  it('이메일 로그인 호출 시 signInWithPassword에 email/password를 전달한다', async () => {
+    const supabase = createMockSupabaseAuthClient()
+    vi.mocked(resolveSupabaseClient).mockReturnValue(supabase.client)
+    const user = userEvent.setup()
+
+    render(<HookHarness />)
+    await user.click(screen.getByRole('button', { name: 'sign-in-email' }))
+
+    await waitFor(() => {
+      expect(supabase.signInWithPassword).toHaveBeenCalledTimes(1)
+    })
+    expect(supabase.signInWithPassword).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      password: 'passw0rd',
+    })
+    expect(screen.getByTestId('signin-result')).toHaveTextContent('true:')
+  })
+
+  it('이메일 회원가입 호출 시 signUp에 email/password/authorName을 전달한다', async () => {
     const supabase = createMockSupabaseAuthClient()
     vi.mocked(resolveSupabaseClient).mockReturnValue(supabase.client)
     const user = userEvent.setup()
@@ -230,9 +273,34 @@ describe('useSupabaseGoogleAuth', () => {
       password: 'passw0rd',
       options: {
         emailRedirectTo: window.location.origin,
+        data: {
+          author_name: 'Moon Writer',
+        },
       },
     })
     expect(screen.getByTestId('signup-result')).toHaveTextContent('true:true:')
+  })
+
+  it('이메일 로그인 에러가 나면 에러 메시지를 반환한다', async () => {
+    const supabase = createMockSupabaseAuthClient()
+    supabase.signInWithPassword.mockResolvedValue({
+      data: {
+        session: null,
+        user: null,
+      },
+      error: {
+        message: 'mock email sign-in failure',
+      },
+    })
+    vi.mocked(resolveSupabaseClient).mockReturnValue(supabase.client)
+    const user = userEvent.setup()
+
+    render(<HookHarness />)
+    await user.click(screen.getByRole('button', { name: 'sign-in-email' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('signin-result')).toHaveTextContent('false:mock email sign-in failure')
+    })
   })
 
   it('로그인 에러가 나면 signing 상태를 원복한다', async () => {

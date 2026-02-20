@@ -5,9 +5,20 @@ import { resolveSupabaseClient } from '@shared/lib/supabase/client'
 
 type SupportedSupabaseOAuthProvider = 'google' | 'apple' | 'kakao'
 
+interface SignInWithEmailInput {
+  readonly email: string
+  readonly password: string
+}
+
 interface SignUpWithEmailInput {
   readonly email: string
   readonly password: string
+  readonly authorName: string
+}
+
+export interface SignInWithEmailResult {
+  readonly ok: boolean
+  readonly errorMessage?: string
 }
 
 export interface SignUpWithEmailResult {
@@ -22,6 +33,7 @@ export interface SupabaseGoogleAuthResult {
   readonly isSigningIn: boolean
   readonly userId: string | null
   readonly userEmail: string | null
+  readonly signInWithEmail: (input: SignInWithEmailInput) => Promise<SignInWithEmailResult>
   readonly signUpWithEmail: (input: SignUpWithEmailInput) => Promise<SignUpWithEmailResult>
   readonly signInWithProvider: (provider: SupportedSupabaseOAuthProvider) => Promise<void>
   readonly signInWithGoogle: () => Promise<void>
@@ -107,8 +119,46 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     await signInWithProvider('kakao')
   }, [signInWithProvider])
 
+  const signInWithEmail = useCallback(
+    async ({ email, password }: SignInWithEmailInput): Promise<SignInWithEmailResult> => {
+      if (!supabaseClient || isSigningIn) {
+        return {
+          ok: false,
+        }
+      }
+
+      const normalizedEmail = email.trim()
+      if (normalizedEmail.length === 0 || password.length === 0) {
+        return {
+          ok: false,
+        }
+      }
+
+      setIsSigningIn(true)
+
+      const { error } = await supabaseClient.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      })
+
+      setIsSigningIn(false)
+
+      if (error) {
+        return {
+          ok: false,
+          errorMessage: error.message,
+        }
+      }
+
+      return {
+        ok: true,
+      }
+    },
+    [isSigningIn, supabaseClient],
+  )
+
   const signUpWithEmail = useCallback(
-    async ({ email, password }: SignUpWithEmailInput): Promise<SignUpWithEmailResult> => {
+    async ({ email, password, authorName }: SignUpWithEmailInput): Promise<SignUpWithEmailResult> => {
       if (!supabaseClient || isSigningIn) {
         return {
           ok: false,
@@ -117,7 +167,8 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
       }
 
       const normalizedEmail = email.trim()
-      if (normalizedEmail.length === 0 || password.length === 0) {
+      const normalizedAuthorName = authorName.trim()
+      if (normalizedEmail.length === 0 || password.length === 0 || normalizedAuthorName.length === 0) {
         return {
           ok: false,
           requiresEmailVerification: true,
@@ -134,6 +185,9 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
           ? {
               options: {
                 emailRedirectTo,
+                data: {
+                  author_name: normalizedAuthorName,
+                },
               },
             }
           : {}),
@@ -171,6 +225,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     isSigningIn,
     userId: user?.id ?? null,
     userEmail: resolveUserEmail(user),
+    signInWithEmail,
     signUpWithEmail,
     signInWithProvider,
     signInWithGoogle,

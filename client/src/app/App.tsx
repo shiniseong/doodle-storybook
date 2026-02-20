@@ -35,6 +35,7 @@ export default function App() {
         onSignInWithGoogle={auth.signInWithGoogle}
         onSignInWithApple={auth.signInWithApple}
         onSignInWithKakao={auth.signInWithKakao}
+        onSignInWithEmail={auth.signInWithEmail}
         onSignUpWithEmail={auth.signUpWithEmail}
       />
     )
