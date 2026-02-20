@@ -37,6 +37,8 @@ interface StoryImagePrompts {
   cover: string
   highlight: string
   end: string
+  commonStyleGuide?: string
+  commonWorld?: string
 }
 
 interface ParsedPromptStorybookOutput {
@@ -77,7 +79,7 @@ const CORS_HEADERS = {
 } as const
 
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
-const DEFAULT_PROMPT_VERSION = '9'
+const DEFAULT_PROMPT_VERSION = '11'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
@@ -349,6 +351,7 @@ function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
     cover?: unknown
     highlight?: unknown
     end?: unknown
+    common?: unknown
   }
 
   const cover = resolveImagePromptText(imagePrompts.cover)
@@ -359,11 +362,28 @@ function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
     return null
   }
 
-  return {
+  const parsed: StoryImagePrompts = {
     cover,
     highlight,
     end,
   }
+
+  if (imagePrompts.common && typeof imagePrompts.common === 'object') {
+    const commonCandidate = imagePrompts.common as {
+      styleGuide?: unknown
+      world?: unknown
+    }
+
+    if (typeof commonCandidate.styleGuide === 'string' && commonCandidate.styleGuide.trim().length > 0) {
+      parsed.commonStyleGuide = commonCandidate.styleGuide.trim()
+    }
+
+    if (typeof commonCandidate.world === 'string' && commonCandidate.world.trim().length > 0) {
+      parsed.commonWorld = commonCandidate.world.trim()
+    }
+  }
+
+  return parsed
 }
 
 function hasExpectedPageSequence(pages: Array<{ page: number }>): boolean {
@@ -682,11 +702,63 @@ async function resolveImageDataUrlFromGeneratedImageUrl(imageUrl: string): Promi
   return `data:image/png;base64,${encodeBytesAsBase64(bytes)}`
 }
 
-async function generateImageFromPrompt(prompt: string, env: Env): Promise<string | null> {
-  if (prompt.trim().length === 0) {
+function buildUnifiedImageSetPrompt(imagePrompts: StoryImagePrompts): string {
+  const sharedRules =
+    'All three images must keep the exact same protagonist identity, face shape, colors, proportions, line quality, lighting, and painting style. ' +
+    'No text, letters, logos, or watermarks.'
+
+  const commonStyleGuide =
+    imagePrompts.commonStyleGuide && imagePrompts.commonStyleGuide.trim().length > 0
+      ? imagePrompts.commonStyleGuide.trim()
+      : null
+  const commonWorld =
+    imagePrompts.commonWorld && imagePrompts.commonWorld.trim().length > 0
+      ? imagePrompts.commonWorld.trim()
+      : null
+
+  return [
+    'Create exactly three children\'s storybook illustrations in one cohesive set.',
+    sharedRules,
+    'Critical uniqueness constraints:',
+    '- The three images must depict different narrative moments: beginning, emotional peak, and ending.',
+    '- Do not reuse the same camera angle, framing, pose, or background layout across the three images.',
+    '- Keep protagonist design consistent, but make each image clearly different in action, composition, and mood.',
+    '- Cover = opening setup scene, Highlight = strongest turning-point action scene, End = calm closure scene.',
+    ...(commonStyleGuide ? [`Shared style guide: ${commonStyleGuide}`] : []),
+    ...(commonWorld ? [`Shared world setting: ${commonWorld}`] : []),
+    'Return the three images in this exact order: cover, highlight, end.',
+    '',
+    `Image 1 (cover): ${imagePrompts.cover}`,
+    `Image 2 (highlight): ${imagePrompts.highlight}`,
+    `Image 3 (end): ${imagePrompts.end}`,
+  ].join('\n')
+}
+
+async function resolveGeneratedImageDataUrl(item: unknown): Promise<string | null> {
+  if (!item || typeof item !== 'object') {
     return null
   }
 
+  const candidate = item as {
+    b64_json?: unknown
+    url?: unknown
+  }
+
+  if (typeof candidate.b64_json === 'string' && candidate.b64_json.trim().length > 0) {
+    return normalizeImageResult(candidate.b64_json)
+  }
+
+  if (typeof candidate.url === 'string' && candidate.url.trim().length > 0) {
+    return resolveImageDataUrlFromGeneratedImageUrl(candidate.url)
+  }
+
+  return null
+}
+
+async function requestImageSet(
+  prompt: string,
+  env: Env,
+): Promise<Array<string | null>> {
   let response: Response
 
   try {
@@ -699,6 +771,7 @@ async function generateImageFromPrompt(prompt: string, env: Env): Promise<string
       body: JSON.stringify({
         model: env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
         prompt,
+        n: 3,
         size: '1024x1024',
         quality: 'low',
         output_format: 'png',
@@ -706,34 +779,37 @@ async function generateImageFromPrompt(prompt: string, env: Env): Promise<string
       }),
     })
   } catch {
-    return null
+    return [null, null, null]
   }
 
   const payload = await readResponseBody(response)
 
   if (!response.ok || !payload || typeof payload !== 'object') {
-    return null
+    return [null, null, null]
   }
 
   const data = (payload as { data?: Array<{ b64_json?: unknown; url?: unknown }> }).data
   if (!Array.isArray(data) || data.length === 0) {
-    return null
+    return [null, null, null]
   }
 
-  const first = data[0]
-  if (!first || typeof first !== 'object') {
-    return null
+  const resolved = await Promise.all(data.slice(0, 3).map((item) => resolveGeneratedImageDataUrl(item)))
+  while (resolved.length < 3) {
+    resolved.push(null)
+  }
+  return resolved.slice(0, 3)
+}
+
+async function generateImageSetFromPrompts(imagePrompts: StoryImagePrompts, env: Env): Promise<Array<string | null>> {
+  if (
+    imagePrompts.cover.trim().length === 0 ||
+    imagePrompts.highlight.trim().length === 0 ||
+    imagePrompts.end.trim().length === 0
+  ) {
+    return [null, null, null]
   }
 
-  if (typeof first.b64_json === 'string' && first.b64_json.trim().length > 0) {
-    return normalizeImageResult(first.b64_json)
-  }
-
-  if (typeof first.url === 'string' && first.url.trim().length > 0) {
-    return resolveImageDataUrlFromGeneratedImageUrl(first.url)
-  }
-
-  return null
+  return requestImageSet(buildUnifiedImageSetPrompt(imagePrompts), env)
 }
 
 function resolveUpstreamErrorMessage(payload: unknown): string {
@@ -901,12 +977,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
-  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
-    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.cover, context.env),
-    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.highlight, context.env),
-    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.end, context.env),
+  const [generatedImages, ...narrationResults] = await Promise.all([
+    generateImageSetFromPrompts(parsedPromptStorybook.imagePrompts, context.env),
     ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
   ])
+  const [coverImage, highlightImage, endImage] = generatedImages
 
   const narrations = narrationResults
     .filter((narration): narration is StoryPageNarration => narration !== null)

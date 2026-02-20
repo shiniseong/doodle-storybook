@@ -84,7 +84,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
     env: {
       OPENAI_API_KEY: 'test-api-key',
       OPENAI_PROMPT_ID: 'pmpt_test',
-      OPENAI_PROMPT_VERSION: '9',
+      OPENAI_PROMPT_VERSION: '11',
       OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
       OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
       OPENAI_TTS_VOICE: 'alloy',
@@ -93,7 +93,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
   } as unknown as Parameters<typeof onRequestPost>[0]
 }
 
-describe('storybooks function (v9 pipeline)', () => {
+describe('storybooks function (v11 pipeline)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -102,7 +102,7 @@ describe('storybooks function (v9 pipeline)', () => {
     vi.restoreAllMocks()
   })
 
-  it('v9 스키마를 파싱해 highlightPage를 isHighlight 플래그로 변환한다', () => {
+  it('v11 스키마를 파싱해 highlightPage를 isHighlight 플래그로 변환한다', () => {
     const schema = createStoryPromptSchemaOutput()
     const parsed = parsePromptStorybookOutput(JSON.stringify(schema))
 
@@ -115,6 +115,8 @@ describe('storybooks function (v9 pipeline)', () => {
       cover: 'cover prompt',
       highlight: 'highlight prompt',
       end: 'end prompt',
+      commonStyleGuide: 'storybook illustration, soft light, clean outlines',
+      commonWorld: 'moonlit forest with warm colors',
     })
   })
 
@@ -135,7 +137,7 @@ describe('storybooks function (v9 pipeline)', () => {
     expect(parsed?.imagePrompts.end.length).toBeGreaterThan(0)
   })
 
-  it('첫 프롬프트 응답 후 이미지 3 + TTS 10 요청을 병렬로 보내고 결과를 매핑한다', async () => {
+  it('첫 프롬프트 응답 후 이미지 3장을 단일 요청으로 만들고 TTS 10과 함께 처리한다', async () => {
     const schema = createStoryPromptSchemaOutput()
     const ttsInputs: string[] = []
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -146,24 +148,25 @@ describe('storybooks function (v9 pipeline)', () => {
           id: 'resp-v9-1',
           prompt: {
             id: 'pmpt_test',
-            version: '9',
+            version: '11',
           },
           output_text: JSON.stringify(schema),
         })
       }
 
       if (url === 'https://api.openai.com/v1/images/generations') {
-        const requestBody = JSON.parse(String(init?.body)) as { prompt?: string }
-        if (requestBody.prompt === 'cover prompt') {
-          return createJsonResponse({ data: [{ b64_json: 'cover-b64' }] })
-        }
-        if (requestBody.prompt === 'highlight prompt') {
-          return createJsonResponse({ data: [{ b64_json: 'highlight-b64' }] })
-        }
-        if (requestBody.prompt === 'end prompt') {
-          return createJsonResponse({ data: [{ b64_json: 'end-b64' }] })
-        }
-        throw new Error(`Unexpected image prompt: ${requestBody.prompt ?? '<missing>'}`)
+        const requestBody = JSON.parse(String(init?.body)) as { prompt?: string; n?: number }
+        expect(requestBody.n).toBe(3)
+        expect(requestBody.prompt).toContain('Critical uniqueness constraints:')
+        expect(requestBody.prompt).toContain('Cover = opening setup scene')
+        expect(requestBody.prompt).toContain('Shared style guide: storybook illustration, soft light, clean outlines')
+        expect(requestBody.prompt).toContain('Shared world setting: moonlit forest with warm colors')
+        expect(requestBody.prompt).toContain('Image 1 (cover): cover prompt')
+        expect(requestBody.prompt).toContain('Image 2 (highlight): highlight prompt')
+        expect(requestBody.prompt).toContain('Image 3 (end): end prompt')
+        return createJsonResponse({
+          data: [{ b64_json: 'cover-b64' }, { b64_json: 'highlight-b64' }, { b64_json: 'end-b64' }],
+        })
       }
 
       if (url === 'https://api.openai.com/v1/audio/speech') {
@@ -186,7 +189,7 @@ describe('storybooks function (v9 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(12)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -197,8 +200,8 @@ describe('storybooks function (v9 pipeline)', () => {
       openaiResponseId: string
     }
 
-    expect(payload.promptVersion).toBe('9')
-    expect(payload.upstreamPromptVersion).toBe('9')
+    expect(payload.promptVersion).toBe('11')
+    expect(payload.upstreamPromptVersion).toBe('11')
     expect(payload.openaiResponseId).toBe('resp-v9-1')
     expect(payload.pages).toHaveLength(10)
     expect(payload.pages.filter((page) => page.isHighlight)).toHaveLength(1)
@@ -213,7 +216,7 @@ describe('storybooks function (v9 pipeline)', () => {
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.tts))
   })
 
-  it('레거시 페이지 배열 응답이어도 이미지 3 + TTS 10 생성 파이프라인을 계속 수행한다', async () => {
+  it('레거시 페이지 배열 응답이어도 단일 이미지 요청 + TTS 10 파이프라인을 수행한다', async () => {
     const legacyOutput = createLegacyStoryPagesOutput()
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
@@ -226,7 +229,9 @@ describe('storybooks function (v9 pipeline)', () => {
       }
 
       if (url === 'https://api.openai.com/v1/images/generations') {
-        return createJsonResponse({ data: [{ b64_json: 'legacy-image' }] })
+        return createJsonResponse({
+          data: [{ b64_json: 'legacy-cover' }, { b64_json: 'legacy-highlight' }, { b64_json: 'legacy-end' }],
+        })
       }
 
       if (url === 'https://api.openai.com/v1/audio/speech') {
@@ -247,7 +252,7 @@ describe('storybooks function (v9 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(12)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -261,7 +266,7 @@ describe('storybooks function (v9 pipeline)', () => {
     expect(payload.narrations).toHaveLength(10)
   })
 
-  it('이미지 3 + TTS 10 요청을 한 번에 시작한다', async () => {
+  it('단일 이미지 요청 1 + TTS 10 요청을 한 번에 시작한다', async () => {
     const schema = createStoryPromptSchemaOutput()
     const deferredRequests: Array<{
       url: string
@@ -304,12 +309,12 @@ describe('storybooks function (v9 pipeline)', () => {
       setTimeout(resolve, 0)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(14)
-    expect(deferredRequests).toHaveLength(13)
+    expect(fetchMock).toHaveBeenCalledTimes(12)
+    expect(deferredRequests).toHaveLength(11)
 
     deferredRequests.forEach((request, index) => {
       if (request.url === 'https://api.openai.com/v1/images/generations') {
-        request.resolve(createJsonResponse({ data: [{ b64_json: `img-${index}` }] }))
+        request.resolve(createJsonResponse({ data: [{ b64_json: `img-${index}-1` }, { b64_json: `img-${index}-2` }, { b64_json: `img-${index}-3` }] }))
         return
       }
 
@@ -325,7 +330,7 @@ describe('storybooks function (v9 pipeline)', () => {
     expect(response.status).toBe(200)
   })
 
-  it('v9 스키마가 아니면 502 에러를 반환한다', async () => {
+  it('v11 스키마가 아니면 502 에러를 반환한다', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       if (url === 'https://api.openai.com/v1/responses') {

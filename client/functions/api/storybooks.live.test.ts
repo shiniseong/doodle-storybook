@@ -5,7 +5,7 @@ import { onRequestPost } from './storybooks'
 const shouldRunLiveCheck = import.meta.env.VITE_OPENAI_LIVE_CHECK === '1'
 const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY
 const openaiPromptId = import.meta.env.VITE_OPENAI_PROMPT_ID
-const openaiPromptVersion = import.meta.env.VITE_OPENAI_PROMPT_VERSION ?? '9'
+const openaiPromptVersion = import.meta.env.VITE_OPENAI_PROMPT_VERSION ?? '11'
 const openaiImageModel = import.meta.env.VITE_OPENAI_IMAGE_MODEL
 const openaiTtsModel = import.meta.env.VITE_OPENAI_TTS_MODEL
 const openaiTtsVoice = import.meta.env.VITE_OPENAI_TTS_VOICE
