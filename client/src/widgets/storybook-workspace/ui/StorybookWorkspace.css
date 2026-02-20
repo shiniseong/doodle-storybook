@@ -429,6 +429,16 @@
   background: rgba(229, 244, 255, 0.95);
 }
 
+.tool-chip--button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tool-chip--button:disabled:hover {
+  border-color: rgba(104, 163, 198, 0.45);
+  background: rgba(241, 249, 255, 0.88);
+}
+
 .tool-chip--active {
   border-color: rgba(67, 145, 193, 0.9);
   background: rgba(224, 241, 252, 0.96);

@@ -5,11 +5,13 @@ import {
   BrushCleaning,
   Eraser,
   Grid3x3,
+  ImageUp,
   Palette,
   Pause,
   PenLine,
   Play,
   RotateCcw,
+  RotateCw,
   Sparkles,
   Volume2,
   WandSparkles,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react'
 import {
   useCallback,
+  type ChangeEvent,
   useEffect,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -54,6 +57,7 @@ const drawingTools: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
   { key: 'opacity', icon: Sparkles },
   { key: 'eraser', icon: Eraser },
   { key: 'undo', icon: RotateCcw },
+  { key: 'redo', icon: RotateCw },
 ]
 
 const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
@@ -525,10 +529,13 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
     visible: false,
   })
   const [undoDepth, setUndoDepth] = useState(0)
+  const [redoDepth, setRedoDepth] = useState(0)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const imageUploadInputRef = useRef<HTMLInputElement | null>(null)
   const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null)
   const undoSnapshotsRef = useRef<ImageData[]>([])
+  const redoSnapshotsRef = useRef<ImageData[]>([])
   const isDrawingRef = useRef(false)
   const strokeBaseSnapshotRef = useRef<ImageData | null>(null)
   const strokePointsRef = useRef<CanvasPoint[]>([])
@@ -548,6 +555,31 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
     }
   }, [onCanvasSnapshotChange])
 
+  const clearRedoSnapshots = useCallback(() => {
+    redoSnapshotsRef.current = []
+    setRedoDepth(0)
+  }, [])
+
+  const pushRedoSnapshot = useCallback((snapshot: ImageData) => {
+    redoSnapshotsRef.current.push(snapshot)
+
+    if (redoSnapshotsRef.current.length > MAX_CANVAS_UNDO_STEPS) {
+      redoSnapshotsRef.current.shift()
+    }
+
+    setRedoDepth(redoSnapshotsRef.current.length)
+  }, [])
+
+  const pushUndoStateSnapshot = useCallback((snapshot: ImageData) => {
+    undoSnapshotsRef.current.push(snapshot)
+
+    if (undoSnapshotsRef.current.length > MAX_CANVAS_UNDO_STEPS) {
+      undoSnapshotsRef.current.shift()
+    }
+
+    setUndoDepth(undoSnapshotsRef.current.length)
+  }, [])
+
   const pushUndoSnapshot = useCallback(() => {
     const canvas = canvasRef.current
     const context = canvasContextRef.current
@@ -558,15 +590,10 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
 
     // Save pre-stroke state so undo reverts one drawing action at a time.
     const snapshot = context.getImageData(0, 0, canvas.width, canvas.height)
-    undoSnapshotsRef.current.push(snapshot)
-
-    if (undoSnapshotsRef.current.length > MAX_CANVAS_UNDO_STEPS) {
-      undoSnapshotsRef.current.shift()
-    }
-
-    setUndoDepth(undoSnapshotsRef.current.length)
+    clearRedoSnapshots()
+    pushUndoStateSnapshot(snapshot)
     return snapshot
-  }, [])
+  }, [clearRedoSnapshots, pushUndoStateSnapshot])
 
   const renderActiveStroke = useCallback(
     (
@@ -704,6 +731,9 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
       return
     }
 
+    const currentSnapshot = context.getImageData(0, 0, canvas.width, canvas.height)
+    pushRedoSnapshot(currentSnapshot)
+
     if (previousSnapshot.width !== canvas.width || previousSnapshot.height !== canvas.height) {
       context.clearRect(0, 0, canvas.width, canvas.height)
     } else {
@@ -712,7 +742,34 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
 
     setUndoDepth(undoSnapshotsRef.current.length)
     emitCanvasSnapshot()
-  }, [emitCanvasSnapshot])
+  }, [emitCanvasSnapshot, pushRedoSnapshot])
+
+  const handleRedo = useCallback(() => {
+    const canvas = canvasRef.current
+    const context = canvasContextRef.current
+
+    if (!canvas || !context) {
+      return
+    }
+
+    const redoSnapshot = redoSnapshotsRef.current.pop()
+
+    if (!redoSnapshot) {
+      return
+    }
+
+    const currentSnapshot = context.getImageData(0, 0, canvas.width, canvas.height)
+    pushUndoStateSnapshot(currentSnapshot)
+
+    if (redoSnapshot.width !== canvas.width || redoSnapshot.height !== canvas.height) {
+      context.clearRect(0, 0, canvas.width, canvas.height)
+    } else {
+      context.putImageData(redoSnapshot, 0, 0)
+    }
+
+    setRedoDepth(redoSnapshotsRef.current.length)
+    emitCanvasSnapshot()
+  }, [emitCanvasSnapshot, pushUndoStateSnapshot])
 
   const handleClearCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -729,6 +786,67 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
     strokePointsRef.current = []
     emitCanvasSnapshot()
   }, [emitCanvasSnapshot, pushUndoSnapshot])
+
+  const handleRequestImageUpload = useCallback(() => {
+    imageUploadInputRef.current?.click()
+  }, [])
+
+  const handleImageUploadChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = event.target.files?.[0]
+      event.target.value = ''
+
+      if (!selectedFile || !selectedFile.type.startsWith('image/')) {
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(selectedFile)
+      const uploadedImage = new Image()
+
+      uploadedImage.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+
+        const canvas = canvasRef.current
+        const context = canvasContextRef.current
+
+        if (!canvas || !context) {
+          return
+        }
+
+        const previousSnapshot = pushUndoSnapshot()
+        if (!previousSnapshot || uploadedImage.width === 0 || uploadedImage.height === 0) {
+          return
+        }
+
+        const scale = Math.min(canvas.width / uploadedImage.width, canvas.height / uploadedImage.height)
+        const drawWidth = Math.round(uploadedImage.width * scale)
+        const drawHeight = Math.round(uploadedImage.height * scale)
+        const offsetX = Math.round((canvas.width - drawWidth) * 0.5)
+        const offsetY = Math.round((canvas.height - drawHeight) * 0.5)
+        const nextGlobalAlpha = context.globalAlpha
+        const nextCompositeOperation = context.globalCompositeOperation
+
+        context.globalCompositeOperation = 'source-over'
+        context.globalAlpha = 1
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(uploadedImage, 0, 0, uploadedImage.width, uploadedImage.height, offsetX, offsetY, drawWidth, drawHeight)
+        context.globalAlpha = nextGlobalAlpha
+        context.globalCompositeOperation = nextCompositeOperation
+
+        isDrawingRef.current = false
+        strokeBaseSnapshotRef.current = null
+        strokePointsRef.current = []
+        emitCanvasSnapshot()
+      }
+
+      uploadedImage.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+      }
+
+      uploadedImage.src = objectUrl
+    },
+    [emitCanvasSnapshot, pushUndoSnapshot],
+  )
 
   const updatePenWidth = useCallback((nextWidth: number) => {
     setPenWidth(clampPenWidth(nextWidth))
@@ -805,6 +923,14 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
     (event: ReactKeyboardEvent<HTMLCanvasElement>) => {
       const isUndoShortcut =
         (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z'
+      const isRedoShortcut =
+        (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z'
+
+      if (isRedoShortcut && redoDepth > 0) {
+        event.preventDefault()
+        handleRedo()
+        return
+      }
 
       if (!isUndoShortcut || undoDepth === 0) {
         return
@@ -813,7 +939,7 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
       event.preventDefault()
       handleUndo()
     },
-    [handleUndo, undoDepth],
+    [handleRedo, handleUndo, redoDepth, undoDepth],
   )
 
   const handlePointerDown = useCallback(
@@ -959,7 +1085,9 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
       }
 
       undoSnapshotsRef.current = []
+      redoSnapshotsRef.current = []
       setUndoDepth(0)
+      setRedoDepth(0)
       isDrawingRef.current = false
       strokeBaseSnapshotRef.current = null
       strokePointsRef.current = []
@@ -1027,7 +1155,9 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
         context.globalAlpha = nextGlobalAlpha
         context.globalCompositeOperation = nextCompositeOperation
         undoSnapshotsRef.current = []
+        redoSnapshotsRef.current = []
         setUndoDepth(0)
+        setRedoDepth(0)
         emitCanvasSnapshot()
       }
       draftImage.src = initialCanvasDataUrl
@@ -1116,6 +1246,13 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
           />
         ) : null}
       </div>
+      <input
+        ref={imageUploadInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleImageUploadChange}
+      />
       <ul className="tool-chip-list" aria-label={t('workspace.panels.canvas.title')}>
         {drawingTools.map((tool) => {
           const Icon = tool.icon
@@ -1207,6 +1344,22 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
             )
           }
 
+          if (tool.key === 'redo') {
+            return (
+              <li key={tool.key}>
+                <button
+                  type="button"
+                  className="tool-chip tool-chip--button"
+                  disabled={redoDepth === 0}
+                  onClick={handleRedo}
+                >
+                  <Icon className="tool-chip__icon" size={14} strokeWidth={2.3} aria-hidden="true" />
+                  {t(`workspace.tools.${tool.key}`)}
+                </button>
+              </li>
+            )
+          }
+
           return (
             <li key={tool.key}>
               <span className="tool-chip">
@@ -1217,6 +1370,17 @@ function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: D
           )
         })}
         <li className="tool-chip--canvas-action-start">
+          <button
+            type="button"
+            className="tool-chip__grid-toggle"
+            aria-label={t('workspace.canvas.uploadImage')}
+            title={t('workspace.canvas.uploadImage')}
+            onClick={handleRequestImageUpload}
+          >
+            <ImageUp size={14} strokeWidth={2.3} aria-hidden="true" />
+          </button>
+        </li>
+        <li>
           <button
             type="button"
             className="tool-chip__grid-toggle"

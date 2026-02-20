@@ -843,6 +843,74 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
+  it('실행취소 후 다시실행으로 마지막 상태를 복원한다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const putImageDataSpy = mockContext.putImageData as unknown as { mock: { calls: unknown[][] } }
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-326-redo' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const undoButton = screen.getByRole('button', { name: '실행취소' })
+    const redoButton = screen.getByRole('button', { name: '다시실행' })
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    expect(redoButton).toBeDisabled()
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    await user.click(undoButton)
+    expect(redoButton).toBeEnabled()
+
+    const putImageDataCallsAfterUndo = putImageDataSpy.mock.calls.length
+    await user.click(redoButton)
+
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsAfterUndo + 1)
+    expect(redoButton).toBeDisabled()
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
   it('캔버스에서 Shift를 누르고 그리면 시작점과 현재점을 직선으로 잇는다', () => {
     const canvasWidth = 880
     const canvasHeight = 440
@@ -965,6 +1033,156 @@ describe('StorybookWorkspace', () => {
 
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('캔버스가 활성화되어 있으면 ctrl+shift+z로 다시실행한다', () => {
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const putImageDataSpy = mockContext.putImageData as unknown as { mock: { calls: unknown[][] } }
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-327-redo-shortcut' },
+        })),
+      },
+    }
+
+    const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+    const canvas = container.querySelector('.canvas-stage__surface') as HTMLCanvasElement | null
+
+    expect(canvas).not.toBeNull()
+
+    if (!canvas) {
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+      return
+    }
+
+    Object.defineProperty(canvas, 'setPointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'releasePointerCapture', {
+      value: vi.fn(),
+      configurable: true,
+    })
+    Object.defineProperty(canvas, 'hasPointerCapture', {
+      value: vi.fn(() => true),
+      configurable: true,
+    })
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 12, clientY: 14 })
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 46, clientY: 52 })
+    fireEvent.pointerUp(canvas, { pointerId: 1 })
+
+    const putImageDataCallsAfterDraw = putImageDataSpy.mock.calls.length
+    fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true })
+    const putImageDataCallsAfterUndo = putImageDataSpy.mock.calls.length
+
+    expect(putImageDataCallsAfterUndo).toBe(putImageDataCallsAfterDraw + 1)
+
+    fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true, shiftKey: true })
+    expect(putImageDataSpy.mock.calls.length).toBe(putImageDataCallsAfterUndo + 1)
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+  })
+
+  it('사진 업로드 버튼으로 로컬 이미지를 캔버스에 그릴 수 있다', async () => {
+    const user = userEvent.setup()
+    const canvasWidth = 880
+    const canvasHeight = 440
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const drawImageSpy = mockContext.drawImage as unknown as { mock: { calls: unknown[][] } }
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+    const createObjectURLSpy = vi.fn(() => 'blob:storybook-upload')
+    const revokeObjectURLSpy = vi.fn()
+    const originalCreateObjectURL = URL.createObjectURL
+    const originalRevokeObjectURL = URL.revokeObjectURL
+
+    class MockImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      width = 1200
+      height = 800
+
+      set src(_value: string) {
+        this.onload?.()
+      }
+    }
+
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: createObjectURLSpy,
+      configurable: true,
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: revokeObjectURLSpy,
+      configurable: true,
+    })
+    vi.stubGlobal('Image', MockImage as unknown as typeof Image)
+
+    try {
+      const dependencies: StorybookWorkspaceDependencies = {
+        currentUserId: 'user-1',
+        createStorybookUseCase: {
+          execute: vi.fn(async () => ({
+            ok: true as const,
+            value: { storybookId: 'storybook-upload-photo' },
+          })),
+        },
+      }
+
+      const { container } = render(<StorybookWorkspace dependencies={dependencies} />)
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement | null
+
+      expect(fileInput).not.toBeNull()
+      if (!fileInput) {
+        return
+      }
+
+      const drawImageCallsBeforeUpload = drawImageSpy.mock.calls.length
+      await user.click(screen.getByRole('button', { name: '사진 업로드' }))
+
+      const imageFile = new File(['image-bytes'], 'family.png', { type: 'image/png' })
+      fireEvent.change(fileInput, {
+        target: {
+          files: [imageFile],
+        },
+      })
+
+      await waitFor(() => {
+        expect(createObjectURLSpy).toHaveBeenCalledTimes(1)
+        expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1)
+        expect(drawImageSpy.mock.calls.length).toBeGreaterThan(drawImageCallsBeforeUpload)
+      })
+    } finally {
+      Object.defineProperty(URL, 'createObjectURL', {
+        value: originalCreateObjectURL,
+        configurable: true,
+      })
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        value: originalRevokeObjectURL,
+        configurable: true,
+      })
+      vi.unstubAllGlobals()
+      getContextSpy.mockRestore()
+      getBoundingClientRectSpy.mockRestore()
+    }
   })
 
   it('텍스트 입력이 활성화되어 있으면 ctrl+z가 캔버스 실행취소를 건드리지 않는다', async () => {

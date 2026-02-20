@@ -92,6 +92,7 @@ export const i18nResources = {
           ready: '드로잉 준비 완료',
           floatingOne: '반짝 숲',
           floatingTwo: '달빛 바다',
+          uploadImage: '사진 업로드',
           clearCanvas: '캔버스 전체 지우기',
           toggleGridOff: '그리드 끄기',
           toggleGridOn: '그리드 켜기',
@@ -109,6 +110,7 @@ export const i18nResources = {
           opacity: '투명도',
           eraser: '지우개',
           undo: '실행취소',
+          redo: '다시실행',
         },
         flow: {
           title: '제작 플로우',
@@ -267,6 +269,7 @@ export const i18nResources = {
           ready: 'Drawing stage ready',
           floatingOne: 'Twinkle Forest',
           floatingTwo: 'Moonlit Sea',
+          uploadImage: 'Upload photo',
           clearCanvas: 'Clear canvas',
           toggleGridOff: 'Hide Grid',
           toggleGridOn: 'Show Grid',
@@ -284,6 +287,7 @@ export const i18nResources = {
           opacity: 'Opacity',
           eraser: 'Eraser',
           undo: 'Undo',
+          redo: 'Redo',
         },
         flow: {
           title: 'Production Flow',
@@ -442,6 +446,7 @@ export const i18nResources = {
           ready: 'おえかき準備完了',
           floatingOne: 'きらきらの森',
           floatingTwo: '月あかりの海',
+          uploadImage: '写真をアップロード',
           clearCanvas: 'キャンバスを消去',
           toggleGridOff: 'グリッドをオフ',
           toggleGridOn: 'グリッドをオン',
@@ -459,6 +464,7 @@ export const i18nResources = {
           opacity: '透明度',
           eraser: 'けしごむ',
           undo: 'もどす',
+          redo: 'やりなおし',
         },
         flow: {
           title: '制作フロー',
@@ -617,6 +623,7 @@ export const i18nResources = {
           ready: '绘画已就绪',
           floatingOne: '星光森林',
           floatingTwo: '月夜海岸',
+          uploadImage: '上传照片',
           clearCanvas: '清空画布',
           toggleGridOff: '关闭网格',
           toggleGridOn: '开启网格',
@@ -634,6 +641,7 @@ export const i18nResources = {
           opacity: '透明度',
           eraser: '橡皮擦',
           undo: '撤销',
+          redo: '重做',
         },
         flow: {
           title: '制作流程',
