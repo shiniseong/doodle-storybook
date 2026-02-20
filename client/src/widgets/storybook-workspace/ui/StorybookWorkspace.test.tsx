@@ -57,7 +57,6 @@ function createMockAuth(overrides: Partial<StorybookWorkspaceAuth> = {}): Storyb
     isSigningIn: false,
     userId: 'user-1',
     userEmail: 'user-1@example.com',
-    signInWithGoogle: vi.fn(async () => {}),
     signOut: vi.fn(async () => {}),
     ...overrides,
   }
@@ -107,7 +106,6 @@ describe('StorybookWorkspace', () => {
       ok: true as const,
       value: { storybookId: 'storybook-need-auth' },
     }))
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const requestAuthentication = vi.fn()
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'guest-user',
@@ -130,11 +128,15 @@ describe('StorybookWorkspace', () => {
     await user.type(screen.getByLabelText('동화 제목'), '로그인 필요')
     await user.type(screen.getByLabelText('그림 설명'), '로그인 전에 입력한 설명')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+    expect(screen.getByRole('dialog', { name: '로그인이 필요해요' })).toBeInTheDocument()
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: '계속 작업할게요' }))
+
     expect(execute).not.toHaveBeenCalled()
     expect(requestAuthentication).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '로그인이 필요해요' })).not.toBeInTheDocument()
+    })
   })
 
   it('로그인하지 않은 상태에서 확인하면 로그인 페이지 이동 콜백을 호출한다', async () => {
@@ -143,7 +145,6 @@ describe('StorybookWorkspace', () => {
       ok: true as const,
       value: { storybookId: 'storybook-need-auth-2' },
     }))
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const requestAuthentication = vi.fn()
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'guest-user',
@@ -166,11 +167,41 @@ describe('StorybookWorkspace', () => {
     await user.type(screen.getByLabelText('동화 제목'), '로그인 이동')
     await user.type(screen.getByLabelText('그림 설명'), '승인 시 로그인 페이지로 이동')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+    expect(screen.getByRole('dialog', { name: '로그인이 필요해요' })).toBeInTheDocument()
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: '로그인/가입 페이지로 이동' }))
+
     expect(execute).not.toHaveBeenCalled()
     expect(requestAuthentication).toHaveBeenCalledTimes(1)
-    confirmSpy.mockRestore()
+  })
+
+  it('우측 상단 로그인 버튼을 누르면 로그인/가입 페이지 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const requestAuthentication = vi.fn()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'guest-user',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-header-auth' },
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: null,
+          userEmail: null,
+        })}
+        onRequestAuthentication={requestAuthentication}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '로그인' }))
+
+    expect(requestAuthentication).toHaveBeenCalledTimes(1)
   })
 
   it('워크스페이스를 다시 열어도 제목과 설명 초안이 유지된다', async () => {

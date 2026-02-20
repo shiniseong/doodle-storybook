@@ -170,7 +170,6 @@ export interface StorybookWorkspaceAuth {
   readonly isSigningIn: boolean
   readonly userId: string | null
   readonly userEmail: string | null
-  readonly signInWithGoogle: () => Promise<void>
   readonly signOut: () => Promise<void>
 }
 
@@ -352,13 +351,13 @@ function AmbientBackdrop() {
 
 interface WorkspaceHeaderProps {
   auth?: StorybookWorkspaceAuth
+  onRequestAuthentication?: () => void
 }
 
-function WorkspaceHeader({ auth }: WorkspaceHeaderProps) {
+function WorkspaceHeader({ auth, onRequestAuthentication }: WorkspaceHeaderProps) {
   const { t } = useTranslation()
   const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
-  const isGoogleSignInDisabled = !auth || !auth.isConfigured || auth.isLoading || auth.isSigningIn
-  const showSigningInState = auth?.isConfigured && !auth.userId && (auth.isLoading || auth.isSigningIn)
+  const isLoginButtonDisabled = !auth || !onRequestAuthentication
 
   return (
     <header className="workspace-header">
@@ -380,9 +379,7 @@ function WorkspaceHeader({ auth }: WorkspaceHeaderProps) {
           <LanguageSwitcher />
           {!auth ? null : (
             <div className="workspace-auth" aria-live="polite">
-              {!auth.isConfigured ? (
-                <p className="workspace-auth__notice">{t('workspace.auth.notConfigured')}</p>
-              ) : auth.userId ? (
+              {auth.userId ? (
                 <>
                   {auth.userEmail ? (
                     <p className="workspace-auth__identity">
@@ -400,18 +397,21 @@ function WorkspaceHeader({ auth }: WorkspaceHeaderProps) {
                   </button>
                 </>
               ) : (
-                <button
-                  type="button"
-                  className="workspace-auth__action"
-                  disabled={isGoogleSignInDisabled}
-                  onClick={() => {
-                    void auth.signInWithGoogle()
-                  }}
-                >
-                  {showSigningInState
-                    ? t('workspace.auth.signingIn')
-                    : t('workspace.auth.signInWithGoogle')}
-                </button>
+                <>
+                  {!auth.isConfigured ? (
+                    <p className="workspace-auth__notice">{t('workspace.auth.notConfigured')}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="workspace-auth__action"
+                    disabled={isLoginButtonDisabled}
+                    onClick={() => {
+                      onRequestAuthentication?.()
+                    }}
+                  >
+                    {t('workspace.auth.signIn')}
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -2105,6 +2105,75 @@ interface StoryComposerSectionProps {
   onRequestAuthentication?: () => void
 }
 
+interface AuthGateDialogProps {
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function AuthGateDialog({ onConfirm, onCancel }: AuthGateDialogProps) {
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      onCancel()
+    }
+
+    window.addEventListener('keydown', handleWindowKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [onCancel])
+
+  return (
+    <motion.div
+      className="auth-gate-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-gate-title"
+      aria-describedby="auth-gate-description"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+    >
+      <button
+        type="button"
+        className="auth-gate-dialog__backdrop"
+        aria-label={t('workspace.authGate.close')}
+        onClick={onCancel}
+      />
+      <motion.article
+        className="auth-gate-dialog__sheet"
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.98 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
+        <h3 id="auth-gate-title">{t('workspace.authGate.title')}</h3>
+        <p id="auth-gate-description">{t('workspace.authGate.description')}</p>
+        <div className="auth-gate-dialog__actions">
+          <button type="button" className="auth-gate-dialog__action auth-gate-dialog__action--secondary" onClick={onCancel}>
+            {t('workspace.authGate.cancel')}
+          </button>
+          <button type="button" className="auth-gate-dialog__action auth-gate-dialog__action--primary" onClick={onConfirm}>
+            {t('workspace.authGate.confirm')}
+          </button>
+        </div>
+      </motion.article>
+    </motion.div>
+  )
+}
+
 function StoryComposerSection({
   dependencies,
   auth,
@@ -2120,6 +2189,7 @@ function StoryComposerSection({
   const markSuccess = useStorybookCreationStore((state) => state.markSuccess)
   const markError = useStorybookCreationStore((state) => state.markError)
   const [readerBook, setReaderBook] = useState<StorybookReaderBook | null>(null)
+  const [isAuthGateDialogOpen, setIsAuthGateDialogOpen] = useState(false)
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
   const feedbackText = useMemo(() => resolveFeedbackText(feedback, t), [feedback, t])
@@ -2129,17 +2199,17 @@ function StoryComposerSection({
   }, [])
 
   const requestAuthenticationForStoryCreation = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
+    setIsAuthGateDialogOpen(true)
+  }, [])
 
-    const shouldNavigateToAuthentication = window.confirm(t('workspace.authGate.confirmCreate'))
-    if (!shouldNavigateToAuthentication) {
-      return
-    }
+  const closeAuthGateDialog = useCallback(() => {
+    setIsAuthGateDialogOpen(false)
+  }, [])
 
+  const confirmAuthenticationRequest = useCallback(() => {
+    setIsAuthGateDialogOpen(false)
     onRequestAuthentication?.()
-  }, [onRequestAuthentication, t])
+  }, [onRequestAuthentication])
 
   return (
     <motion.section
@@ -2227,6 +2297,11 @@ function StoryComposerSection({
         </div>
       )}
       <AnimatePresence>
+        {isAuthGateDialogOpen ? (
+          <AuthGateDialog onCancel={closeAuthGateDialog} onConfirm={confirmAuthenticationRequest} />
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
         {readerBook ? <StorybookReaderDialog book={readerBook} onClose={closeReaderBook} /> : null}
       </AnimatePresence>
     </motion.section>
@@ -2300,7 +2375,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
   return (
     <div className="storybook-app">
       <AmbientBackdrop />
-      <WorkspaceHeader auth={auth} />
+      <WorkspaceHeader auth={auth} onRequestAuthentication={onRequestAuthentication} />
       <main className="layout-grid">
         <DrawingBoardSection
           initialCanvasDataUrl={draft.canvasDataUrl}

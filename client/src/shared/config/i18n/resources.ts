@@ -40,6 +40,7 @@ export const i18nResources = {
           planValue: '₩6,900',
         },
         auth: {
+          signIn: '로그인',
           signInWithGoogle: 'Google로 로그인',
           signingIn: '로그인 중...',
           signOut: '로그아웃',
@@ -47,7 +48,11 @@ export const i18nResources = {
           notConfigured: 'Supabase 환경변수 설정 필요',
         },
         authGate: {
-          confirmCreate: '동화 생성을 하려면 로그인 또는 회원가입이 필요해요.\n로그인/가입 페이지로 이동할까요?',
+          title: '로그인이 필요해요',
+          description: '동화 생성을 계속하려면 로그인 또는 회원가입이 필요해요.',
+          confirm: '로그인/가입 페이지로 이동',
+          cancel: '계속 작업할게요',
+          close: '로그인 안내 닫기',
         },
         panels: {
           canvas: {
@@ -184,6 +189,7 @@ export const i18nResources = {
           planValue: '₩6,900',
         },
         auth: {
+          signIn: 'Sign in',
           signInWithGoogle: 'Sign in with Google',
           signingIn: 'Signing in...',
           signOut: 'Sign out',
@@ -191,7 +197,11 @@ export const i18nResources = {
           notConfigured: 'Supabase environment variables are required',
         },
         authGate: {
-          confirmCreate: 'Creating a storybook requires sign in or sign up.\nGo to the sign-in/sign-up page now?',
+          title: 'Sign in required',
+          description: 'You need to sign in or sign up to continue creating this storybook.',
+          confirm: 'Go to sign in / sign up',
+          cancel: 'Keep editing',
+          close: 'Close sign-in prompt',
         },
         panels: {
           canvas: {
@@ -328,6 +338,7 @@ export const i18nResources = {
           planValue: '₩6,900',
         },
         auth: {
+          signIn: 'ログイン',
           signInWithGoogle: 'Googleでログイン',
           signingIn: 'ログイン中...',
           signOut: 'ログアウト',
@@ -335,7 +346,11 @@ export const i18nResources = {
           notConfigured: 'Supabase の環境変数設定が必要です',
         },
         authGate: {
-          confirmCreate: '絵本を作成するにはログインまたは会員登録が必要です。\nログイン/登録ページへ移動しますか？',
+          title: 'ログインが必要です',
+          description: '絵本の作成を続けるには、ログインまたは会員登録が必要です。',
+          confirm: 'ログイン/登録ページへ移動',
+          cancel: 'このまま編集する',
+          close: 'ログイン案内を閉じる',
         },
         panels: {
           canvas: {
@@ -472,6 +487,7 @@ export const i18nResources = {
           planValue: '₩6,900',
         },
         auth: {
+          signIn: '登录',
           signInWithGoogle: '使用 Google 登录',
           signingIn: '登录中...',
           signOut: '退出登录',
@@ -479,7 +495,11 @@ export const i18nResources = {
           notConfigured: '需要配置 Supabase 环境变量',
         },
         authGate: {
-          confirmCreate: '生成绘本前需要先登录或注册。\n现在前往登录/注册页面吗？',
+          title: '需要先登录',
+          description: '继续生成绘本前，需要先登录或注册。',
+          confirm: '前往登录/注册页面',
+          cancel: '继续编辑',
+          close: '关闭登录提示',
         },
         panels: {
           canvas: {

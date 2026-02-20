@@ -995,6 +995,89 @@
   box-shadow: none;
 }
 
+.auth-gate-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.auth-gate-dialog__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(106, 172, 215, 0.16), transparent 30%),
+    radial-gradient(circle at 84% 80%, rgba(255, 197, 132, 0.16), transparent 35%),
+    rgba(10, 24, 39, 0.66);
+  backdrop-filter: blur(0.45rem);
+  cursor: pointer;
+}
+
+.auth-gate-dialog__sheet {
+  position: relative;
+  width: min(100%, 27rem);
+  border-radius: 1.2rem;
+  border: 1px solid rgba(143, 188, 217, 0.42);
+  background:
+    radial-gradient(circle at 18% 15%, rgba(255, 255, 255, 0.42), transparent 34%),
+    linear-gradient(156deg, rgba(248, 253, 255, 0.97), rgba(236, 247, 255, 0.96));
+  box-shadow:
+    0 1.5rem 3rem rgba(7, 24, 40, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  padding: clamp(1rem, 2.4vw, 1.35rem);
+  display: grid;
+  gap: 0.72rem;
+}
+
+.auth-gate-dialog__sheet h3 {
+  margin: 0;
+  color: #173f5d;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2.3vw, 1.26rem);
+  line-height: 1.15;
+}
+
+.auth-gate-dialog__sheet p {
+  margin: 0;
+  color: #34617f;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.auth-gate-dialog__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.52rem;
+}
+
+.auth-gate-dialog__action {
+  border-radius: 0.72rem;
+  font-weight: 750;
+  font-size: 0.88rem;
+  padding: 0.56rem 0.72rem;
+  cursor: pointer;
+}
+
+.auth-gate-dialog__action--secondary {
+  border: 1px solid rgba(117, 167, 200, 0.62);
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f4b67;
+}
+
+.auth-gate-dialog__action--primary {
+  border: 1px solid rgba(83, 162, 212, 0.82);
+  background: linear-gradient(138deg, #84cdf6, #59aedf);
+  color: #0f3551;
+}
+
+.auth-gate-dialog__action:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
+}
+
 .storybook-reader-dialog {
   position: fixed;
   inset: 0;
