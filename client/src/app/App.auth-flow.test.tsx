@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { BrowserRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from '@app/App'
@@ -124,6 +125,15 @@ async function enterWorkspaceFromLanding(user: ReturnType<typeof userEvent.setup
   await user.click(screen.getByRole('button', { name: '바로 사용해보기' }))
 }
 
+function renderAppAt(pathname = '/') {
+  window.history.replaceState({}, '', pathname)
+  return render(
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <App />
+    </BrowserRouter>,
+  )
+}
+
 describe('App auth flow persistence', () => {
   beforeEach(() => {
     if (typeof HTMLCanvasElement.prototype.setPointerCapture !== 'function') {
@@ -178,7 +188,7 @@ describe('App auth flow persistence', () => {
       .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
       .mockReturnValue('data:image/png;base64,draft-auth-gate')
 
-    const { rerender } = render(<App />)
+    const { rerender } = renderAppAt('/')
     await enterWorkspaceFromLanding(user)
 
     await fillDraftAndDraw(user, '다이얼로그 진입 제목', '다이얼로그 작가', '다이얼로그 진입 설명')
@@ -200,7 +210,11 @@ describe('App auth flow persistence', () => {
       userId: 'user-logged-in',
       userEmail: 'user-logged-in@example.com',
     })
-    rerender(<App />)
+    rerender(
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <App />
+      </BrowserRouter>,
+    )
 
     expect(await screen.findByLabelText('동화 제목')).toHaveValue('다이얼로그 진입 제목')
     expect(screen.getByLabelText('지은이')).toHaveValue('다이얼로그 작가')
@@ -232,7 +246,7 @@ describe('App auth flow persistence', () => {
       .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
       .mockReturnValue('data:image/png;base64,draft-header-login')
 
-    const { rerender } = render(<App />)
+    const { rerender } = renderAppAt('/')
     await enterWorkspaceFromLanding(user)
 
     await fillDraftAndDraw(user, '헤더 진입 제목', '헤더 진입 작가', '헤더 진입 설명')
@@ -253,7 +267,11 @@ describe('App auth flow persistence', () => {
       userId: 'user-logged-in-2',
       userEmail: 'user-logged-in-2@example.com',
     })
-    rerender(<App />)
+    rerender(
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <App />
+      </BrowserRouter>,
+    )
 
     expect(await screen.findByLabelText('동화 제목')).toHaveValue('헤더 진입 제목')
     expect(screen.getByLabelText('지은이')).toHaveValue('헤더 진입 작가')

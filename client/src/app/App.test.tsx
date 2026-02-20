@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { BrowserRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import App from '@app/App'
@@ -64,11 +65,20 @@ function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): Supa
   }
 }
 
+function renderAppAt(pathname = '/') {
+  window.history.replaceState({}, '', pathname)
+  return render(
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <App />
+    </BrowserRouter>,
+  )
+}
+
 describe('App', () => {
   it('기본 진입은 랜딩 페이지다', () => {
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
 
-    render(<App />)
+    renderAppAt('/')
 
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
@@ -79,7 +89,7 @@ describe('App', () => {
     const user = userEvent.setup()
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
 
-    render(<App />)
+    renderAppAt('/')
     await user.click(screen.getByRole('button', { name: 'start-workspace' }))
 
     expect(screen.getByTestId('home-page')).toHaveTextContent('user-1')
@@ -87,8 +97,7 @@ describe('App', () => {
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
-  it('로그인되지 않은 상태에서 랜딩을 거쳐도 홈 페이지는 demo-user로 동작한다', async () => {
-    const user = userEvent.setup()
+  it('새로고침으로 /create 경로에 들어와도 홈 페이지는 demo-user로 동작한다', () => {
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
       createMockAuth({
         userId: null,
@@ -96,10 +105,10 @@ describe('App', () => {
       }),
     )
 
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'start-workspace' }))
+    renderAppAt('/create')
 
     expect(screen.getByTestId('home-page')).toHaveTextContent('demo-user')
+    expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
@@ -112,12 +121,27 @@ describe('App', () => {
       }),
     )
 
-    render(<App />)
+    renderAppAt('/')
     await user.click(screen.getByRole('button', { name: 'start-workspace' }))
 
     await user.click(screen.getByRole('button', { name: 'open-auth' }))
 
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+  })
+
+  it('새로고침으로 /auth 경로에 들어오면 로그인 페이지를 렌더링한다', () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
+      createMockAuth({
+        userId: null,
+        userEmail: null,
+      }),
+    )
+
+    renderAppAt('/auth')
+
+    expect(screen.getByTestId('login-page')).toHaveTextContent('true')
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
   })
 })
