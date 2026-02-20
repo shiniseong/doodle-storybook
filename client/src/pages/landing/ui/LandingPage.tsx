@@ -45,17 +45,20 @@ const FAIRY_GENTLE_MAX_OFFSET_X = 13
 const FAIRY_GENTLE_MAX_OFFSET_Y = 10
 const FAIRY_HIT_SPEED_THRESHOLD = 1.2
 const FAIRY_HIT_ACCELERATION_THRESHOLD = 0.016
-const FAIRY_HIT_IMPULSE_MIN = 12
-const FAIRY_HIT_IMPULSE_MAX = 34
-const FAIRY_HIT_PUSH_DISTANCE_MIN = 5
-const FAIRY_HIT_PUSH_DISTANCE_MAX = 16
+const FAIRY_HIT_IMPULSE_MIN = 24
+const FAIRY_HIT_IMPULSE_MAX = 92
+const FAIRY_HIT_PUSH_DISTANCE_MIN = 14
+const FAIRY_HIT_PUSH_DISTANCE_MAX = 52
 const FAIRY_HIT_CENTER_PASS_RADIUS_RATIO = 0.26
-const FAIRY_HIT_COOLDOWN_MS = 220
+const FAIRY_HIT_COOLDOWN_MS = 280
+const FAIRY_HIT_RECOVERY_MS = 820
 const FAIRY_SPRING_STIFFNESS = 0.17
 const FAIRY_DAMPING = 0.84
+const FAIRY_RECOVERY_SPRING_STIFFNESS = 0.034
+const FAIRY_RECOVERY_DAMPING = 0.955
 const FAIRY_REACTION_EPSILON = 0.05
-const FAIRY_MAX_OFFSET_X = 36
-const FAIRY_MAX_OFFSET_Y = 28
+const FAIRY_MAX_OFFSET_X = 118
+const FAIRY_MAX_OFFSET_Y = 90
 
 const INITIAL_POINTER_STATE: PointerState = {
   heroTiltX: 0,
@@ -102,6 +105,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
   const fairyTargetOffsetRef = useRef({ x: 0, y: 0 })
   const pointerMotionRef = useRef<PointerMotionSnapshot | null>(null)
   const fairyHitCooldownUntilMsRef = useRef(0)
+  const fairyHitRecoveryUntilMsRef = useRef(0)
 
   const requestInteractionAnimationFrame = () => {
     if (animationFrameRef.current !== null) {
@@ -127,10 +131,16 @@ export function LandingPage({ onStart }: LandingPageProps) {
 
       const fairyPhysics = fairyPhysicsRef.current
       const fairyTargetOffset = fairyTargetOffsetRef.current
-      const fairyAccelerationX = (fairyTargetOffset.x - fairyPhysics.x) * FAIRY_SPRING_STIFFNESS
-      const fairyAccelerationY = (fairyTargetOffset.y - fairyPhysics.y) * FAIRY_SPRING_STIFFNESS
-      fairyPhysics.velocityX = (fairyPhysics.velocityX + fairyAccelerationX) * FAIRY_DAMPING
-      fairyPhysics.velocityY = (fairyPhysics.velocityY + fairyAccelerationY) * FAIRY_DAMPING
+      const nowMs = performance.now()
+      const isRecoveringFromHit = nowMs < fairyHitRecoveryUntilMsRef.current
+      const springStiffness = isRecoveringFromHit ? FAIRY_RECOVERY_SPRING_STIFFNESS : FAIRY_SPRING_STIFFNESS
+      const damping = isRecoveringFromHit ? FAIRY_RECOVERY_DAMPING : FAIRY_DAMPING
+      const fairyTargetX = isRecoveringFromHit ? 0 : fairyTargetOffset.x
+      const fairyTargetY = isRecoveringFromHit ? 0 : fairyTargetOffset.y
+      const fairyAccelerationX = (fairyTargetX - fairyPhysics.x) * springStiffness
+      const fairyAccelerationY = (fairyTargetY - fairyPhysics.y) * springStiffness
+      fairyPhysics.velocityX = (fairyPhysics.velocityX + fairyAccelerationX) * damping
+      fairyPhysics.velocityY = (fairyPhysics.velocityY + fairyAccelerationY) * damping
       fairyPhysics.x = clamp(fairyPhysics.x + fairyPhysics.velocityX, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
       fairyPhysics.y = clamp(fairyPhysics.y + fairyPhysics.velocityY, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
 
@@ -239,7 +249,9 @@ export function LandingPage({ onStart }: LandingPageProps) {
       return
     }
 
-    if (speed <= FAIRY_GENTLE_SPEED_THRESHOLD && accelerationMagnitude <= FAIRY_GENTLE_ACCELERATION_THRESHOLD) {
+    const isRecoveringFromHit = timestampMs < fairyHitRecoveryUntilMsRef.current
+
+    if (!isRecoveringFromHit && speed <= FAIRY_GENTLE_SPEED_THRESHOLD && accelerationMagnitude <= FAIRY_GENTLE_ACCELERATION_THRESHOLD) {
       fairyTargetOffsetRef.current = {
         x: clamp(relativePointerXFromFairy * 0.22, -FAIRY_GENTLE_MAX_OFFSET_X, FAIRY_GENTLE_MAX_OFFSET_X),
         y: clamp(relativePointerYFromFairy * 0.22, -FAIRY_GENTLE_MAX_OFFSET_Y, FAIRY_GENTLE_MAX_OFFSET_Y),
@@ -278,7 +290,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
       0,
       1,
     )
-    const centerPassBonus = didPassCenterOnSweep ? 0.9 : 0
+    const centerPassBonus = didPassCenterOnSweep ? 1.4 : 0
     const impactMultiplier = 1 + depthRatio * 0.9 + centerPassBonus
     const segmentLength = hasValidSegment ? Math.sqrt(segmentLengthSquared) : 0
     const movementMagnitude = Math.max(segmentLength, Math.hypot(velocityX, velocityY))
@@ -292,9 +304,11 @@ export function LandingPage({ onStart }: LandingPageProps) {
     const impactDirectionY =
       segmentLength > 0.0001 ? segmentDeltaY / segmentLength : velocityY / movementMagnitude
 
-    const rawImpulseStrength = (speed * 9 + accelerationMagnitude * 620) * impactMultiplier
+    const rawImpulseStrength = (speed * 14 + accelerationMagnitude * 900) * impactMultiplier
     const impulseStrength = clamp(rawImpulseStrength, FAIRY_HIT_IMPULSE_MIN, FAIRY_HIT_IMPULSE_MAX)
-    const rawPushDistance = (speed * 4.2 + accelerationMagnitude * 380) * (0.62 + depthRatio + centerPassBonus * 0.55)
+    const rawPushDistance =
+      (speed * 8.5 + accelerationMagnitude * 720 + movementMagnitude * 0.32) *
+      (0.9 + depthRatio * 1.4 + centerPassBonus * 0.8)
     const pushDistance = clamp(rawPushDistance, FAIRY_HIT_PUSH_DISTANCE_MIN, FAIRY_HIT_PUSH_DISTANCE_MAX)
     const fairyPhysics = fairyPhysicsRef.current
     fairyPhysics.x = clamp(fairyPhysics.x - impactDirectionX * pushDistance, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
@@ -302,6 +316,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
     fairyPhysics.velocityX += -impactDirectionX * impulseStrength
     fairyPhysics.velocityY += -impactDirectionY * impulseStrength
     fairyHitCooldownUntilMsRef.current = timestampMs + FAIRY_HIT_COOLDOWN_MS
+    fairyHitRecoveryUntilMsRef.current = timestampMs + FAIRY_HIT_RECOVERY_MS
   }
 
   useEffect(() => {
@@ -354,6 +369,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
           }
           pointerMotionRef.current = null
           fairyTargetOffsetRef.current = { x: 0, y: 0 }
+          fairyHitRecoveryUntilMsRef.current = 0
           requestInteractionAnimationFrame()
         }}
       >
