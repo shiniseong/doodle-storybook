@@ -285,6 +285,42 @@ function normalizeNarrationText(content: string): string {
   return content.replace(/\s+/g, ' ').trim()
 }
 
+function resolveTtsInstructions(language: StoryLanguage): string {
+  if (language === 'ko') {
+    return (
+      '전체를 같은 목소리와 톤으로 유지하며 따뜻한 구연 동화 화자처럼 읽어 주세요. ' +
+      '모든 페이지에서 발성, 속도, 감정선의 일관성을 유지해 주세요. ' +
+      '문장 안에 쌍따옴표("...") 또는 스마트 쌍따옴표(“...”)로 감싼 대사는, 같은 화자 톤을 유지하되 ' +
+      '조금 더 연기하듯 생동감 있게 읽어 주세요.'
+    )
+  }
+
+  if (language === 'ja') {
+    return (
+      '同じ声質とトーンを維持し、あたたかい読み聞かせの語り口で読んでください。' +
+      '全ページで話速と感情の一貫性を保ってください。' +
+      'ダブルクォーテーション("...")またはスマートクォート(“...”)で囲まれたセリフは、' +
+      '同じ語り手の声を保ちながら、やや演技的で表情豊かに読んでください。'
+    )
+  }
+
+  if (language === 'zh') {
+    return (
+      '请全程保持同一声音与语气，用温暖的童话讲述风格朗读。' +
+      '在所有页面中保持语速和情感走向一致。' +
+      '对于使用双引号("...")或智能引号(“...”)括起来的台词，' +
+      '请在保持同一讲述者声音的前提下，用更有表演感的语气朗读。'
+    )
+  }
+
+  return (
+    'Read in a warm fairy-tale storyteller style with a consistent single voice and tone across all pages. ' +
+    'Keep pacing and emotional color consistent throughout. ' +
+    'For dialogue enclosed in double quotes ("...") or smart quotes (“...”), ' +
+    'keep the same narrator voice but deliver those lines with more expressive acting.'
+  )
+}
+
 function encodeBytesAsBase64(bytes: Uint8Array): string {
   let binary = ''
   const chunkSize = 0x7fff
@@ -299,6 +335,7 @@ function encodeBytesAsBase64(bytes: Uint8Array): string {
 
 async function generatePageNarration(
   page: StoryPage,
+  instructions: string,
   env: Env,
 ): Promise<StoryPageNarration | null> {
   const input = normalizeNarrationText(page.content)
@@ -319,6 +356,7 @@ async function generatePageNarration(
         model: env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL,
         voice: env.OPENAI_TTS_VOICE || DEFAULT_TTS_VOICE,
         input,
+        instructions,
         format: 'mp3',
       }),
     })
@@ -351,6 +389,7 @@ async function generatePageNarration(
 
 async function generateStoryNarrations(
   pages: readonly StoryPage[],
+  language: StoryLanguage,
   env: Env,
 ): Promise<StoryPageNarration[]> {
   const textPages = pages
@@ -361,18 +400,13 @@ async function generateStoryNarrations(
     return []
   }
 
-  const narrations: StoryPageNarration[] = []
-
-  for (const page of textPages) {
-    const narration = await generatePageNarration(page, env)
-    if (!narration) {
-      continue
-    }
-
-    narrations.push(narration)
-  }
+  const instructions = resolveTtsInstructions(language)
+  const narrationRequests = textPages.map((page) => generatePageNarration(page, instructions, env))
+  const narrations = await Promise.all(narrationRequests)
 
   return narrations
+    .filter((narration): narration is StoryPageNarration => narration !== null)
+    .sort((left, right) => left.page - right.page)
 }
 
 function resolveUpstreamErrorMessage(payload: unknown): string {
@@ -521,7 +555,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const storyText = extractStorybookText(openAIResponseBody)
   const storyPages = extractStoryPages(storyText)
   const images = extractGeneratedImages(openAIResponseBody).slice(0, 3)
-  const narrations = await generateStoryNarrations(storyPages, context.env)
+  const narrations = await generateStoryNarrations(storyPages, normalizedBody.language, context.env)
 
   return jsonResponse({
     storybookId: `storybook-${crypto.randomUUID()}`,
