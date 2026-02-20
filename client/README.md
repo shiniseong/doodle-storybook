@@ -85,7 +85,7 @@ Set in Cloudflare Pages project:
 
 - `OPENAI_API_KEY` (secret)
 - `OPENAI_PROMPT_ID` (var, default configured in `wrangler.jsonc`)
-- `OPENAI_PROMPT_VERSION` (var, default `8`)
+- `OPENAI_PROMPT_VERSION` (var, default `9`)
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1.5`)
 
 For local Pages dev, create `client/.dev.vars`:
@@ -93,7 +93,7 @@ For local Pages dev, create `client/.dev.vars`:
 ```bash
 OPENAI_API_KEY="sk-..."
 OPENAI_PROMPT_ID="pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697"
-OPENAI_PROMPT_VERSION="8"
+OPENAI_PROMPT_VERSION="9"
 OPENAI_IMAGE_MODEL="gpt-image-1.5"
 ```
 
@@ -101,6 +101,16 @@ If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
 
 ```bash
 VITE_API_BASE_URL="http://127.0.0.1:8788"
+```
+
+Optional live check test (disabled by default):
+
+```bash
+VITE_OPENAI_LIVE_CHECK=1 \
+VITE_OPENAI_API_KEY="sk-..." \
+VITE_OPENAI_PROMPT_ID="pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697" \
+VITE_OPENAI_PROMPT_VERSION="9" \
+npm run test:run -- functions/api/storybooks.live.test.ts
 ```
 
 ## Supabase Google Auth

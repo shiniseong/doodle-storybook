@@ -23,9 +23,26 @@ interface StoryPage {
   isHighlight: boolean
 }
 
+interface StoryPageTtsSource {
+  page: number
+  tts: string
+}
+
 interface StoryPageNarration {
   page: number
   audioDataUrl: string
+}
+
+interface StoryImagePrompts {
+  cover: string
+  highlight: string
+  end: string
+}
+
+interface ParsedPromptStorybookOutput {
+  pages: StoryPage[]
+  ttsPages: StoryPageTtsSource[]
+  imagePrompts: StoryImagePrompts
 }
 
 interface OpenAIResponseTextItem {
@@ -34,8 +51,6 @@ interface OpenAIResponseTextItem {
 }
 
 interface OpenAIResponseOutputItem {
-  type?: string
-  result?: string
   content?: OpenAIResponseTextItem[]
 }
 
@@ -52,11 +67,13 @@ const CORS_HEADERS = {
 } as const
 
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
-const DEFAULT_PROMPT_VERSION = '8'
+const DEFAULT_PROMPT_VERSION = '9'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
 const MAX_NARRATION_COUNT = 10
+const TRANSPARENT_PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
 
 function withCors(headers?: HeadersInit): Headers {
   const nextHeaders = new Headers(headers)
@@ -166,123 +183,206 @@ function extractStorybookText(responseBody: OpenAIResponsesApiBody): string | nu
   return null
 }
 
-function parseStoryPagesArray(candidate: unknown): StoryPage[] {
-  if (!Array.isArray(candidate)) {
-    return []
-  }
-
-  return candidate
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return null
-      }
-
-      const pageCandidate = item as Partial<StoryPage>
-
-      if (
-        typeof pageCandidate.page !== 'number' ||
-        typeof pageCandidate.content !== 'string' ||
-        typeof pageCandidate.isHighlight !== 'boolean'
-      ) {
-        return null
-      }
-
-      return {
-        page: pageCandidate.page,
-        content: pageCandidate.content.trim(),
-        isHighlight: pageCandidate.isHighlight,
-      }
-    })
-    .filter((value): value is StoryPage => value !== null)
-    .sort((left, right) => left.page - right.page)
-}
-
 function extractJsonLikeText(rawText: string): string {
   const fencedBlockMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
   return (fencedBlockMatch?.[1] ?? rawText).trim()
 }
 
-function parseStoryPagesObject(candidate: unknown): StoryPage[] {
-  if (!candidate || typeof candidate !== 'object') {
-    return []
-  }
-
-  const pagesCandidate = (candidate as { pages?: unknown }).pages
-
-  if (typeof pagesCandidate === 'string') {
-    return extractStoryPages(pagesCandidate)
-  }
-
-  return parseStoryPagesArray(pagesCandidate)
+function normalizeNarrationText(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
 }
 
-function extractStoryPages(text: string | null): StoryPage[] {
-  if (!text) {
+function parsePromptStoryPagesArray(candidate: unknown): StoryPageTtsSource[] {
+  if (!Array.isArray(candidate)) {
     return []
   }
 
-  const candidateRawText = extractJsonLikeText(text)
-
-  try {
-    const parsed = JSON.parse(candidateRawText) as unknown
-    const directPages = parseStoryPagesArray(parsed)
-
-    if (directPages.length > 0) {
-      return directPages
-    }
-
-    const pagesInObject = parseStoryPagesObject(parsed)
-    if (pagesInObject.length > 0) {
-      return pagesInObject
-    }
-  } catch {
-    // Continue to legacy [ ... ] range extraction below.
-  }
-
-  const startIndex = candidateRawText.indexOf('[')
-  const endIndex = candidateRawText.lastIndexOf(']')
-
-  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
-    return []
-  }
-
-  try {
-    const parsed = JSON.parse(candidateRawText.slice(startIndex, endIndex + 1)) as unknown
-    return parseStoryPagesArray(parsed)
-  } catch {
-    return []
-  }
-}
-
-function normalizeImageResult(result: string): string {
-  const compact = result.trim().replace(/\s+/g, '')
-  const normalized = compact
-    .replace(/^data:\s*/i, 'data:')
-    .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
-
-  return normalized.startsWith('data:image/') ? normalized : `data:image/png;base64,${normalized}`
-}
-
-function extractGeneratedImages(responseBody: OpenAIResponsesApiBody): string[] {
-  if (!Array.isArray(responseBody.output)) {
-    return []
-  }
-
-  const imageResults = responseBody.output
-    .map((outputItem) => {
-      if (outputItem.type !== 'image_generation_call' || typeof outputItem.result !== 'string') {
+  const parsedPages = candidate
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
         return null
       }
 
-      return outputItem.result
-    })
-    .filter((result): result is string => result !== null)
+      const pageCandidate = item as {
+        page?: unknown
+        content?: unknown
+        tts?: unknown
+      }
 
-  return imageResults.map((result) => normalizeImageResult(result))
+      if (
+        typeof pageCandidate.page !== 'number' ||
+        !Number.isFinite(pageCandidate.page) ||
+        typeof pageCandidate.content !== 'string' ||
+        typeof pageCandidate.tts !== 'string'
+      ) {
+        return null
+      }
+
+      const normalizedContent = pageCandidate.content.trim()
+      const normalizedTts = normalizeNarrationText(pageCandidate.tts)
+
+      if (normalizedContent.length === 0 || normalizedTts.length === 0) {
+        return null
+      }
+
+      return {
+        page: pageCandidate.page,
+        tts: normalizedTts,
+      }
+    })
+    .filter((value): value is StoryPageTtsSource => value !== null)
+    .sort((left, right) => left.page - right.page)
+
+  const hasDuplicatePage = parsedPages.some((page, index) => index > 0 && parsedPages[index - 1]?.page === page.page)
+  if (hasDuplicatePage) {
+    return []
+  }
+
+  return parsedPages
 }
 
-function normalizeNarrationText(content: string): string {
-  return content.replace(/\s+/g, ' ').trim()
+function parsePromptStoryPagesForContent(candidate: unknown): Array<{ page: number; content: string }> {
+  if (!Array.isArray(candidate)) {
+    return []
+  }
+
+  const parsedPages = candidate
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const pageCandidate = item as {
+        page?: unknown
+        content?: unknown
+      }
+
+      if (
+        typeof pageCandidate.page !== 'number' ||
+        !Number.isFinite(pageCandidate.page) ||
+        typeof pageCandidate.content !== 'string'
+      ) {
+        return null
+      }
+
+      const normalizedContent = pageCandidate.content.trim()
+      if (normalizedContent.length === 0) {
+        return null
+      }
+
+      return {
+        page: pageCandidate.page,
+        content: normalizedContent,
+      }
+    })
+    .filter((value): value is { page: number; content: string } => value !== null)
+    .sort((left, right) => left.page - right.page)
+
+  const hasDuplicatePage = parsedPages.some((page, index) => index > 0 && parsedPages[index - 1]?.page === page.page)
+  if (hasDuplicatePage) {
+    return []
+  }
+
+  return parsedPages
+}
+
+function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null
+  }
+
+  const imagePrompts = candidate as {
+    cover?: unknown
+    highlight?: unknown
+    end?: unknown
+  }
+
+  if (
+    typeof imagePrompts.cover !== 'string' ||
+    typeof imagePrompts.highlight !== 'string' ||
+    typeof imagePrompts.end !== 'string'
+  ) {
+    return null
+  }
+
+  const cover = imagePrompts.cover.trim()
+  const highlight = imagePrompts.highlight.trim()
+  const end = imagePrompts.end.trim()
+
+  if (cover.length === 0 || highlight.length === 0 || end.length === 0) {
+    return null
+  }
+
+  return {
+    cover,
+    highlight,
+    end,
+  }
+}
+
+export function parsePromptStorybookOutput(rawText: string | null): ParsedPromptStorybookOutput | null {
+  if (!rawText || rawText.trim().length === 0) {
+    return null
+  }
+
+  const jsonLikeText = extractJsonLikeText(rawText)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonLikeText) as unknown
+  } catch {
+    return null
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return null
+  }
+
+  const candidate = parsed as {
+    highlightPage?: unknown
+    pages?: unknown
+    imagePrompts?: unknown
+  }
+
+  if (typeof candidate.highlightPage !== 'number' || !Number.isFinite(candidate.highlightPage)) {
+    return null
+  }
+
+  const pagesWithContent = parsePromptStoryPagesForContent(candidate.pages)
+  const pagesWithTts = parsePromptStoryPagesArray(candidate.pages)
+
+  if (pagesWithContent.length !== MAX_NARRATION_COUNT || pagesWithTts.length !== MAX_NARRATION_COUNT) {
+    return null
+  }
+
+  const hasExpectedSequence =
+    pagesWithContent.every((page, index) => page.page === index + 1) &&
+    pagesWithTts.every((page, index) => page.page === index + 1)
+
+  if (!hasExpectedSequence) {
+    return null
+  }
+
+  if (candidate.highlightPage < 1 || candidate.highlightPage > MAX_NARRATION_COUNT) {
+    return null
+  }
+
+  const parsedImagePrompts = parsePromptImagePrompts(candidate.imagePrompts)
+  if (!parsedImagePrompts) {
+    return null
+  }
+
+  const pages: StoryPage[] = pagesWithContent.map((page) => ({
+    page: page.page,
+    content: page.content,
+    isHighlight: page.page === candidate.highlightPage,
+  }))
+
+  return {
+    pages,
+    ttsPages: pagesWithTts,
+    imagePrompts: parsedImagePrompts,
+  }
 }
 
 function resolveTtsInstructions(language: StoryLanguage): string {
@@ -334,11 +434,11 @@ function encodeBytesAsBase64(bytes: Uint8Array): string {
 }
 
 async function generatePageNarration(
-  page: StoryPage,
+  source: StoryPageTtsSource,
   instructions: string,
   env: Env,
 ): Promise<StoryPageNarration | null> {
-  const input = normalizeNarrationText(page.content)
+  const input = normalizeNarrationText(source.tts)
   if (input.length === 0) {
     return null
   }
@@ -382,31 +482,100 @@ async function generatePageNarration(
   }
 
   return {
-    page: page.page,
+    page: source.page,
     audioDataUrl: `data:audio/mpeg;base64,${encodeBytesAsBase64(audioBytes)}`,
   }
 }
 
-async function generateStoryNarrations(
-  pages: readonly StoryPage[],
-  language: StoryLanguage,
-  env: Env,
-): Promise<StoryPageNarration[]> {
-  const textPages = pages
-    .filter((page) => normalizeNarrationText(page.content).length > 0)
-    .slice(0, MAX_NARRATION_COUNT)
+function normalizeImageResult(result: string): string {
+  const compact = result.trim().replace(/\s+/g, '')
+  const normalized = compact
+    .replace(/^data:\s*/i, 'data:')
+    .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
 
-  if (textPages.length === 0) {
-    return []
+  return normalized.startsWith('data:image/') ? normalized : `data:image/png;base64,${normalized}`
+}
+
+async function resolveImageDataUrlFromGeneratedImageUrl(imageUrl: string): Promise<string | null> {
+  let imageResponse: Response
+
+  try {
+    imageResponse = await fetch(imageUrl)
+  } catch {
+    return null
   }
 
-  const instructions = resolveTtsInstructions(language)
-  const narrationRequests = textPages.map((page) => generatePageNarration(page, instructions, env))
-  const narrations = await Promise.all(narrationRequests)
+  if (!imageResponse.ok) {
+    return null
+  }
 
-  return narrations
-    .filter((narration): narration is StoryPageNarration => narration !== null)
-    .sort((left, right) => left.page - right.page)
+  let bytes: Uint8Array
+  try {
+    const imageBuffer = await imageResponse.arrayBuffer()
+    bytes = new Uint8Array(imageBuffer)
+  } catch {
+    return null
+  }
+
+  if (bytes.byteLength === 0) {
+    return null
+  }
+
+  return `data:image/png;base64,${encodeBytesAsBase64(bytes)}`
+}
+
+async function generateImageFromPrompt(prompt: string, env: Env): Promise<string | null> {
+  if (prompt.trim().length === 0) {
+    return null
+  }
+
+  let response: Response
+
+  try {
+    response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
+        prompt,
+        size: '1024x1024',
+        quality: 'low',
+        output_format: 'png',
+        background: 'auto',
+      }),
+    })
+  } catch {
+    return null
+  }
+
+  const payload = await readResponseBody(response)
+
+  if (!response.ok || !payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const data = (payload as { data?: Array<{ b64_json?: unknown; url?: unknown }> }).data
+  if (!Array.isArray(data) || data.length === 0) {
+    return null
+  }
+
+  const first = data[0]
+  if (!first || typeof first !== 'object') {
+    return null
+  }
+
+  if (typeof first.b64_json === 'string' && first.b64_json.trim().length > 0) {
+    return normalizeImageResult(first.b64_json)
+  }
+
+  if (typeof first.url === 'string' && first.url.trim().length > 0) {
+    return resolveImageDataUrlFromGeneratedImageUrl(first.url)
+  }
+
+  return null
 }
 
 function resolveUpstreamErrorMessage(payload: unknown): string {
@@ -479,7 +648,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const inputContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }> = [
     {
       type: 'input_text',
-      text: '원본 그림과 제목, 설명을 바탕으로 동화 본문 10페이지(JSON)와 삽화를 생성해 주세요.',
+      text: '입력된 정보와 참고 이미지를 바탕으로 동화 JSON을 생성해 주세요.',
     },
   ]
 
@@ -517,17 +686,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             content: inputContent,
           },
         ],
-        tools: [
-          {
-            type: 'image_generation',
-            model: context.env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-            size: '1024x1024',
-            output_format: 'png',
-            quality: 'low',
-            background: 'auto',
-          },
-        ],
-        max_tool_calls: 3,
         store: true,
       }),
     })
@@ -553,16 +711,41 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const openAIResponseBody = upstreamPayload as OpenAIResponsesApiBody
   const storyText = extractStorybookText(openAIResponseBody)
-  const storyPages = extractStoryPages(storyText)
-  const images = extractGeneratedImages(openAIResponseBody).slice(0, 3)
-  const narrations = await generateStoryNarrations(storyPages, normalizedBody.language, context.env)
+  const parsedPromptStorybook = parsePromptStorybookOutput(storyText)
+
+  if (!parsedPromptStorybook) {
+    return jsonResponse(
+      {
+        error: 'Invalid storybook prompt output schema.',
+      },
+      502,
+    )
+  }
+
+  const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
+  const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
+
+  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
+    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.cover, context.env),
+    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.highlight, context.env),
+    generateImageFromPrompt(parsedPromptStorybook.imagePrompts.end, context.env),
+    ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
+  ])
+
+  const narrations = narrationResults
+    .filter((narration): narration is StoryPageNarration => narration !== null)
+    .sort((left, right) => left.page - right.page)
 
   return jsonResponse({
     storybookId: `storybook-${crypto.randomUUID()}`,
     openaiResponseId: openAIResponseBody.id ?? null,
     promptVersion,
-    pages: storyPages,
-    images,
+    pages: parsedPromptStorybook.pages,
+    images: [
+      coverImage ?? TRANSPARENT_PNG_DATA_URL,
+      highlightImage ?? TRANSPARENT_PNG_DATA_URL,
+      endImage ?? TRANSPARENT_PNG_DATA_URL,
+    ],
     narrations,
     storyText,
   })
