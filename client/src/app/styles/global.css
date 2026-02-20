@@ -1,6 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&family=Noto+Serif+KR:wght@400;500;600;700&family=Nunito+Sans:wght@400;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
 
 :root {
+  --font-brand-title: 'Jua', 'Noto Sans KR', 'Sora', 'Hiragino Sans', 'PingFang SC', sans-serif;
+  --font-landing-title: 'Gowun Dodum', 'Jua', 'Noto Sans KR', 'Hiragino Sans', 'PingFang SC', sans-serif;
+  --font-book-print: 'Noto Serif KR', 'Nanum Myeongjo', 'Times New Roman', serif;
   --font-display: 'Sora', 'Noto Sans KR', 'Hiragino Sans', 'PingFang SC', sans-serif;
   --font-body: 'Nunito Sans', 'Noto Sans KR', 'Hiragino Sans', 'PingFang SC', sans-serif;
 

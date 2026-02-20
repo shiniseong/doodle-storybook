@@ -41,10 +41,17 @@ interface StoryImagePrompts {
   commonWorld?: string
 }
 
+interface StoryCharacter {
+  id: string
+  name: string
+  prompt: string
+}
+
 interface ParsedPromptStorybookOutput {
   pages: StoryPage[]
   ttsPages: StoryPageTtsSource[]
   imagePrompts: StoryImagePrompts
+  characters: StoryCharacter[]
 }
 
 interface PromptOutputFallbackContext {
@@ -79,7 +86,7 @@ const CORS_HEADERS = {
 } as const
 
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
-const DEFAULT_PROMPT_VERSION = '11'
+const DEFAULT_PROMPT_VERSION = '13'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
@@ -224,56 +231,6 @@ function parsePositiveInteger(value: unknown): number | null {
   return null
 }
 
-function parsePromptStoryPagesArray(candidate: unknown): StoryPageTtsSource[] {
-  if (!Array.isArray(candidate)) {
-    return []
-  }
-
-  const parsedPages = candidate
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return null
-      }
-
-      const pageCandidate = item as {
-        page?: unknown
-        content?: unknown
-        tts?: unknown
-      }
-
-      const parsedPage = parsePositiveInteger(pageCandidate.page)
-
-      if (
-        parsedPage === null ||
-        typeof pageCandidate.content !== 'string' ||
-        typeof pageCandidate.tts !== 'string'
-      ) {
-        return null
-      }
-
-      const normalizedContent = pageCandidate.content.trim()
-      const normalizedTts = normalizeNarrationText(pageCandidate.tts)
-
-      if (normalizedContent.length === 0 || normalizedTts.length === 0) {
-        return null
-      }
-
-      return {
-        page: parsedPage,
-        tts: normalizedTts,
-      }
-    })
-    .filter((value): value is StoryPageTtsSource => value !== null)
-    .sort((left, right) => left.page - right.page)
-
-  const hasDuplicatePage = parsedPages.some((page, index) => index > 0 && parsedPages[index - 1]?.page === page.page)
-  if (hasDuplicatePage) {
-    return []
-  }
-
-  return parsedPages
-}
-
 function parsePromptStoryPagesForContent(candidate: unknown): Array<{ page: number; content: string }> {
   if (!Array.isArray(candidate)) {
     return []
@@ -386,6 +343,61 @@ function parsePromptImagePrompts(candidate: unknown): StoryImagePrompts | null {
   return parsed
 }
 
+function parsePromptCharacters(candidate: unknown): StoryCharacter[] {
+  if (!Array.isArray(candidate)) {
+    return []
+  }
+
+  const parsedCharacters: StoryCharacter[] = []
+  const usedIds = new Set<string>()
+
+  candidate.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      return
+    }
+
+    const character = item as {
+      id?: unknown
+      name?: unknown
+      prompt?: unknown
+    }
+
+    if (typeof character.name !== 'string' || typeof character.prompt !== 'string') {
+      return
+    }
+
+    const rawId = typeof character.id === 'string' ? character.id.trim() : ''
+    const name = character.name.trim()
+    const prompt = character.prompt.trim()
+    if (name.length === 0 || prompt.length === 0) {
+      return
+    }
+
+    const id = rawId.length > 0 ? rawId : `c${index + 1}`
+    if (usedIds.has(id)) {
+      return
+    }
+
+    usedIds.add(id)
+    parsedCharacters.push({
+      id,
+      name,
+      prompt,
+    })
+  })
+
+  return parsedCharacters
+}
+
+function resolveCharactersCandidate(
+  candidate: {
+    characters?: unknown
+    charaters?: unknown
+  } | null,
+): unknown {
+  return candidate?.characters ?? candidate?.charaters
+}
+
 function hasExpectedPageSequence(pages: Array<{ page: number }>): boolean {
   return pages.every((page, index) => page.page === index + 1)
 }
@@ -399,6 +411,8 @@ function parseStructuredPromptStorybookOutput(parsed: unknown): ParsedPromptStor
     highlightPage?: unknown
     pages?: unknown
     imagePrompts?: unknown
+    characters?: unknown
+    charaters?: unknown
   }
 
   const highlightPage = parsePositiveInteger(candidate.highlightPage)
@@ -407,13 +421,11 @@ function parseStructuredPromptStorybookOutput(parsed: unknown): ParsedPromptStor
   }
 
   const pagesWithContent = parsePromptStoryPagesForContent(candidate.pages)
-  const pagesWithTts = parsePromptStoryPagesArray(candidate.pages)
-
-  if (pagesWithContent.length !== MAX_NARRATION_COUNT || pagesWithTts.length !== MAX_NARRATION_COUNT) {
+  if (pagesWithContent.length !== MAX_NARRATION_COUNT) {
     return null
   }
 
-  if (!hasExpectedPageSequence(pagesWithContent) || !hasExpectedPageSequence(pagesWithTts)) {
+  if (!hasExpectedPageSequence(pagesWithContent)) {
     return null
   }
 
@@ -422,21 +434,28 @@ function parseStructuredPromptStorybookOutput(parsed: unknown): ParsedPromptStor
     return null
   }
 
+  const parsedCharacters = parsePromptCharacters(resolveCharactersCandidate(candidate))
+
+  const normalizedTtsFromContent = pagesWithContent.map((page) => ({
+    page: page.page,
+    tts: normalizeNarrationText(page.content),
+  }))
+
   return {
     pages: pagesWithContent.map((page) => ({
       page: page.page,
       content: page.content,
       isHighlight: page.page === highlightPage,
     })),
-    ttsPages: pagesWithTts,
+    ttsPages: normalizedTtsFromContent,
     imagePrompts: parsedImagePrompts,
+    characters: parsedCharacters,
   }
 }
 
 interface LegacyStoryPage {
   page: number
   content: string
-  tts: string
   isHighlight: boolean
 }
 
@@ -468,13 +487,9 @@ function parseLegacyStoryPages(candidate: unknown): LegacyStoryPage[] {
         return null
       }
 
-      const ttsCandidate = typeof pageCandidate.tts === 'string' ? normalizeNarrationText(pageCandidate.tts) : ''
-      const tts = ttsCandidate.length > 0 ? ttsCandidate : normalizeNarrationText(content)
-
       return {
         page,
         content,
-        tts,
         isHighlight: pageCandidate.isHighlight === true || pageCandidate.isHighlight === 'true',
       }
     })
@@ -528,6 +543,9 @@ function parseLegacyPromptStorybookOutput(
   const imagePrompts =
     parsePromptImagePrompts((rootObject as { imagePrompts?: unknown } | null)?.imagePrompts) ??
     buildFallbackImagePrompts(legacyPages, highlightPage, fallbackContext)
+  const characters = parsePromptCharacters(
+    resolveCharactersCandidate(rootObject as { characters?: unknown; charaters?: unknown } | null),
+  )
 
   return {
     pages: legacyPages.map((page) => ({
@@ -537,9 +555,10 @@ function parseLegacyPromptStorybookOutput(
     })),
     ttsPages: legacyPages.map((page) => ({
       page: page.page,
-      tts: page.tts,
+      tts: normalizeNarrationText(page.content),
     })),
     imagePrompts,
+    characters,
   }
 }
 
@@ -702,11 +721,12 @@ async function resolveImageDataUrlFromGeneratedImageUrl(imageUrl: string): Promi
   return `data:image/png;base64,${encodeBytesAsBase64(bytes)}`
 }
 
-function buildUnifiedImageSetPrompt(imagePrompts: StoryImagePrompts): string {
-  const sharedRules =
-    'All three images must keep the exact same protagonist identity, face shape, colors, proportions, line quality, lighting, and painting style. ' +
-    'No text, letters, logos, or watermarks.'
-
+function buildSingleImagePrompt(
+  sceneRole: 'cover' | 'highlight' | 'end',
+  scenePrompt: string,
+  imagePrompts: StoryImagePrompts,
+  characters: StoryCharacter[],
+): string {
   const commonStyleGuide =
     imagePrompts.commonStyleGuide && imagePrompts.commonStyleGuide.trim().length > 0
       ? imagePrompts.commonStyleGuide.trim()
@@ -716,21 +736,25 @@ function buildUnifiedImageSetPrompt(imagePrompts: StoryImagePrompts): string {
       ? imagePrompts.commonWorld.trim()
       : null
 
+  const characterLines =
+    characters.length > 0
+      ? [
+          'Character consistency reference (apply exactly across all three image requests):',
+          ...characters.map((character) => `- [${character.id}] ${character.name}: ${character.prompt}`),
+          `Main protagonist: ${characters[0]?.name ?? ''}. Keep this protagonist as the clear visual focus.`,
+        ]
+      : []
+
   return [
-    'Create exactly three children\'s storybook illustrations in one cohesive set.',
-    sharedRules,
-    'Critical uniqueness constraints:',
-    '- The three images must depict different narrative moments: beginning, emotional peak, and ending.',
-    '- Do not reuse the same camera angle, framing, pose, or background layout across the three images.',
-    '- Keep protagonist design consistent, but make each image clearly different in action, composition, and mood.',
-    '- Cover = opening setup scene, Highlight = strongest turning-point action scene, End = calm closure scene.',
+    'Create exactly one children\'s storybook illustration for a single scene.',
+    'Output one full-frame image only. Do not create a collage, split-panel, triptych, or multi-scene composition.',
+    'Keep protagonist identity, color palette, line quality, and painting style consistent with the rest of the book images.',
+    'No text, letters, logos, or watermarks.',
+    ...characterLines,
     ...(commonStyleGuide ? [`Shared style guide: ${commonStyleGuide}`] : []),
     ...(commonWorld ? [`Shared world setting: ${commonWorld}`] : []),
-    'Return the three images in this exact order: cover, highlight, end.',
-    '',
-    `Image 1 (cover): ${imagePrompts.cover}`,
-    `Image 2 (highlight): ${imagePrompts.highlight}`,
-    `Image 3 (end): ${imagePrompts.end}`,
+    `Scene role: ${sceneRole}.`,
+    `Scene description: ${scenePrompt}`,
   ].join('\n')
 }
 
@@ -755,10 +779,17 @@ async function resolveGeneratedImageDataUrl(item: unknown): Promise<string | nul
   return null
 }
 
-async function requestImageSet(
-  prompt: string,
+async function generateImageFromPrompt(
+  sceneRole: 'cover' | 'highlight' | 'end',
+  scenePrompt: string,
+  imagePrompts: StoryImagePrompts,
+  characters: StoryCharacter[],
   env: Env,
-): Promise<Array<string | null>> {
+): Promise<string | null> {
+  if (scenePrompt.trim().length === 0) {
+    return null
+  }
+
   let response: Response
 
   try {
@@ -770,8 +801,7 @@ async function requestImageSet(
       },
       body: JSON.stringify({
         model: env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-        prompt,
-        n: 3,
+        prompt: buildSingleImagePrompt(sceneRole, scenePrompt, imagePrompts, characters),
         size: '1024x1024',
         quality: 'low',
         output_format: 'png',
@@ -779,37 +809,26 @@ async function requestImageSet(
       }),
     })
   } catch {
-    return [null, null, null]
+    return null
   }
 
   const payload = await readResponseBody(response)
 
   if (!response.ok || !payload || typeof payload !== 'object') {
-    return [null, null, null]
+    return null
   }
 
   const data = (payload as { data?: Array<{ b64_json?: unknown; url?: unknown }> }).data
   if (!Array.isArray(data) || data.length === 0) {
-    return [null, null, null]
+    return null
   }
 
-  const resolved = await Promise.all(data.slice(0, 3).map((item) => resolveGeneratedImageDataUrl(item)))
-  while (resolved.length < 3) {
-    resolved.push(null)
-  }
-  return resolved.slice(0, 3)
-}
-
-async function generateImageSetFromPrompts(imagePrompts: StoryImagePrompts, env: Env): Promise<Array<string | null>> {
-  if (
-    imagePrompts.cover.trim().length === 0 ||
-    imagePrompts.highlight.trim().length === 0 ||
-    imagePrompts.end.trim().length === 0
-  ) {
-    return [null, null, null]
+  const first = data[0]
+  if (!first) {
+    return null
   }
 
-  return requestImageSet(buildUnifiedImageSetPrompt(imagePrompts), env)
+  return resolveGeneratedImageDataUrl(first)
 }
 
 function resolveUpstreamErrorMessage(payload: unknown): string {
@@ -977,11 +996,30 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
-  const [generatedImages, ...narrationResults] = await Promise.all([
-    generateImageSetFromPrompts(parsedPromptStorybook.imagePrompts, context.env),
+  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
+    generateImageFromPrompt(
+      'cover',
+      parsedPromptStorybook.imagePrompts.cover,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      context.env,
+    ),
+    generateImageFromPrompt(
+      'highlight',
+      parsedPromptStorybook.imagePrompts.highlight,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      context.env,
+    ),
+    generateImageFromPrompt(
+      'end',
+      parsedPromptStorybook.imagePrompts.end,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      context.env,
+    ),
     ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
   ])
-  const [coverImage, highlightImage, endImage] = generatedImages
 
   const narrations = narrationResults
     .filter((narration): narration is StoryPageNarration => narration !== null)
