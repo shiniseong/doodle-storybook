@@ -69,6 +69,10 @@ export const i18nResources = {
         },
         reader: {
           byAuthor: '지은이: {{author}}',
+          playNarration: '낭독 재생',
+          stopNarration: '낭독 정지',
+          startAutoNarration: '자동 낭독',
+          stopAutoNarration: '자동 낭독 중지',
         },
         panels: {
           canvas: {
@@ -240,6 +244,10 @@ export const i18nResources = {
         },
         reader: {
           byAuthor: 'By {{author}}',
+          playNarration: 'Play narration',
+          stopNarration: 'Stop narration',
+          startAutoNarration: 'Auto narration',
+          stopAutoNarration: 'Stop auto narration',
         },
         panels: {
           canvas: {
@@ -411,6 +419,10 @@ export const i18nResources = {
         },
         reader: {
           byAuthor: '作：{{author}}',
+          playNarration: '読み上げ再生',
+          stopNarration: '読み上げ停止',
+          startAutoNarration: '自動読み上げ',
+          stopAutoNarration: '自動読み上げ停止',
         },
         panels: {
           canvas: {
@@ -582,6 +594,10 @@ export const i18nResources = {
         },
         reader: {
           byAuthor: '作者：{{author}}',
+          playNarration: '播放朗读',
+          stopNarration: '停止朗读',
+          startAutoNarration: '自动朗读',
+          stopAutoNarration: '停止自动朗读',
         },
         panels: {
           canvas: {

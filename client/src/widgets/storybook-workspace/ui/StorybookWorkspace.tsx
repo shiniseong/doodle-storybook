@@ -6,9 +6,12 @@ import {
   Eraser,
   Grid3x3,
   Palette,
+  Pause,
   PenLine,
+  Play,
   RotateCcw,
   Sparkles,
+  Volume2,
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react'
@@ -27,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
 import type {
   CreateStorybookUseCasePort,
+  StorybookGeneratedNarration,
   StorybookGeneratedPage,
 } from '@features/storybook-creation/application/create-storybook.use-case'
 import {
@@ -108,6 +112,7 @@ const LOADING_GAME_INITIAL_TRACK_HEIGHT = 208
 const STORYBOOK_COVER_FLIP_DURATION_MS = 760
 const STORYBOOK_PAGE_TURN_DURATION_MS = 540
 const STORYBOOK_PAGE_TURN_DURATION_SECONDS = STORYBOOK_PAGE_TURN_DURATION_MS / 1000
+const STORYBOOK_AUTO_NARRATION_WAIT_PADDING_MS = 48
 const LOADING_GAME_OBSTACLES = [
   { key: 'banana', icon: '🍌' },
   { key: 'can', icon: '🥫' },
@@ -205,6 +210,7 @@ interface StorybookReaderBook {
   coverImage?: string
   highlightImage?: string
   finalImage?: string
+  narrations?: StorybookGeneratedNarration[]
 }
 
 export interface StorybookWorkspaceAuth {
@@ -229,6 +235,14 @@ function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY:
 
 function clampRangeValue(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function waitForMilliseconds(durationMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      resolve()
+    }, durationMs)
+  })
 }
 
 function clampPenWidth(width: number): number {
@@ -1358,6 +1372,50 @@ function normalizeStorybookGeneratedImages(images: readonly string[] | undefined
     .filter((image): image is string => image !== null)
 }
 
+function normalizeStorybookNarrationDataUrl(candidate: string): string | null {
+  const compact = candidate.trim().replace(/\s+/g, '')
+  if (compact.length === 0) {
+    return null
+  }
+
+  if (compact.startsWith('data:audio/')) {
+    return compact
+  }
+
+  return `data:audio/mpeg;base64,${compact}`
+}
+
+function normalizeStorybookGeneratedNarrations(
+  narrations: readonly StorybookGeneratedNarration[] | undefined,
+): StorybookGeneratedNarration[] {
+  if (!narrations || narrations.length === 0) {
+    return []
+  }
+
+  const narrationsByPage = new Map<number, string>()
+
+  narrations.forEach((narration) => {
+    if (typeof narration.page !== 'number' || !Number.isFinite(narration.page)) {
+      return
+    }
+
+    const normalizedAudioDataUrl = normalizeStorybookNarrationDataUrl(narration.audioDataUrl)
+    if (!normalizedAudioDataUrl) {
+      return
+    }
+
+    if (narrationsByPage.has(narration.page)) {
+      return
+    }
+
+    narrationsByPage.set(narration.page, normalizedAudioDataUrl)
+  })
+
+  return [...narrationsByPage.entries()]
+    .map(([page, audioDataUrl]) => ({ page, audioDataUrl }))
+    .sort((left, right) => left.page - right.page)
+}
+
 function resolveReaderPageImage(
   page: StorybookGeneratedPage,
   pageIndex: number,
@@ -1381,6 +1439,7 @@ interface StorybookReaderTextPage {
   kind: 'text'
   pageNumber: number
   content: string
+  narrationAudioUrl?: string
 }
 
 interface StorybookReaderIllustrationPage {
@@ -1393,16 +1452,19 @@ type StorybookReaderPage = StorybookReaderTextPage | StorybookReaderIllustration
 
 function buildStorybookReaderPages(
   pages: readonly StorybookGeneratedPage[],
+  narrationsByPage: ReadonlyMap<number, string>,
   highlightImage?: string,
   finalImage?: string,
 ): StorybookReaderPage[] {
   const totalPages = pages.length
 
   return pages.flatMap((page, pageIndex) => {
+    const narrationAudioUrl = narrationsByPage.get(page.page)
     const textPage: StorybookReaderTextPage = {
       kind: 'text',
       pageNumber: page.page,
       content: page.content,
+      ...(narrationAudioUrl ? { narrationAudioUrl } : {}),
     }
     const illustration = resolveReaderPageImage(page, pageIndex, totalPages, highlightImage, finalImage)
 
@@ -1421,6 +1483,15 @@ function buildStorybookReaderPages(
   })
 }
 
+function resolveNarratablePagesInSpread(
+  pages: readonly StorybookReaderPage[],
+  spreadStartIndex: number,
+): StorybookReaderTextPage[] {
+  return [pages[spreadStartIndex], pages[spreadStartIndex + 1]].filter(
+    (page): page is StorybookReaderTextPage => page?.kind === 'text' && typeof page.narrationAudioUrl === 'string',
+  )
+}
+
 type StorybookPageTurnDirection = 'next' | 'previous'
 
 interface StorybookPageTurnState {
@@ -1433,13 +1504,21 @@ interface StorybookPageTurnState {
 interface StorybookBookPageContentProps {
   page: StorybookReaderPage
   surfaceClassName?: string
+  showNarrationControl?: boolean
+  isNarrating?: boolean
+  onToggleNarration?: (page: StorybookReaderTextPage) => void
 }
 
 function StorybookBookPageContent({
   page,
   surfaceClassName,
+  showNarrationControl = true,
+  isNarrating = false,
+  onToggleNarration,
 }: StorybookBookPageContentProps) {
+  const { t } = useTranslation()
   const isIllustrationPage = page.kind === 'illustration'
+  const hasNarration = page.kind === 'text' && typeof page.narrationAudioUrl === 'string'
   const modifierClasses = [
     isIllustrationPage ? 'storybook-book-page__surface--illustration-only' : 'storybook-book-page__surface--text-only',
     surfaceClassName,
@@ -1458,6 +1537,19 @@ function StorybookBookPageContent({
         <p className="storybook-book-page__text">{page.content}</p>
       )}
       {isIllustrationPage ? null : <p className="storybook-book-page__number">- {page.pageNumber} -</p>}
+      {!isIllustrationPage && hasNarration && showNarrationControl && onToggleNarration ? (
+        <button
+          type="button"
+          className={`storybook-book-page__narration-button${isNarrating ? ' storybook-book-page__narration-button--active' : ''}`}
+          aria-label={isNarrating ? t('workspace.reader.stopNarration') : t('workspace.reader.playNarration')}
+          title={isNarrating ? t('workspace.reader.stopNarration') : t('workspace.reader.playNarration')}
+          onClick={() => {
+            onToggleNarration(page)
+          }}
+        >
+          {isNarrating ? <Pause size={16} strokeWidth={2.2} aria-hidden="true" /> : <Volume2 size={16} strokeWidth={2.2} aria-hidden="true" />}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -1465,9 +1557,16 @@ function StorybookBookPageContent({
 interface StorybookBookPageProps {
   side: 'left' | 'right'
   page: StorybookReaderPage | null
+  activeNarrationPageNumber: number | null
+  onToggleNarration: (page: StorybookReaderTextPage) => void
 }
 
-function StorybookBookPage({ side, page }: StorybookBookPageProps) {
+function StorybookBookPage({
+  side,
+  page,
+  activeNarrationPageNumber,
+  onToggleNarration,
+}: StorybookBookPageProps) {
   if (!page) {
     return (
       <article className={`storybook-book-page storybook-book-page--${side} storybook-book-page--blank`} aria-hidden="true">
@@ -1478,7 +1577,11 @@ function StorybookBookPage({ side, page }: StorybookBookPageProps) {
 
   return (
     <article className={`storybook-book-page storybook-book-page--${side}`}>
-      <StorybookBookPageContent page={page} />
+      <StorybookBookPageContent
+        page={page}
+        isNarrating={page.kind === 'text' && page.pageNumber === activeNarrationPageNumber}
+        onToggleNarration={onToggleNarration}
+      />
     </article>
   )
 }
@@ -1495,22 +1598,55 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   const [isCoverReturning, setIsCoverReturning] = useState(false)
   const [activeSpreadStartIndex, setActiveSpreadStartIndex] = useState(0)
   const [pageTurnState, setPageTurnState] = useState<StorybookPageTurnState | null>(null)
+  const [activeNarrationPageNumber, setActiveNarrationPageNumber] = useState<number | null>(null)
+  const [isAutoNarrationActive, setIsAutoNarrationActive] = useState(false)
   const coverFlipTimeoutRef = useRef<number | null>(null)
   const coverReturnTimeoutRef = useRef<number | null>(null)
   const pageTurnTimeoutRef = useRef<number | null>(null)
+  const activeSpreadStartIndexRef = useRef(0)
+  const pageTurnStateRef = useRef<StorybookPageTurnState | null>(null)
+  const isCoverOpenedRef = useRef(false)
+  const narrationAudioRef = useRef<HTMLAudioElement | null>(null)
+  const narrationPlaybackDoneRef = useRef<(() => void) | null>(null)
+  const autoNarrationRunIdRef = useRef(0)
+  const narrationsByPage = useMemo(() => {
+    const nextNarrationsByPage = new Map<number, string>()
+
+    book.narrations?.forEach((narration) => {
+      nextNarrationsByPage.set(narration.page, narration.audioDataUrl)
+    })
+
+    return nextNarrationsByPage
+  }, [book.narrations])
   const readerPages = useMemo(
-    () => buildStorybookReaderPages(book.pages, book.highlightImage, book.finalImage),
-    [book.finalImage, book.highlightImage, book.pages],
+    () => buildStorybookReaderPages(book.pages, narrationsByPage, book.highlightImage, book.finalImage),
+    [book.finalImage, book.highlightImage, book.pages, narrationsByPage],
+  )
+  const narratablePageCount = useMemo(
+    () =>
+      readerPages.filter((page) => page.kind === 'text' && typeof page.narrationAudioUrl === 'string').length,
+    [readerPages],
   )
 
   const totalPages = readerPages.length
-  const renderedSpreadStartIndex =
-    pageTurnState?.targetSpreadStartIndex ?? activeSpreadStartIndex
+  const renderedSpreadStartIndex = pageTurnState?.targetSpreadStartIndex ?? activeSpreadStartIndex
   const leftPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex] ?? null) : null
   const rightPage = totalPages > 0 ? (readerPages[renderedSpreadStartIndex + 1] ?? null) : null
   const canGoPreviousSpread = isCoverOpened && activeSpreadStartIndex > 0
   const canGoNextSpread = isCoverOpened && activeSpreadStartIndex + 2 < totalPages
   const canReturnToCover = isCoverOpened && activeSpreadStartIndex === 0
+
+  useEffect(() => {
+    activeSpreadStartIndexRef.current = activeSpreadStartIndex
+  }, [activeSpreadStartIndex])
+
+  useEffect(() => {
+    pageTurnStateRef.current = pageTurnState
+  }, [pageTurnState])
+
+  useEffect(() => {
+    isCoverOpenedRef.current = isCoverOpened
+  }, [isCoverOpened])
 
   const clearCoverFlipTimeout = useCallback(() => {
     if (coverFlipTimeoutRef.current === null) {
@@ -1539,6 +1675,138 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     pageTurnTimeoutRef.current = null
   }, [])
 
+  const stopNarrationPlayback = useCallback(() => {
+    const activeAudio = narrationAudioRef.current
+    narrationAudioRef.current = null
+
+    if (activeAudio) {
+      activeAudio.onended = null
+      activeAudio.onerror = null
+      activeAudio.pause()
+      activeAudio.currentTime = 0
+    }
+
+    const finalizePlayback = narrationPlaybackDoneRef.current
+    narrationPlaybackDoneRef.current = null
+
+    if (finalizePlayback) {
+      finalizePlayback()
+      return
+    }
+
+    setActiveNarrationPageNumber(null)
+  }, [])
+
+  const stopAutoNarration = useCallback(
+    (shouldStopPlayback: boolean = true) => {
+      autoNarrationRunIdRef.current += 1
+      setIsAutoNarrationActive(false)
+
+      if (shouldStopPlayback) {
+        stopNarrationPlayback()
+      }
+    },
+    [stopNarrationPlayback],
+  )
+
+  const handleCloseDialog = useCallback(() => {
+    stopAutoNarration()
+    onClose()
+  }, [onClose, stopAutoNarration])
+
+  const playNarrationForPage = useCallback(
+    (page: StorybookReaderTextPage): Promise<void> => {
+      if (!page.narrationAudioUrl) {
+        return Promise.resolve()
+      }
+
+      return new Promise((resolve) => {
+        stopNarrationPlayback()
+
+        const narrationAudio = new Audio(page.narrationAudioUrl)
+        narrationAudio.preload = 'auto'
+        narrationAudioRef.current = narrationAudio
+        setActiveNarrationPageNumber(page.pageNumber)
+
+        let isDone = false
+        const finalizePlayback = () => {
+          if (isDone) {
+            return
+          }
+
+          isDone = true
+          if (narrationPlaybackDoneRef.current === finalizePlayback) {
+            narrationPlaybackDoneRef.current = null
+          }
+          if (narrationAudioRef.current === narrationAudio) {
+            narrationAudioRef.current = null
+          }
+
+          narrationAudio.onended = null
+          narrationAudio.onerror = null
+          setActiveNarrationPageNumber((currentPageNumber) =>
+            currentPageNumber === page.pageNumber ? null : currentPageNumber,
+          )
+          resolve()
+        }
+
+        narrationPlaybackDoneRef.current = finalizePlayback
+        narrationAudio.onended = finalizePlayback
+        narrationAudio.onerror = finalizePlayback
+
+        void narrationAudio.play().catch(() => {
+          finalizePlayback()
+        })
+      })
+    },
+    [stopNarrationPlayback],
+  )
+
+  const goNextSpreadForAutoNarration = useCallback(async (): Promise<boolean> => {
+    if (!isCoverOpenedRef.current || pageTurnStateRef.current !== null) {
+      return false
+    }
+
+    const currentSpreadStartIndex = activeSpreadStartIndexRef.current
+    if (currentSpreadStartIndex + 2 >= totalPages) {
+      return false
+    }
+
+    const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), currentSpreadStartIndex + 2)
+    const currentRightPage = readerPages[currentSpreadStartIndex + 1]
+    const nextLeftPage = readerPages[nextSpreadStartIndex]
+
+    if (!currentRightPage || !nextLeftPage) {
+      setActiveSpreadStartIndex(nextSpreadStartIndex)
+      activeSpreadStartIndexRef.current = nextSpreadStartIndex
+      return true
+    }
+
+    const nextPageTurnState: StorybookPageTurnState = {
+      direction: 'next',
+      targetSpreadStartIndex: nextSpreadStartIndex,
+      frontPage: currentRightPage,
+      backPage: nextLeftPage,
+    }
+
+    setPageTurnState(nextPageTurnState)
+    pageTurnStateRef.current = nextPageTurnState
+    clearPageTurnTimeout()
+
+    await new Promise<void>((resolve) => {
+      pageTurnTimeoutRef.current = window.setTimeout(() => {
+        setActiveSpreadStartIndex(nextSpreadStartIndex)
+        activeSpreadStartIndexRef.current = nextSpreadStartIndex
+        setPageTurnState(null)
+        pageTurnStateRef.current = null
+        pageTurnTimeoutRef.current = null
+        resolve()
+      }, STORYBOOK_PAGE_TURN_DURATION_MS)
+    })
+
+    return true
+  }, [clearPageTurnTimeout, readerPages, totalPages])
+
   const handleOpenCover = useCallback(() => {
     if (isCoverOpened || isCoverFlipping || pageTurnState !== null) {
       return
@@ -1550,8 +1818,10 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     setIsCoverFlipping(true)
     coverFlipTimeoutRef.current = window.setTimeout(() => {
       setIsCoverOpened(true)
+      isCoverOpenedRef.current = true
       setIsCoverFlipping(false)
       setActiveSpreadStartIndex(0)
+      activeSpreadStartIndexRef.current = 0
       coverFlipTimeoutRef.current = null
     }, STORYBOOK_COVER_FLIP_DURATION_MS)
   }, [clearCoverFlipTimeout, clearCoverReturnTimeout, isCoverFlipping, isCoverOpened, pageTurnState])
@@ -1561,12 +1831,15 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       return
     }
 
+    stopAutoNarration()
     clearPageTurnTimeout()
     clearCoverFlipTimeout()
     clearCoverReturnTimeout()
     setPageTurnState(null)
+    pageTurnStateRef.current = null
     setIsCoverFlipping(false)
     setIsCoverOpened(false)
+    isCoverOpenedRef.current = false
     setIsCoverReturning(true)
     coverReturnTimeoutRef.current = window.setTimeout(() => {
       setIsCoverReturning(false)
@@ -1578,6 +1851,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     clearCoverReturnTimeout,
     clearPageTurnTimeout,
     pageTurnState,
+    stopAutoNarration,
   ])
 
   const handleGoPreviousSpread = useCallback(() => {
@@ -1585,25 +1859,31 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       return
     }
 
+    stopAutoNarration()
     const previousSpreadStartIndex = Math.max(0, activeSpreadStartIndex - 2)
     const currentLeftPage = readerPages[activeSpreadStartIndex]
     const previousRightPage = readerPages[previousSpreadStartIndex + 1]
 
     if (!currentLeftPage || !previousRightPage) {
       setActiveSpreadStartIndex(previousSpreadStartIndex)
+      activeSpreadStartIndexRef.current = previousSpreadStartIndex
       return
     }
 
-    setPageTurnState({
+    const nextPageTurnState: StorybookPageTurnState = {
       direction: 'previous',
       targetSpreadStartIndex: previousSpreadStartIndex,
       frontPage: currentLeftPage,
       backPage: previousRightPage,
-    })
+    }
+    setPageTurnState(nextPageTurnState)
+    pageTurnStateRef.current = nextPageTurnState
     clearPageTurnTimeout()
     pageTurnTimeoutRef.current = window.setTimeout(() => {
       setActiveSpreadStartIndex(previousSpreadStartIndex)
+      activeSpreadStartIndexRef.current = previousSpreadStartIndex
       setPageTurnState(null)
+      pageTurnStateRef.current = null
       pageTurnTimeoutRef.current = null
     }, STORYBOOK_PAGE_TURN_DURATION_MS)
   }, [
@@ -1612,6 +1892,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     clearPageTurnTimeout,
     pageTurnState,
     readerPages,
+    stopAutoNarration,
   ])
 
   const handleGoNextSpread = useCallback(() => {
@@ -1619,25 +1900,31 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
       return
     }
 
+    stopAutoNarration()
     const nextSpreadStartIndex = Math.min(Math.max(0, totalPages - 1), activeSpreadStartIndex + 2)
     const currentRightPage = readerPages[activeSpreadStartIndex + 1]
     const nextLeftPage = readerPages[nextSpreadStartIndex]
 
     if (!currentRightPage || !nextLeftPage) {
       setActiveSpreadStartIndex(nextSpreadStartIndex)
+      activeSpreadStartIndexRef.current = nextSpreadStartIndex
       return
     }
 
-    setPageTurnState({
+    const nextPageTurnState: StorybookPageTurnState = {
       direction: 'next',
       targetSpreadStartIndex: nextSpreadStartIndex,
       frontPage: currentRightPage,
       backPage: nextLeftPage,
-    })
+    }
+    setPageTurnState(nextPageTurnState)
+    pageTurnStateRef.current = nextPageTurnState
     clearPageTurnTimeout()
     pageTurnTimeoutRef.current = window.setTimeout(() => {
       setActiveSpreadStartIndex(nextSpreadStartIndex)
+      activeSpreadStartIndexRef.current = nextSpreadStartIndex
       setPageTurnState(null)
+      pageTurnStateRef.current = null
       pageTurnTimeoutRef.current = null
     }, STORYBOOK_PAGE_TURN_DURATION_MS)
   }, [
@@ -1646,6 +1933,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     clearPageTurnTimeout,
     pageTurnState,
     readerPages,
+    stopAutoNarration,
     totalPages,
   ])
 
@@ -1664,13 +1952,102 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     }
   }, [canGoPreviousSpread, canReturnToCover, handleGoPreviousSpread, handleReturnToCover, pageTurnState])
 
+  const handleTogglePageNarration = useCallback(
+    (page: StorybookReaderTextPage) => {
+      if (!page.narrationAudioUrl) {
+        return
+      }
+
+      stopAutoNarration(false)
+
+      if (activeNarrationPageNumber === page.pageNumber) {
+        stopNarrationPlayback()
+        return
+      }
+
+      void playNarrationForPage(page)
+    },
+    [activeNarrationPageNumber, playNarrationForPage, stopAutoNarration, stopNarrationPlayback],
+  )
+
+  const handleToggleAutoNarration = useCallback(() => {
+    if (isAutoNarrationActive) {
+      stopAutoNarration()
+      return
+    }
+
+    if (narratablePageCount === 0 || totalPages === 0) {
+      return
+    }
+
+    const runId = autoNarrationRunIdRef.current + 1
+    autoNarrationRunIdRef.current = runId
+    setIsAutoNarrationActive(true)
+
+    void (async () => {
+      if (!isCoverOpenedRef.current) {
+        handleOpenCover()
+        await waitForMilliseconds(STORYBOOK_COVER_FLIP_DURATION_MS + STORYBOOK_AUTO_NARRATION_WAIT_PADDING_MS)
+      }
+
+      if (!isCoverOpenedRef.current || autoNarrationRunIdRef.current !== runId) {
+        if (autoNarrationRunIdRef.current === runId) {
+          autoNarrationRunIdRef.current += 1
+          setIsAutoNarrationActive(false)
+        }
+        return
+      }
+
+      while (autoNarrationRunIdRef.current === runId) {
+        const spreadStartIndex = activeSpreadStartIndexRef.current
+        const spreadNarrationPages = resolveNarratablePagesInSpread(readerPages, spreadStartIndex)
+
+        for (const spreadNarrationPage of spreadNarrationPages) {
+          if (autoNarrationRunIdRef.current !== runId) {
+            return
+          }
+
+          await playNarrationForPage(spreadNarrationPage)
+        }
+
+        if (autoNarrationRunIdRef.current !== runId) {
+          return
+        }
+
+        const didMoveToNextSpread = await goNextSpreadForAutoNarration()
+        if (!didMoveToNextSpread) {
+          break
+        }
+
+        await waitForMilliseconds(STORYBOOK_AUTO_NARRATION_WAIT_PADDING_MS)
+      }
+
+      if (autoNarrationRunIdRef.current === runId) {
+        autoNarrationRunIdRef.current += 1
+        setIsAutoNarrationActive(false)
+        stopNarrationPlayback()
+      }
+    })()
+  }, [
+    goNextSpreadForAutoNarration,
+    handleOpenCover,
+    isAutoNarrationActive,
+    narratablePageCount,
+    playNarrationForPage,
+    readerPages,
+    stopAutoNarration,
+    stopNarrationPlayback,
+    totalPages,
+  ])
+
   useEffect(() => {
     return () => {
+      stopAutoNarration()
       clearCoverFlipTimeout()
       clearCoverReturnTimeout()
       clearPageTurnTimeout()
     }
-  }, [clearCoverFlipTimeout, clearCoverReturnTimeout, clearPageTurnTimeout])
+  }, [clearCoverFlipTimeout, clearCoverReturnTimeout, clearPageTurnTimeout, stopAutoNarration])
 
   useBodyScrollLock()
 
@@ -1678,7 +2055,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        handleCloseDialog()
         return
       }
 
@@ -1701,7 +2078,7 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown)
     }
-  }, [handleGoNextSpread, handleLeftTurnZoneClick, isCoverOpened, onClose, totalPages])
+  }, [handleCloseDialog, handleGoNextSpread, handleLeftTurnZoneClick, isCoverOpened, totalPages])
 
   const openBookInlineStyle = {
     '--storybook-page-turn-duration': `${STORYBOOK_PAGE_TURN_DURATION_SECONDS}s`,
@@ -1722,14 +2099,28 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
         type="button"
         className="storybook-reader-dialog__backdrop"
         aria-label="이북 닫기"
-        onClick={onClose}
+        onClick={handleCloseDialog}
       />
       <div className="storybook-reader-dialog__sheet">
         <header className="storybook-reader-dialog__header">
           <h2>{book.title}</h2>
-          <button type="button" className="storybook-reader-dialog__close" aria-label="이북 닫기" onClick={onClose}>
-            ×
-          </button>
+          <div className="storybook-reader-dialog__actions">
+            <button
+              type="button"
+              className={`storybook-reader-dialog__auto-narration${
+                isAutoNarrationActive ? ' storybook-reader-dialog__auto-narration--active' : ''
+              }`}
+              aria-label={isAutoNarrationActive ? t('workspace.reader.stopAutoNarration') : t('workspace.reader.startAutoNarration')}
+              onClick={handleToggleAutoNarration}
+              disabled={narratablePageCount === 0 || totalPages === 0}
+            >
+              {isAutoNarrationActive ? <Pause size={14} strokeWidth={2.3} aria-hidden="true" /> : <Play size={14} strokeWidth={2.3} aria-hidden="true" />}
+              {isAutoNarrationActive ? t('workspace.reader.stopAutoNarration') : t('workspace.reader.startAutoNarration')}
+            </button>
+            <button type="button" className="storybook-reader-dialog__close" aria-label="이북 닫기" onClick={handleCloseDialog}>
+              ×
+            </button>
+          </div>
         </header>
         <div className="storybook-reader-dialog__stage">
           {!isCoverOpened ? (
@@ -1770,18 +2161,36 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
               }}
             >
               <span className="storybook-openbook__spine" aria-hidden="true" />
-              <StorybookBookPage side="left" page={leftPage} />
-              <StorybookBookPage side="right" page={rightPage} />
+              <StorybookBookPage
+                side="left"
+                page={leftPage}
+                activeNarrationPageNumber={activeNarrationPageNumber}
+                onToggleNarration={handleTogglePageNarration}
+              />
+              <StorybookBookPage
+                side="right"
+                page={rightPage}
+                activeNarrationPageNumber={activeNarrationPageNumber}
+                onToggleNarration={handleTogglePageNarration}
+              />
               {pageTurnState ? (
                 <span
                   className={`storybook-openbook__flip-sheet storybook-openbook__flip-sheet--${pageTurnState.direction}`}
                   aria-hidden="true"
                 >
                   <span className="storybook-openbook__flip-face storybook-openbook__flip-face--front">
-                    <StorybookBookPageContent page={pageTurnState.frontPage} surfaceClassName="storybook-book-page__surface--flip" />
+                    <StorybookBookPageContent
+                      page={pageTurnState.frontPage}
+                      surfaceClassName="storybook-book-page__surface--flip"
+                      showNarrationControl={false}
+                    />
                   </span>
                   <span className="storybook-openbook__flip-face storybook-openbook__flip-face--back">
-                    <StorybookBookPageContent page={pageTurnState.backPage} surfaceClassName="storybook-book-page__surface--flip" />
+                    <StorybookBookPageContent
+                      page={pageTurnState.backPage}
+                      surfaceClassName="storybook-book-page__surface--flip"
+                      showNarrationControl={false}
+                    />
                   </span>
                 </span>
               ) : null}
@@ -2404,6 +2813,7 @@ function StoryComposerSection({
             markSuccess(result.value.storybookId)
             const generatedPages = normalizeStorybookGeneratedPages(result.value.pages)
             const generatedImages = normalizeStorybookGeneratedImages(result.value.images)
+            const generatedNarrations = normalizeStorybookGeneratedNarrations(result.value.narrations)
 
             if (generatedPages.length > 0) {
               setReaderBook({
@@ -2413,6 +2823,7 @@ function StoryComposerSection({
                 ...(generatedImages[0] ? { coverImage: generatedImages[0] } : {}),
                 ...(generatedImages[1] ? { highlightImage: generatedImages[1] } : {}),
                 ...(generatedImages[2] ? { finalImage: generatedImages[2] } : {}),
+                ...(generatedNarrations.length > 0 ? { narrations: generatedNarrations } : {}),
               })
             }
           } else {

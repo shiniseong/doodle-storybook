@@ -1,6 +1,7 @@
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
 import {
   type StorybookCommandPort,
+  type StorybookGeneratedNarration,
   type StorybookGeneratedPage,
 } from '@features/storybook-creation/application/create-storybook.use-case'
 
@@ -9,6 +10,7 @@ interface CreateStorybookApiResponse {
   openaiResponseId?: string | null
   pages?: unknown
   images?: unknown
+  narrations?: unknown
   storyText?: string | null
   promptVersion?: string | number | null
 }
@@ -148,6 +150,56 @@ function parseGeneratedImages(rawValue: unknown): string[] {
     .filter((image): image is string => image !== null)
 }
 
+function normalizeNarrationAudioDataUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+
+  const compact = value.trim().replace(/\s+/g, '')
+  if (compact.startsWith('data:audio/')) {
+    return compact
+  }
+
+  return `data:audio/mpeg;base64,${compact}`
+}
+
+function parseGeneratedNarrations(rawValue: unknown): StorybookGeneratedNarration[] {
+  if (!Array.isArray(rawValue)) {
+    return []
+  }
+
+  return rawValue
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const narrationCandidate = item as {
+        page?: unknown
+        audioDataUrl?: unknown
+      }
+
+      if (
+        typeof narrationCandidate.page !== 'number' ||
+        !Number.isFinite(narrationCandidate.page)
+      ) {
+        return null
+      }
+
+      const normalizedAudioDataUrl = normalizeNarrationAudioDataUrl(narrationCandidate.audioDataUrl)
+      if (!normalizedAudioDataUrl) {
+        return null
+      }
+
+      return {
+        page: narrationCandidate.page,
+        audioDataUrl: normalizedAudioDataUrl,
+      }
+    })
+    .filter((narration): narration is StorybookGeneratedNarration => narration !== null)
+    .sort((left, right) => left.page - right.page)
+}
+
 function parsePromptVersion(rawValue: unknown): string | undefined {
   if (typeof rawValue === 'string' && rawValue.trim().length > 0) {
     return rawValue.trim()
@@ -206,6 +258,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
     openaiResponseId?: string | null
     pages?: StorybookGeneratedPage[]
     images?: string[]
+    narrations?: StorybookGeneratedNarration[]
     storyText?: string | null
     promptVersion?: string | null
   }> {
@@ -243,6 +296,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
         ? parsedPages
         : parseStorybookPages(data.storyText)
     const parsedImages = parseGeneratedImages(data.images)
+    const parsedNarrations = parseGeneratedNarrations(data.narrations)
     const normalizedPromptVersion = parsePromptVersion(data.promptVersion)
 
     return {
@@ -252,6 +306,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
         : {}),
       ...(fallbackPages.length > 0 ? { pages: fallbackPages } : {}),
       ...(parsedImages.length > 0 ? { images: parsedImages } : {}),
+      ...(parsedNarrations.length > 0 ? { narrations: parsedNarrations } : {}),
       ...(typeof data.storyText === 'string' || data.storyText === null ? { storyText: data.storyText } : {}),
       ...(normalizedPromptVersion ? { promptVersion: normalizedPromptVersion } : {}),
     }

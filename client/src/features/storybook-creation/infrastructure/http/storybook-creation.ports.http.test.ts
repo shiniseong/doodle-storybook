@@ -106,7 +106,7 @@ describe('HttpStorybookCommandPort', () => {
     ).rejects.toThrow('Failed to create storybook: 502')
   })
 
-  it('pages 문자열 JSON과 이미지 배열을 정규화해서 반환한다', async () => {
+  it('pages 문자열 JSON과 이미지/낭독 배열을 정규화해서 반환한다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: true,
       json: async () => ({
@@ -116,6 +116,10 @@ describe('HttpStorybookCommandPort', () => {
         pages:
           '[{"page":2,"content":"두 번째 페이지","isHighlight":true},{"page":1,"content":"첫 번째 페이지","isHighlight":false}]',
         images: ['data: image/png;bas64,cover', 'highlightbase64'],
+        narrations: [
+          { page: 2, audioDataUrl: 'audio-page-2-base64' },
+          { page: 1, audioDataUrl: ' data:audio/mpeg;base64,audio-page-1-base64 ' },
+        ],
       }),
     }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
@@ -138,5 +142,9 @@ describe('HttpStorybookCommandPort', () => {
       { page: 2, content: '두 번째 페이지', isHighlight: true },
     ])
     expect(result.images).toEqual(['data:image/png;base64,cover', 'data:image/png;base64,highlightbase64'])
+    expect(result.narrations).toEqual([
+      { page: 1, audioDataUrl: 'data:audio/mpeg;base64,audio-page-1-base64' },
+      { page: 2, audioDataUrl: 'data:audio/mpeg;base64,audio-page-2-base64' },
+    ])
   })
 })

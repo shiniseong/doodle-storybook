@@ -14,6 +14,7 @@ export interface CreateStorybookResponse {
   openaiResponseId?: string | null
   pages?: StorybookGeneratedPage[]
   images?: string[]
+  narrations?: StorybookGeneratedNarration[]
   storyText?: string | null
   promptVersion?: string | null
 }
@@ -26,6 +27,11 @@ export interface StorybookGeneratedPage {
   page: number
   content: string
   isHighlight: boolean
+}
+
+export interface StorybookGeneratedNarration {
+  page: number
+  audioDataUrl: string
 }
 
 export interface StorybookCommandPort {

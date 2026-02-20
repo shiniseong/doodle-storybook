@@ -5,6 +5,8 @@ interface Env {
   OPENAI_PROMPT_ID?: string
   OPENAI_PROMPT_VERSION?: string
   OPENAI_IMAGE_MODEL?: string
+  OPENAI_TTS_MODEL?: string
+  OPENAI_TTS_VOICE?: string
 }
 
 interface StorybookCreateRequestBody {
@@ -19,6 +21,11 @@ interface StoryPage {
   page: number
   content: string
   isHighlight: boolean
+}
+
+interface StoryPageNarration {
+  page: number
+  audioDataUrl: string
 }
 
 interface OpenAIResponseTextItem {
@@ -47,6 +54,9 @@ const CORS_HEADERS = {
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
 const DEFAULT_PROMPT_VERSION = '8'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
+const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
+const DEFAULT_TTS_VOICE = 'alloy'
+const MAX_NARRATION_COUNT = 10
 
 function withCors(headers?: HeadersInit): Headers {
   const nextHeaders = new Headers(headers)
@@ -271,6 +281,100 @@ function extractGeneratedImages(responseBody: OpenAIResponsesApiBody): string[] 
   return imageResults.map((result) => normalizeImageResult(result))
 }
 
+function normalizeNarrationText(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
+}
+
+function encodeBytesAsBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x7fff
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary)
+}
+
+async function generatePageNarration(
+  page: StoryPage,
+  env: Env,
+): Promise<StoryPageNarration | null> {
+  const input = normalizeNarrationText(page.content)
+  if (input.length === 0) {
+    return null
+  }
+
+  let response: Response
+
+  try {
+    response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL,
+        voice: env.OPENAI_TTS_VOICE || DEFAULT_TTS_VOICE,
+        input,
+        format: 'mp3',
+      }),
+    })
+  } catch {
+    return null
+  }
+
+  if (!response.ok) {
+    return null
+  }
+
+  let audioBytes: Uint8Array
+
+  try {
+    const audioBuffer = await response.arrayBuffer()
+    audioBytes = new Uint8Array(audioBuffer)
+  } catch {
+    return null
+  }
+
+  if (audioBytes.byteLength === 0) {
+    return null
+  }
+
+  return {
+    page: page.page,
+    audioDataUrl: `data:audio/mpeg;base64,${encodeBytesAsBase64(audioBytes)}`,
+  }
+}
+
+async function generateStoryNarrations(
+  pages: readonly StoryPage[],
+  env: Env,
+): Promise<StoryPageNarration[]> {
+  const textPages = pages
+    .filter((page) => normalizeNarrationText(page.content).length > 0)
+    .slice(0, MAX_NARRATION_COUNT)
+
+  if (textPages.length === 0) {
+    return []
+  }
+
+  const narrations: StoryPageNarration[] = []
+
+  for (const page of textPages) {
+    const narration = await generatePageNarration(page, env)
+    if (!narration) {
+      continue
+    }
+
+    narrations.push(narration)
+  }
+
+  return narrations
+}
+
 function resolveUpstreamErrorMessage(payload: unknown): string {
   if (!payload || typeof payload !== 'object') {
     return 'OpenAI API request failed.'
@@ -417,6 +521,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const storyText = extractStorybookText(openAIResponseBody)
   const storyPages = extractStoryPages(storyText)
   const images = extractGeneratedImages(openAIResponseBody).slice(0, 3)
+  const narrations = await generateStoryNarrations(storyPages, context.env)
 
   return jsonResponse({
     storybookId: `storybook-${crypto.randomUUID()}`,
@@ -424,6 +529,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     promptVersion,
     pages: storyPages,
     images,
+    narrations,
     storyText,
   })
 }
