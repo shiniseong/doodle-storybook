@@ -12,12 +12,16 @@ export interface AppDependencies {
   readonly createStorybookUseCase: CreateStorybookUseCasePort
 }
 
-export const createAppDependencies = (): AppDependencies => {
+interface CreateAppDependenciesOptions {
+  currentUserId?: string
+}
+
+export const createAppDependencies = (options: CreateAppDependenciesOptions = {}): AppDependencies => {
   const quotaPort = new InMemoryStorybookQuotaPort(true)
   const commandPort = new HttpStorybookCommandPort()
 
   return {
-    currentUserId: 'demo-user',
+    currentUserId: options.currentUserId ?? 'demo-user',
     createStorybookUseCase: new CreateStorybookUseCase(quotaPort, commandPort),
   }
 }

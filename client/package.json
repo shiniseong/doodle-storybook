@@ -20,6 +20,7 @@
     "cf:pages:deploy": "npx wrangler pages deploy dist"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
     "framer-motion": "^12.34.2",
     "i18next": "^25.8.11",
     "lucide-react": "^0.575.0",

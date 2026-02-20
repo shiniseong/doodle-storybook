@@ -145,6 +145,14 @@
   gap: 0.7rem;
 }
 
+.workspace-header__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.48rem;
+  flex-wrap: wrap;
+}
+
 .language-switcher {
   justify-self: end;
   border: 1px solid rgba(108, 150, 179, 0.45);
@@ -172,6 +180,53 @@
 
 .language-switcher__select:focus-visible {
   outline: none;
+}
+
+.workspace-auth {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.42rem;
+  flex-wrap: wrap;
+}
+
+.workspace-auth__notice {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #6b7280;
+}
+
+.workspace-auth__identity {
+  margin: 0;
+  max-width: min(18rem, 55vw);
+  font-size: 0.74rem;
+  color: #2f607e;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-auth__action {
+  border: 1px solid rgba(108, 150, 179, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f445f;
+  font-weight: 700;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  padding: 0.36rem 0.72rem;
+  cursor: pointer;
+}
+
+.workspace-auth__action:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.workspace-auth__action:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.24);
+  outline-offset: 2px;
 }
 
 .status-list {
@@ -1346,6 +1401,14 @@
 
   .brand-block__mascot {
     width: clamp(3.8rem, 22vw, 4.8rem);
+  }
+
+  .workspace-header__toolbar {
+    justify-content: flex-start;
+  }
+
+  .workspace-auth {
+    justify-content: flex-start;
   }
 
   .status-list {

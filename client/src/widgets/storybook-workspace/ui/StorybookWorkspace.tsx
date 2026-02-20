@@ -159,6 +159,16 @@ interface StorybookReaderBook {
   finalImage?: string
 }
 
+export interface StorybookWorkspaceAuth {
+  readonly isConfigured: boolean
+  readonly isLoading: boolean
+  readonly isSigningIn: boolean
+  readonly userId: string | null
+  readonly userEmail: string | null
+  readonly signInWithGoogle: () => Promise<void>
+  readonly signOut: () => Promise<void>
+}
+
 function resolveCanvasPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number): CanvasPoint {
   const bounds = canvas.getBoundingClientRect()
   const scaleX = bounds.width === 0 ? 1 : canvas.width / bounds.width
@@ -335,9 +345,15 @@ function AmbientBackdrop() {
   return <div className="ambient-layer" aria-hidden="true" />
 }
 
-function WorkspaceHeader() {
+interface WorkspaceHeaderProps {
+  auth?: StorybookWorkspaceAuth
+}
+
+function WorkspaceHeader({ auth }: WorkspaceHeaderProps) {
   const { t } = useTranslation()
   const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
+  const isGoogleSignInDisabled = !auth || !auth.isConfigured || auth.isLoading || auth.isSigningIn
+  const showSigningInState = auth?.isConfigured && !auth.userId && (auth.isLoading || auth.isSigningIn)
 
   return (
     <header className="workspace-header">
@@ -355,7 +371,46 @@ function WorkspaceHeader() {
         </div>
       </div>
       <div className="workspace-header__side">
-        <LanguageSwitcher />
+        <div className="workspace-header__toolbar">
+          <LanguageSwitcher />
+          {!auth ? null : (
+            <div className="workspace-auth" aria-live="polite">
+              {!auth.isConfigured ? (
+                <p className="workspace-auth__notice">{t('workspace.auth.notConfigured')}</p>
+              ) : auth.userId ? (
+                <>
+                  {auth.userEmail ? (
+                    <p className="workspace-auth__identity">
+                      {t('workspace.auth.signedInAs', { email: auth.userEmail })}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="workspace-auth__action"
+                    onClick={() => {
+                      void auth.signOut()
+                    }}
+                  >
+                    {t('workspace.auth.signOut')}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="workspace-auth__action"
+                  disabled={isGoogleSignInDisabled}
+                  onClick={() => {
+                    void auth.signInWithGoogle()
+                  }}
+                >
+                  {showSigningInState
+                    ? t('workspace.auth.signingIn')
+                    : t('workspace.auth.signInWithGoogle')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <ul className="status-list" aria-label={t('workspace.status.aria')}>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.freeLabel')}</span>
@@ -2079,13 +2134,14 @@ function SubscriptionFooter() {
 
 interface StorybookWorkspaceProps {
   dependencies: StorybookWorkspaceDependencies
+  auth?: StorybookWorkspaceAuth
 }
 
-export function StorybookWorkspace({ dependencies }: StorybookWorkspaceProps) {
+export function StorybookWorkspace({ dependencies, auth }: StorybookWorkspaceProps) {
   return (
     <div className="storybook-app">
       <AmbientBackdrop />
-      <WorkspaceHeader />
+      <WorkspaceHeader auth={auth} />
       <main className="layout-grid">
         <DrawingBoardSection />
         <StoryComposerSection dependencies={dependencies} />

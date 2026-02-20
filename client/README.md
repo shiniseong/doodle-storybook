@@ -103,6 +103,26 @@ If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
 VITE_API_BASE_URL="http://127.0.0.1:8788"
 ```
 
+## Supabase Google Auth
+
+Google login is wired in the app header via Supabase Auth.
+
+### Client env vars
+
+Set in `client/.env` (or `client/.env.local`):
+
+```bash
+VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
+VITE_SUPABASE_ANON_KEY="<supabase-anon-key>"
+```
+
+### Supabase Dashboard setup
+
+- Enable `Google` provider in `Authentication > Providers`.
+- Add your app URL(s) in `Authentication > URL Configuration > Site URL / Redirect URLs` (for local dev usually `http://localhost:5173`).
+- In Google Cloud OAuth client, add Supabase callback URI:
+  `https://<project-ref>.supabase.co/auth/v1/callback`
+
 ### Commands
 
 ```bash

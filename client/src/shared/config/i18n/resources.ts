@@ -17,6 +17,13 @@ export const i18nResources = {
           planLabel: '월 구독',
           planValue: '₩6,900',
         },
+        auth: {
+          signInWithGoogle: 'Google로 로그인',
+          signingIn: '로그인 중...',
+          signOut: '로그아웃',
+          signedInAs: '{{email}} 로그인됨',
+          notConfigured: 'Supabase 환경변수 설정 필요',
+        },
         panels: {
           canvas: {
             title: '드로잉 스테이지',
@@ -128,6 +135,13 @@ export const i18nResources = {
           trialValue: '1 day',
           planLabel: 'Monthly',
           planValue: '₩6,900',
+        },
+        auth: {
+          signInWithGoogle: 'Sign in with Google',
+          signingIn: 'Signing in...',
+          signOut: 'Sign out',
+          signedInAs: 'Signed in as {{email}}',
+          notConfigured: 'Supabase environment variables are required',
         },
         panels: {
           canvas: {
@@ -241,6 +255,13 @@ export const i18nResources = {
           planLabel: '月額',
           planValue: '₩6,900',
         },
+        auth: {
+          signInWithGoogle: 'Googleでログイン',
+          signingIn: 'ログイン中...',
+          signOut: 'ログアウト',
+          signedInAs: '{{email}} でログイン中',
+          notConfigured: 'Supabase の環境変数設定が必要です',
+        },
         panels: {
           canvas: {
             title: 'おえかきステージ',
@@ -352,6 +373,13 @@ export const i18nResources = {
           trialValue: '1天',
           planLabel: '月订阅',
           planValue: '₩6,900',
+        },
+        auth: {
+          signInWithGoogle: '使用 Google 登录',
+          signingIn: '登录中...',
+          signOut: '退出登录',
+          signedInAs: '已登录：{{email}}',
+          notConfigured: '需要配置 Supabase 环境变量',
         },
         panels: {
           canvas: {
