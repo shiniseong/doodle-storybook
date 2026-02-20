@@ -3,11 +3,14 @@ import { useMemo, useState } from 'react'
 import { createAppDependencies } from '@app/providers/dependencies'
 import { LoginPage } from '@pages/auth/ui/LoginPage'
 import { HomePage } from '@pages/home/ui/HomePage'
+import { LandingPage } from '@pages/landing/ui/LandingPage'
 import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
+
+type AppView = 'landing' | 'workspace' | 'auth'
 
 export default function App() {
   const auth = useSupabaseGoogleAuth()
-  const [isAuthPageVisible, setIsAuthPageVisible] = useState(false)
+  const [view, setView] = useState<AppView>('landing')
   const dependencies = useMemo(
     () =>
       createAppDependencies({
@@ -19,14 +22,24 @@ export default function App() {
     () => ({
       ...auth,
       signOut: async () => {
-        setIsAuthPageVisible(false)
+        setView('workspace')
         await auth.signOut()
       },
     }),
     [auth],
   )
 
-  if (isAuthPageVisible && !auth.userId) {
+  if (view === 'landing') {
+    return (
+      <LandingPage
+        onStart={() => {
+          setView('workspace')
+        }}
+      />
+    )
+  }
+
+  if (view === 'auth' && !auth.userId) {
     return (
       <LoginPage
         isConfigured={auth.isConfigured}
@@ -42,12 +55,12 @@ export default function App() {
   }
 
   return (
-      <HomePage
-        dependencies={dependencies}
-        auth={workspaceAuth}
-        onRequestAuthentication={() => {
-          setIsAuthPageVisible(true)
-        }}
+    <HomePage
+      dependencies={dependencies}
+      auth={workspaceAuth}
+      onRequestAuthentication={() => {
+        setView('auth')
+      }}
     />
   )
 }

@@ -120,6 +120,10 @@ async function fillDraftAndDraw(user: ReturnType<typeof userEvent.setup>, title:
   })
 }
 
+async function enterWorkspaceFromLanding(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: '바로 사용해보기' }))
+}
+
 describe('App auth flow persistence', () => {
   beforeEach(() => {
     if (typeof HTMLCanvasElement.prototype.setPointerCapture !== 'function') {
@@ -175,6 +179,7 @@ describe('App auth flow persistence', () => {
       .mockReturnValue('data:image/png;base64,draft-auth-gate')
 
     const { rerender } = render(<App />)
+    await enterWorkspaceFromLanding(user)
 
     await fillDraftAndDraw(user, '다이얼로그 진입 제목', '다이얼로그 작가', '다이얼로그 진입 설명')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
@@ -228,6 +233,7 @@ describe('App auth flow persistence', () => {
       .mockReturnValue('data:image/png;base64,draft-header-login')
 
     const { rerender } = render(<App />)
+    await enterWorkspaceFromLanding(user)
 
     await fillDraftAndDraw(user, '헤더 진입 제목', '헤더 진입 작가', '헤더 진입 설명')
     await user.click(screen.getByRole('button', { name: '로그인' }))

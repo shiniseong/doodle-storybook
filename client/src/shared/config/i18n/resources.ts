@@ -6,6 +6,12 @@ export const i18nResources = {
         appSubtitle: 'Doodle Storybook',
         language: '언어',
       },
+      landing: {
+        eyebrow: 'Sketch to Storybook',
+        title: '그리면, 바로 동화가 된다',
+        description: '한 장의 스케치와 짧은 설명으로 표지부터 낭독까지 완성된 동화책을 즉시 펼쳐 보세요.',
+        cta: '바로 사용해보기',
+      },
       authPage: {
         title: '로그인하고 그림책 만들기',
         description: '소셜 로그인으로 시작하면 내 동화를 안전하게 저장할 수 있어요.',
@@ -182,6 +188,12 @@ export const i18nResources = {
         appName: 'Doodle Storybook',
         appSubtitle: 'Draw. Imagine. Read.',
         language: 'Language',
+      },
+      landing: {
+        eyebrow: 'Sketch to Storybook',
+        title: 'Draw once. Open a whole story.',
+        description: 'From one sketch and a short scene note, generate a complete picture book with narration-ready pages.',
+        cta: 'Try it now',
       },
       authPage: {
         title: 'Sign in to start your storybook',
@@ -360,6 +372,12 @@ export const i18nResources = {
         appSubtitle: 'Doodle Storybook',
         language: '言語',
       },
+      landing: {
+        eyebrow: 'Sketch to Storybook',
+        title: '一枚描けば、物語がひらく',
+        description: 'スケッチと短い説明だけで、表紙から読み上げまでそろった絵本をすぐ作れます。',
+        cta: '今すぐ試す',
+      },
       authPage: {
         title: 'ログインして絵本をはじめる',
         description: 'ソーシャルログインで作った絵本を安全に保存できます。',
@@ -536,6 +554,12 @@ export const i18nResources = {
         appName: '咚咚绘本',
         appSubtitle: 'Doodle Storybook',
         language: '语言',
+      },
+      landing: {
+        eyebrow: 'Sketch to Storybook',
+        title: '画一笔，立刻展开一本故事',
+        description: '只用一张草图和一句场景描述，就能生成带封面与朗读体验的完整绘本。',
+        cta: '立即体验',
       },
       authPage: {
         title: '登录后开始创作绘本',
