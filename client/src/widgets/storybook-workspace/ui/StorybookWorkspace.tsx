@@ -849,8 +849,16 @@ function DrawingBoardSection() {
   }, [activeToolMode, eraserSize, penColor, penOpacity, penWidth])
 
   useEffect(() => {
-    if (activeToolMode !== 'eraser') {
+    if (activeToolMode === 'eraser') {
+      return
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
       hideEraserPreview()
+    })
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId)
     }
   }, [activeToolMode, hideEraserPreview])
 
@@ -1235,14 +1243,10 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
   }, [totalPages])
 
   useEffect(() => {
-    setIsCoverOpened(false)
-    setIsCoverFlipping(false)
-    setActivePageIndex(0)
-
     return () => {
       clearCoverFlipTimeout()
     }
-  }, [book.storybookId, clearCoverFlipTimeout])
+  }, [clearCoverFlipTimeout])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow

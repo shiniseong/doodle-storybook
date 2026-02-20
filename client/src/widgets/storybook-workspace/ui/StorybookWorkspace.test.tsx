@@ -822,6 +822,71 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
+  it('생성 응답에 pages/images가 있으면 전체 화면 이북 다이얼로그를 열고 표지/하이라이트/마지막 이미지를 매핑한다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: {
+            storybookId: 'storybook-ebook-1',
+            openaiResponseId: 'resp-ebook-1',
+            promptVersion: '5',
+            pages: [
+              { page: 1, content: '첫 장면', isHighlight: false },
+              { page: 2, content: '강조 장면', isHighlight: true },
+              { page: 3, content: '마지막 장면', isHighlight: false },
+            ],
+            images: [
+              'data:image/png;base64,coverimg',
+              'data:image/png;base64,highlightimg',
+              'data:image/png;base64,lastimg',
+            ],
+          },
+        })),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.type(screen.getByLabelText('동화 제목'), '숲속 모험')
+    await user.type(screen.getByLabelText('그림 설명'), '토끼가 숲길을 달려요')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(await screen.findByRole('dialog', { name: '생성된 동화책: 숲속 모험' })).toBeInTheDocument()
+
+    const coverImage = screen.getByAltText('숲속 모험 표지') as HTMLImageElement
+    expect(coverImage.src).toContain('data:image/png;base64,coverimg')
+
+    await user.click(screen.getByRole('button', { name: '표지 넘기기' }))
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('Page 1')).toBeInTheDocument()
+      },
+      { timeout: 1200 },
+    )
+
+    expect(screen.queryByAltText('1페이지 삽화')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다음' }))
+    await waitFor(() => {
+      expect(screen.getByText('Page 2 · Highlight')).toBeInTheDocument()
+    })
+
+    const highlightImage = screen.getByAltText('2페이지 삽화') as HTMLImageElement
+    expect(highlightImage.src).toContain('data:image/png;base64,highlightimg')
+
+    await user.click(screen.getByRole('button', { name: '다음' }))
+    await waitFor(() => {
+      expect(screen.getByText('Page 3')).toBeInTheDocument()
+    })
+
+    const lastImage = screen.getByAltText('3페이지 삽화') as HTMLImageElement
+    expect(lastImage.src).toContain('data:image/png;base64,lastimg')
+  })
+
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

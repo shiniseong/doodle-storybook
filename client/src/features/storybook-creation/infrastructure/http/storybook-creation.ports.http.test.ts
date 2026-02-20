@@ -105,4 +105,38 @@ describe('HttpStorybookCommandPort', () => {
       }),
     ).rejects.toThrow('Failed to create storybook: 502')
   })
+
+  it('pages 문자열 JSON과 이미지 배열을 정규화해서 반환한다', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: true,
+      json: async () => ({
+        storybookId: 'storybook-5',
+        openaiResponseId: 'resp-55',
+        promptVersion: 5,
+        pages:
+          '[{"page":2,"content":"두 번째 페이지","isHighlight":true},{"page":1,"content":"첫 번째 페이지","isHighlight":false}]',
+        images: ['data: image/png;bas64,cover', 'highlightbase64'],
+      }),
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const commandPort = new HttpStorybookCommandPort({
+      baseUrl: 'https://example.test',
+    })
+    const result = await commandPort.createStorybook({
+      userId: 'user-4',
+      title: '반짝 숲',
+      description: '여우가 숲에서 춤춰요',
+      language: 'ko',
+    })
+
+    expect(result.storybookId).toBe('storybook-5')
+    expect(result.openaiResponseId).toBe('resp-55')
+    expect(result.promptVersion).toBe('5')
+    expect(result.pages).toEqual([
+      { page: 1, content: '첫 번째 페이지', isHighlight: false },
+      { page: 2, content: '두 번째 페이지', isHighlight: true },
+    ])
+    expect(result.images).toEqual(['data:image/png;base64,cover', 'data:image/png;base64,highlightbase64'])
+  })
 })
