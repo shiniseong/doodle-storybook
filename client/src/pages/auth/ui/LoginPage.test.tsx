@@ -10,6 +10,7 @@ describe('LoginPage', () => {
     const onSignInWithGoogle = vi.fn()
     const onSignInWithApple = vi.fn()
     const onSignInWithKakao = vi.fn()
+    const onSignUpWithEmail = vi.fn(async () => ({ ok: true, requiresEmailVerification: true }))
 
     render(
       <LoginPage
@@ -19,6 +20,7 @@ describe('LoginPage', () => {
         onSignInWithGoogle={onSignInWithGoogle}
         onSignInWithApple={onSignInWithApple}
         onSignInWithKakao={onSignInWithKakao}
+        onSignUpWithEmail={onSignUpWithEmail}
       />,
     )
 
@@ -31,6 +33,37 @@ describe('LoginPage', () => {
     expect(onSignInWithKakao).toHaveBeenCalledTimes(1)
   })
 
+  it('이메일 회원가입 폼을 제출하면 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const onSignUpWithEmail = vi.fn(async () => ({
+      ok: true,
+      requiresEmailVerification: true,
+    }))
+
+    render(
+      <LoginPage
+        isConfigured
+        isLoading={false}
+        isSigningIn={false}
+        onSignInWithGoogle={vi.fn()}
+        onSignInWithApple={vi.fn()}
+        onSignInWithKakao={vi.fn()}
+        onSignUpWithEmail={onSignUpWithEmail}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('이메일'), 'new-user@example.com')
+    await user.type(screen.getByLabelText('비밀번호'), 'passw0rd')
+    await user.click(screen.getByRole('button', { name: '이메일로 회원가입' }))
+
+    expect(onSignUpWithEmail).toHaveBeenCalledTimes(1)
+    expect(onSignUpWithEmail).toHaveBeenCalledWith({
+      email: 'new-user@example.com',
+      password: 'passw0rd',
+    })
+    expect(screen.getByText('인증 메일을 보냈어요. 이메일을 확인해 주세요.')).toBeInTheDocument()
+  })
+
   it('설정되지 않았거나 로딩/로그인 중이면 버튼을 비활성화한다', () => {
     render(
       <LoginPage
@@ -40,6 +73,7 @@ describe('LoginPage', () => {
         onSignInWithGoogle={vi.fn()}
         onSignInWithApple={vi.fn()}
         onSignInWithKakao={vi.fn()}
+        onSignUpWithEmail={vi.fn(async () => ({ ok: false, requiresEmailVerification: true }))}
       />,
     )
 

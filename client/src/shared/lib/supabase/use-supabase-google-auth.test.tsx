@@ -1,6 +1,7 @@
 import { type User, type SupabaseClient } from '@supabase/supabase-js'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveSupabaseClient } from '@shared/lib/supabase/client'
@@ -22,6 +23,7 @@ interface MockSupabaseAuthClient {
   getUser: ReturnType<typeof vi.fn>
   onAuthStateChange: ReturnType<typeof vi.fn>
   signInWithOAuth: ReturnType<typeof vi.fn>
+  signUp: ReturnType<typeof vi.fn>
   signOut: ReturnType<typeof vi.fn>
   unsubscribe: ReturnType<typeof vi.fn>
   emitAuthStateChange: (nextUser: User | null) => void
@@ -58,6 +60,12 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
     }
   })
   const signInWithOAuth = vi.fn(async () => ({ error: null }))
+  const signUp = vi.fn(async () => ({
+    data: {
+      session: null,
+    },
+    error: null,
+  }))
   const signOut = vi.fn(async () => ({ error: null }))
 
   return {
@@ -66,12 +74,14 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
         getUser,
         onAuthStateChange,
         signInWithOAuth,
+        signUp,
         signOut,
       },
     } as unknown as SupabaseClient,
     getUser,
     onAuthStateChange,
     signInWithOAuth,
+    signUp,
     signOut,
     unsubscribe,
     emitAuthStateChange: (nextUser) => {
@@ -87,6 +97,7 @@ function createMockSupabaseAuthClient(initialUser: User | null = null): MockSupa
 
 function HookHarness() {
   const auth = useSupabaseGoogleAuth()
+  const [signUpResult, setSignUpResult] = useState('')
 
   return (
     <div>
@@ -105,12 +116,25 @@ function HookHarness() {
       </button>
       <button
         type="button"
+        onClick={async () => {
+          const result = await auth.signUpWithEmail({
+            email: ' user@example.com ',
+            password: 'passw0rd',
+          })
+          setSignUpResult(`${result.ok}:${result.requiresEmailVerification}:${result.errorMessage ?? ''}`)
+        }}
+      >
+        sign-up
+      </button>
+      <button
+        type="button"
         onClick={() => {
           void auth.signOut()
         }}
       >
         sign-out
       </button>
+      <p data-testid="signup-result">{signUpResult}</p>
     </div>
   )
 }
@@ -134,6 +158,7 @@ describe('useSupabaseGoogleAuth', () => {
     expect(screen.getByTestId('user-email')).toHaveTextContent('')
 
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
+    await user.click(screen.getByRole('button', { name: 'sign-up' }))
     await user.click(screen.getByRole('button', { name: 'sign-out' }))
   })
 
@@ -189,6 +214,27 @@ describe('useSupabaseGoogleAuth', () => {
     })
   })
 
+  it('이메일 회원가입 호출 시 signUp에 email/password를 전달한다', async () => {
+    const supabase = createMockSupabaseAuthClient()
+    vi.mocked(resolveSupabaseClient).mockReturnValue(supabase.client)
+    const user = userEvent.setup()
+
+    render(<HookHarness />)
+    await user.click(screen.getByRole('button', { name: 'sign-up' }))
+
+    await waitFor(() => {
+      expect(supabase.signUp).toHaveBeenCalledTimes(1)
+    })
+    expect(supabase.signUp).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      password: 'passw0rd',
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    })
+    expect(screen.getByTestId('signup-result')).toHaveTextContent('true:true:')
+  })
+
   it('로그인 에러가 나면 signing 상태를 원복한다', async () => {
     const supabase = createMockSupabaseAuthClient()
     supabase.signInWithOAuth.mockResolvedValue({
@@ -203,6 +249,28 @@ describe('useSupabaseGoogleAuth', () => {
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
 
     await waitFor(() => {
+      expect(screen.getByTestId('signing')).toHaveTextContent('false')
+    })
+  })
+
+  it('이메일 회원가입 에러가 나면 에러 메시지를 반환한다', async () => {
+    const supabase = createMockSupabaseAuthClient()
+    supabase.signUp.mockResolvedValue({
+      data: {
+        session: null,
+      },
+      error: {
+        message: 'mock sign-up failure',
+      },
+    })
+    vi.mocked(resolveSupabaseClient).mockReturnValue(supabase.client)
+    const user = userEvent.setup()
+
+    render(<HookHarness />)
+    await user.click(screen.getByRole('button', { name: 'sign-up' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('signup-result')).toHaveTextContent('false:true:mock sign-up failure')
       expect(screen.getByTestId('signing')).toHaveTextContent('false')
     })
   })
