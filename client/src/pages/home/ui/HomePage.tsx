@@ -7,8 +7,9 @@ import {
 interface HomePageProps {
   dependencies: StorybookWorkspaceDependencies
   auth: StorybookWorkspaceAuth
+  onRequestAuthentication?: () => void
 }
 
-export function HomePage({ dependencies, auth }: HomePageProps) {
-  return <StorybookWorkspace dependencies={dependencies} auth={auth} />
+export function HomePage({ dependencies, auth, onRequestAuthentication }: HomePageProps) {
+  return <StorybookWorkspace dependencies={dependencies} auth={auth} onRequestAuthentication={onRequestAuthentication} />
 }

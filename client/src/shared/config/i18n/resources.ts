@@ -46,6 +46,9 @@ export const i18nResources = {
           signedInAs: '{{email}} 로그인됨',
           notConfigured: 'Supabase 환경변수 설정 필요',
         },
+        authGate: {
+          confirmCreate: '동화 생성을 하려면 로그인 또는 회원가입이 필요해요.\n로그인/가입 페이지로 이동할까요?',
+        },
         panels: {
           canvas: {
             title: '드로잉 스테이지',
@@ -186,6 +189,9 @@ export const i18nResources = {
           signOut: 'Sign out',
           signedInAs: 'Signed in as {{email}}',
           notConfigured: 'Supabase environment variables are required',
+        },
+        authGate: {
+          confirmCreate: 'Creating a storybook requires sign in or sign up.\nGo to the sign-in/sign-up page now?',
         },
         panels: {
           canvas: {
@@ -328,6 +334,9 @@ export const i18nResources = {
           signedInAs: '{{email}} でログイン中',
           notConfigured: 'Supabase の環境変数設定が必要です',
         },
+        authGate: {
+          confirmCreate: '絵本を作成するにはログインまたは会員登録が必要です。\nログイン/登録ページへ移動しますか？',
+        },
         panels: {
           canvas: {
             title: 'おえかきステージ',
@@ -468,6 +477,9 @@ export const i18nResources = {
           signOut: '退出登录',
           signedInAs: '已登录：{{email}}',
           notConfigured: '需要配置 Supabase 环境变量',
+        },
+        authGate: {
+          confirmCreate: '生成绘本前需要先登录或注册。\n现在前往登录/注册页面吗？',
         },
         panels: {
           canvas: {

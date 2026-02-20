@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { createAppDependencies } from '@app/providers/dependencies'
 import { LoginPage } from '@pages/auth/ui/LoginPage'
@@ -7,6 +7,7 @@ import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-
 
 export default function App() {
   const auth = useSupabaseGoogleAuth()
+  const [isAuthPageVisible, setIsAuthPageVisible] = useState(false)
   const dependencies = useMemo(
     () =>
       createAppDependencies({
@@ -14,8 +15,18 @@ export default function App() {
       }),
     [auth.userId],
   )
+  const workspaceAuth = useMemo(
+    () => ({
+      ...auth,
+      signOut: async () => {
+        setIsAuthPageVisible(false)
+        await auth.signOut()
+      },
+    }),
+    [auth],
+  )
 
-  if (!auth.userId) {
+  if (isAuthPageVisible && !auth.userId) {
     return (
       <LoginPage
         isConfigured={auth.isConfigured}
@@ -29,5 +40,13 @@ export default function App() {
     )
   }
 
-  return <HomePage dependencies={dependencies} auth={auth} />
+  return (
+      <HomePage
+        dependencies={dependencies}
+        auth={workspaceAuth}
+        onRequestAuthentication={() => {
+          setIsAuthPageVisible(true)
+        }}
+    />
+  )
 }

@@ -3,8 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useStorybookCreationStore } from '@features/storybook-creation/model/storybook-creation.store'
+import { STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY } from '@features/storybook-creation/model/storybook-compose-draft.storage'
 import {
   StorybookWorkspace,
+  type StorybookWorkspaceAuth,
   type StorybookWorkspaceDependencies,
 } from '@widgets/storybook-workspace/ui/StorybookWorkspace'
 
@@ -48,9 +50,23 @@ function createFixedDomRect(width: number, height: number): DOMRect {
   } as DOMRect
 }
 
+function createMockAuth(overrides: Partial<StorybookWorkspaceAuth> = {}): StorybookWorkspaceAuth {
+  return {
+    isConfigured: true,
+    isLoading: false,
+    isSigningIn: false,
+    userId: 'user-1',
+    userEmail: 'user-1@example.com',
+    signInWithGoogle: vi.fn(async () => {}),
+    signOut: vi.fn(async () => {}),
+    ...overrides,
+  }
+}
+
 describe('StorybookWorkspace', () => {
   beforeEach(() => {
     useStorybookCreationStore.getState().reset()
+    window.localStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   })
 
   it('동화 생성 성공 시 피드백 메시지를 출력한다', async () => {
@@ -83,6 +99,103 @@ describe('StorybookWorkspace', () => {
     })
     expect(screen.getByText('동화 생성 요청 완료 · #storybook-101')).toBeInTheDocument()
     expect(screen.getByText('1편 남음')).toBeInTheDocument()
+  })
+
+  it('로그인하지 않은 상태에서 생성을 누르면 확인 다이얼로그를 띄우고 취소 시 생성하지 않는다', async () => {
+    const user = userEvent.setup()
+    const execute = vi.fn(async () => ({
+      ok: true as const,
+      value: { storybookId: 'storybook-need-auth' },
+    }))
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const requestAuthentication = vi.fn()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'guest-user',
+      createStorybookUseCase: {
+        execute,
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: null,
+          userEmail: null,
+        })}
+        onRequestAuthentication={requestAuthentication}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('동화 제목'), '로그인 필요')
+    await user.type(screen.getByLabelText('그림 설명'), '로그인 전에 입력한 설명')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    expect(requestAuthentication).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  it('로그인하지 않은 상태에서 확인하면 로그인 페이지 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const execute = vi.fn(async () => ({
+      ok: true as const,
+      value: { storybookId: 'storybook-need-auth-2' },
+    }))
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const requestAuthentication = vi.fn()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'guest-user',
+      createStorybookUseCase: {
+        execute,
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: null,
+          userEmail: null,
+        })}
+        onRequestAuthentication={requestAuthentication}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('동화 제목'), '로그인 이동')
+    await user.type(screen.getByLabelText('그림 설명'), '승인 시 로그인 페이지로 이동')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    expect(requestAuthentication).toHaveBeenCalledTimes(1)
+    confirmSpy.mockRestore()
+  })
+
+  it('워크스페이스를 다시 열어도 제목과 설명 초안이 유지된다', async () => {
+    const user = userEvent.setup()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-draft-1' },
+        })),
+      },
+    }
+
+    const { unmount } = render(<StorybookWorkspace dependencies={dependencies} />)
+
+    await user.type(screen.getByLabelText('동화 제목'), '보관할 제목')
+    await user.type(screen.getByLabelText('그림 설명'), '보관할 설명')
+
+    unmount()
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    expect(screen.getByLabelText('동화 제목')).toHaveValue('보관할 제목')
+    expect(screen.getByLabelText('그림 설명')).toHaveValue('보관할 설명')
   })
 
   it('생성 진행 중에는 하단 CTA 버튼을 비활성화한다', async () => {

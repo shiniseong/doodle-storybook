@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import App from '@app/App'
@@ -11,11 +12,20 @@ vi.mock('@shared/lib/supabase/use-supabase-google-auth', () => ({
 vi.mock('@pages/home/ui/HomePage', () => ({
   HomePage: ({
     dependencies,
+    onRequestAuthentication,
   }: {
     dependencies: {
       currentUserId: string
     }
-  }) => <div data-testid="home-page">{dependencies.currentUserId}</div>,
+    onRequestAuthentication?: () => void
+  }) => (
+    <div data-testid="home-page">
+      {dependencies.currentUserId}
+      <button type="button" onClick={onRequestAuthentication}>
+        open-auth
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@pages/auth/ui/LoginPage', () => ({
@@ -53,7 +63,7 @@ describe('App', () => {
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
-  it('로그인되어 있지 않으면 로그인 페이지를 렌더링한다', () => {
+  it('로그인되어 있지 않아도 기본 화면은 홈 페이지다', () => {
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
       createMockAuth({
         userId: null,
@@ -62,6 +72,23 @@ describe('App', () => {
     )
 
     render(<App />)
+
+    expect(screen.getByTestId('home-page')).toHaveTextContent('demo-user')
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
+
+  it('인증 페이지 요청 시 로그인 페이지를 렌더링한다', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
+      createMockAuth({
+        userId: null,
+        userEmail: null,
+      }),
+    )
+
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'open-auth' }))
 
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()

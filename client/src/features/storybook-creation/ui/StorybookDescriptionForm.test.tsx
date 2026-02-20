@@ -93,4 +93,28 @@ describe('StorybookDescriptionForm', () => {
 
     expect(screen.getByRole('button', { name: '생성 중...' })).toBeDisabled()
   })
+
+  it('초기값을 복원하고 입력 변경을 draft 콜백으로 전달한다', async () => {
+    const user = userEvent.setup()
+    const onDraftChange = vi.fn()
+
+    render(
+      <StorybookDescriptionForm
+        initialTitle="복원된 제목"
+        initialDescription="복원된 설명"
+        onDraftChange={onDraftChange}
+        onSubmit={() => Promise.resolve()}
+      />,
+    )
+
+    const titleInput = screen.getByLabelText('동화 제목')
+    const descriptionInput = screen.getByLabelText('그림 설명')
+
+    expect(titleInput).toHaveValue('복원된 제목')
+    expect(descriptionInput).toHaveValue('복원된 설명')
+
+    await user.type(titleInput, '!')
+
+    expect(onDraftChange).toHaveBeenCalled()
+  })
 })

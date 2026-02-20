@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MAX_STORY_DESCRIPTION_LENGTH } from '@features/storybook-creation/domain/storybook-draft'
@@ -14,6 +14,9 @@ interface StorybookDescriptionFormProps {
   titleMaxLength?: number
   maxLength?: number
   isSubmitting?: boolean
+  initialTitle?: string
+  initialDescription?: string
+  onDraftChange?: (draft: { title: string; description: string }) => void
   onSubmit: (payload: StorybookDescriptionFormSubmit) => void | Promise<void>
 }
 
@@ -21,11 +24,14 @@ export function StorybookDescriptionForm({
   titleMaxLength = MAX_STORY_TITLE_LENGTH,
   maxLength = MAX_STORY_DESCRIPTION_LENGTH,
   isSubmitting = false,
+  initialTitle = '',
+  initialDescription = '',
+  onDraftChange,
   onSubmit,
 }: StorybookDescriptionFormProps) {
   const { t } = useTranslation()
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [title, setTitle] = useState(initialTitle)
+  const [description, setDescription] = useState(initialDescription)
 
   const trimmedTitle = title.trim()
   const trimmedDescription = description.trim()
@@ -34,6 +40,13 @@ export function StorybookDescriptionForm({
   const isTitleTooLong = title.length > titleMaxLength
   const isTooLong = description.length > maxLength
   const canSubmit = !isTitleEmpty && !isDescriptionEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
+
+  useEffect(() => {
+    onDraftChange?.({
+      title,
+      description,
+    })
+  }, [description, onDraftChange, title])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

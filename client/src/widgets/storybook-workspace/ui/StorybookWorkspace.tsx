@@ -33,6 +33,11 @@ import {
   selectRemainingFreeStories,
   useStorybookCreationStore,
 } from '@features/storybook-creation/model/storybook-creation.store'
+import {
+  loadStorybookWorkspaceDraft,
+  saveStorybookWorkspaceDraft,
+  type StorybookWorkspaceDraft,
+} from '@features/storybook-creation/model/storybook-compose-draft.storage'
 import { StorybookDescriptionForm } from '@features/storybook-creation/ui/StorybookDescriptionForm'
 import { resolveAppLanguage } from '@shared/config/i18n/constants'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
@@ -432,7 +437,12 @@ function WorkspaceHeader({ auth }: WorkspaceHeaderProps) {
   )
 }
 
-function DrawingBoardSection() {
+interface DrawingBoardSectionProps {
+  initialCanvasDataUrl: string | null
+  onCanvasSnapshotChange: (nextCanvasDataUrl: string | null) => void
+}
+
+function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: DrawingBoardSectionProps) {
   const { t } = useTranslation()
   const [activeToolMode, setActiveToolMode] = useState<DrawingToolMode>('pen')
   const [isGridVisible, setIsGridVisible] = useState(true)
@@ -457,6 +467,21 @@ function DrawingBoardSection() {
   const isDrawingRef = useRef(false)
   const strokeBaseSnapshotRef = useRef<ImageData | null>(null)
   const strokePointsRef = useRef<CanvasPoint[]>([])
+  const hasRestoredInitialCanvasRef = useRef(false)
+
+  const emitCanvasSnapshot = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      onCanvasSnapshotChange(null)
+      return
+    }
+
+    try {
+      onCanvasSnapshotChange(canvas.toDataURL('image/png'))
+    } catch {
+      onCanvasSnapshotChange(null)
+    }
+  }, [onCanvasSnapshotChange])
 
   const pushUndoSnapshot = useCallback(() => {
     const canvas = canvasRef.current
@@ -539,19 +564,27 @@ function DrawingBoardSection() {
     [activeToolMode, eraserSize, penColor, penOpacity, penWidth],
   )
 
-  const stopDrawing = useCallback((event?: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (
-      event &&
-      typeof event.currentTarget.hasPointerCapture === 'function' &&
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
+  const stopDrawing = useCallback(
+    (event?: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (
+        event &&
+        typeof event.currentTarget.hasPointerCapture === 'function' &&
+        event.currentTarget.hasPointerCapture(event.pointerId)
+      ) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
 
-    isDrawingRef.current = false
-    strokeBaseSnapshotRef.current = null
-    strokePointsRef.current = []
-  }, [])
+      const shouldPersistSnapshot = isDrawingRef.current
+      isDrawingRef.current = false
+      strokeBaseSnapshotRef.current = null
+      strokePointsRef.current = []
+
+      if (shouldPersistSnapshot) {
+        emitCanvasSnapshot()
+      }
+    },
+    [emitCanvasSnapshot],
+  )
 
   const showEraserPreview = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -613,7 +646,8 @@ function DrawingBoardSection() {
     }
 
     setUndoDepth(undoSnapshotsRef.current.length)
-  }, [])
+    emitCanvasSnapshot()
+  }, [emitCanvasSnapshot])
 
   const handleClearCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -628,7 +662,8 @@ function DrawingBoardSection() {
     isDrawingRef.current = false
     strokeBaseSnapshotRef.current = null
     strokePointsRef.current = []
-  }, [pushUndoSnapshot])
+    emitCanvasSnapshot()
+  }, [emitCanvasSnapshot, pushUndoSnapshot])
 
   const updatePenWidth = useCallback((nextWidth: number) => {
     setPenWidth(clampPenWidth(nextWidth))
@@ -885,6 +920,63 @@ function DrawingBoardSection() {
       resizeObserver.disconnect()
     }
   }, [activeToolMode, eraserSize, penColor, penOpacity, penWidth])
+
+  useEffect(() => {
+    if (hasRestoredInitialCanvasRef.current) {
+      return
+    }
+
+    hasRestoredInitialCanvasRef.current = true
+    if (!initialCanvasDataUrl) {
+      return
+    }
+
+    let animationFrameId: number | null = null
+    let isCancelled = false
+
+    const restoreDraftCanvas = () => {
+      if (isCancelled) {
+        return
+      }
+
+      const canvas = canvasRef.current
+      const context = canvasContextRef.current
+
+      if (!canvas || !context || canvas.width === 0 || canvas.height === 0) {
+        animationFrameId = window.requestAnimationFrame(restoreDraftCanvas)
+        return
+      }
+
+      const draftImage = new Image()
+      draftImage.onload = () => {
+        if (isCancelled) {
+          return
+        }
+
+        const nextGlobalAlpha = context.globalAlpha
+        const nextCompositeOperation = context.globalCompositeOperation
+        context.globalCompositeOperation = 'source-over'
+        context.globalAlpha = 1
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(draftImage, 0, 0, draftImage.width, draftImage.height, 0, 0, canvas.width, canvas.height)
+        context.globalAlpha = nextGlobalAlpha
+        context.globalCompositeOperation = nextCompositeOperation
+        undoSnapshotsRef.current = []
+        setUndoDepth(0)
+        emitCanvasSnapshot()
+      }
+      draftImage.src = initialCanvasDataUrl
+    }
+
+    animationFrameId = window.requestAnimationFrame(restoreDraftCanvas)
+
+    return () => {
+      isCancelled = true
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [emitCanvasSnapshot, initialCanvasDataUrl])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -2006,9 +2098,21 @@ function StoryLoadingMiniGame() {
 
 interface StoryComposerSectionProps {
   dependencies: StorybookWorkspaceDependencies
+  auth?: StorybookWorkspaceAuth
+  initialTitle: string
+  initialDescription: string
+  onDraftChange: (draft: { title: string; description: string }) => void
+  onRequestAuthentication?: () => void
 }
 
-function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
+function StoryComposerSection({
+  dependencies,
+  auth,
+  initialTitle,
+  initialDescription,
+  onDraftChange,
+  onRequestAuthentication,
+}: StoryComposerSectionProps) {
   const { i18n, t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
   const feedback = useStorybookCreationStore((state) => state.feedback)
@@ -2024,6 +2128,19 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
     setReaderBook(null)
   }, [])
 
+  const requestAuthenticationForStoryCreation = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const shouldNavigateToAuthentication = window.confirm(t('workspace.authGate.confirmCreate'))
+    if (!shouldNavigateToAuthentication) {
+      return
+    }
+
+    onRequestAuthentication?.()
+  }, [onRequestAuthentication, t])
+
   return (
     <motion.section
       className="panel panel--compose"
@@ -2038,12 +2155,20 @@ function StoryComposerSection({ dependencies }: StoryComposerSectionProps) {
       </div>
       <StorybookDescriptionForm
         isSubmitting={isSubmitting}
+        initialTitle={initialTitle}
+        initialDescription={initialDescription}
+        onDraftChange={onDraftChange}
         onSubmit={async ({ title, description }) => {
+          if (auth && !auth.userId) {
+            requestAuthenticationForStoryCreation()
+            return
+          }
+
           setReaderBook(null)
           startSubmitting()
 
           const result = await useCase.execute({
-            userId: dependencies.currentUserId,
+            userId: auth?.userId ?? dependencies.currentUserId,
             title,
             description,
             language: resolveStoryLanguage(i18n.language),
@@ -2135,16 +2260,60 @@ function SubscriptionFooter() {
 interface StorybookWorkspaceProps {
   dependencies: StorybookWorkspaceDependencies
   auth?: StorybookWorkspaceAuth
+  onRequestAuthentication?: () => void
 }
 
-export function StorybookWorkspace({ dependencies, auth }: StorybookWorkspaceProps) {
+export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication }: StorybookWorkspaceProps) {
+  const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
+
+  useEffect(() => {
+    saveStorybookWorkspaceDraft(draft)
+  }, [draft])
+
+  const handleComposeDraftChange = useCallback((nextDraft: { title: string; description: string }) => {
+    setDraft((previous) => {
+      if (previous.title === nextDraft.title && previous.description === nextDraft.description) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        title: nextDraft.title,
+        description: nextDraft.description,
+      }
+    })
+  }, [])
+
+  const handleCanvasSnapshotChange = useCallback((nextCanvasDataUrl: string | null) => {
+    setDraft((previous) => {
+      if (previous.canvasDataUrl === nextCanvasDataUrl) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        canvasDataUrl: nextCanvasDataUrl,
+      }
+    })
+  }, [])
+
   return (
     <div className="storybook-app">
       <AmbientBackdrop />
       <WorkspaceHeader auth={auth} />
       <main className="layout-grid">
-        <DrawingBoardSection />
-        <StoryComposerSection dependencies={dependencies} />
+        <DrawingBoardSection
+          initialCanvasDataUrl={draft.canvasDataUrl}
+          onCanvasSnapshotChange={handleCanvasSnapshotChange}
+        />
+        <StoryComposerSection
+          dependencies={dependencies}
+          auth={auth}
+          initialTitle={draft.title}
+          initialDescription={draft.description}
+          onDraftChange={handleComposeDraftChange}
+          onRequestAuthentication={onRequestAuthentication}
+        />
       </main>
       <SubscriptionFooter />
     </div>
