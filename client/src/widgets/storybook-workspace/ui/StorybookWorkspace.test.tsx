@@ -995,6 +995,7 @@ describe('StorybookWorkspace', () => {
     render(<StorybookWorkspace dependencies={dependencies} />)
 
     await user.type(screen.getByLabelText('동화 제목'), '숲속 모험')
+    await user.type(screen.getByLabelText('지은이'), '달빛 작가')
     await user.type(screen.getByLabelText('그림 설명'), '토끼가 숲길을 달려요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
@@ -1002,6 +1003,7 @@ describe('StorybookWorkspace', () => {
 
     const coverImage = screen.getByAltText('숲속 모험 표지') as HTMLImageElement
     expect(coverImage.src).toContain('data:image/png;base64,coverimg')
+    expect(screen.getByText('지은이: 달빛 작가')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '표지 넘기기' }))
 

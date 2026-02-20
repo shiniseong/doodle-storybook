@@ -158,6 +158,7 @@ interface LoadingGameObstacle {
 
 interface StorybookReaderBook {
   title: string
+  authorName?: string
   pages: StorybookGeneratedPage[]
   coverImage?: string
   highlightImage?: string
@@ -1450,6 +1451,7 @@ interface StorybookReaderDialogProps {
 }
 
 function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
+  const { t } = useTranslation()
   const [isCoverOpened, setIsCoverOpened] = useState(false)
   const [isCoverFlipping, setIsCoverFlipping] = useState(false)
   const [isCoverReturning, setIsCoverReturning] = useState(false)
@@ -1717,7 +1719,10 @@ function StorybookReaderDialog({ book, onClose }: StorybookReaderDialogProps) {
                 )}
               </span>
               <span className="storybook-cover__title-overlay">
-                <strong>{book.title}</strong>
+                <span className="storybook-cover__title-card">
+                  <strong>{book.title}</strong>
+                  {book.authorName ? <em className="storybook-cover__author">{t('workspace.reader.byAuthor', { author: book.authorName })}</em> : null}
+                </span>
                 <small>{isCoverFlipping ? '책장을 넘기는 중...' : '표지를 눌러 첫 장을 펼치세요'}</small>
               </span>
             </button>
@@ -2091,8 +2096,9 @@ interface StoryComposerSectionProps {
   dependencies: StorybookWorkspaceDependencies
   auth?: StorybookWorkspaceAuth
   initialTitle: string
+  initialAuthorName: string
   initialDescription: string
-  onDraftChange: (draft: { title: string; description: string }) => void
+  onDraftChange: (draft: { title: string; authorName: string; description: string }) => void
   onRequestAuthentication?: () => void
 }
 
@@ -2169,6 +2175,7 @@ function StoryComposerSection({
   dependencies,
   auth,
   initialTitle,
+  initialAuthorName,
   initialDescription,
   onDraftChange,
   onRequestAuthentication,
@@ -2217,9 +2224,10 @@ function StoryComposerSection({
       <StorybookDescriptionForm
         isSubmitting={isSubmitting}
         initialTitle={initialTitle}
+        initialAuthorName={initialAuthorName}
         initialDescription={initialDescription}
         onDraftChange={onDraftChange}
-        onSubmit={async ({ title, description }) => {
+        onSubmit={async ({ title, authorName, description }) => {
           if (auth && !auth.userId) {
             requestAuthenticationForStoryCreation()
             return
@@ -2243,6 +2251,7 @@ function StoryComposerSection({
             if (generatedPages.length > 0) {
               setReaderBook({
                 title: title.trim().length > 0 ? title.trim() : t('common.appName'),
+                ...(authorName.length > 0 ? { authorName } : {}),
                 pages: generatedPages,
                 ...(generatedImages[0] ? { coverImage: generatedImages[0] } : {}),
                 ...(generatedImages[1] ? { highlightImage: generatedImages[1] } : {}),
@@ -2336,15 +2345,20 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     saveStorybookWorkspaceDraft(draft)
   }, [draft])
 
-  const handleComposeDraftChange = useCallback((nextDraft: { title: string; description: string }) => {
+  const handleComposeDraftChange = useCallback((nextDraft: { title: string; authorName: string; description: string }) => {
     setDraft((previous) => {
-      if (previous.title === nextDraft.title && previous.description === nextDraft.description) {
+      if (
+        previous.title === nextDraft.title &&
+        previous.authorName === nextDraft.authorName &&
+        previous.description === nextDraft.description
+      ) {
         return previous
       }
 
       return {
         ...previous,
         title: nextDraft.title,
+        authorName: nextDraft.authorName,
         description: nextDraft.description,
       }
     })
@@ -2376,6 +2390,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           dependencies={dependencies}
           auth={auth}
           initialTitle={draft.title}
+          initialAuthorName={draft.authorName}
           initialDescription={draft.description}
           onDraftChange={handleComposeDraftChange}
           onRequestAuthentication={onRequestAuthentication}

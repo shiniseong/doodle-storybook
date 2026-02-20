@@ -84,13 +84,15 @@ function parseStoredWorkspaceDraft() {
 
   return JSON.parse(raw) as {
     title: string
+    authorName: string
     description: string
     canvasDataUrl: string | null
   }
 }
 
-async function fillDraftAndDraw(user: ReturnType<typeof userEvent.setup>, title: string, description: string) {
+async function fillDraftAndDraw(user: ReturnType<typeof userEvent.setup>, title: string, authorName: string, description: string) {
   await user.type(screen.getByLabelText('동화 제목'), title)
+  await user.type(screen.getByLabelText('지은이'), authorName)
   await user.type(screen.getByLabelText('그림 설명'), description)
 
   const canvas = document.querySelector<HTMLCanvasElement>('.canvas-stage__surface')
@@ -174,7 +176,7 @@ describe('App auth flow persistence', () => {
 
     const { rerender } = render(<App />)
 
-    await fillDraftAndDraw(user, '다이얼로그 진입 제목', '다이얼로그 진입 설명')
+    await fillDraftAndDraw(user, '다이얼로그 진입 제목', '다이얼로그 작가', '다이얼로그 진입 설명')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
     await user.click(screen.getByRole('button', { name: '로그인/가입 페이지로 이동' }))
 
@@ -184,6 +186,7 @@ describe('App auth flow persistence', () => {
       const stored = parseStoredWorkspaceDraft()
       expect(stored).not.toBeNull()
       expect(stored?.title).toBe('다이얼로그 진입 제목')
+      expect(stored?.authorName).toBe('다이얼로그 작가')
       expect(stored?.description).toBe('다이얼로그 진입 설명')
       expect(stored?.canvasDataUrl).toBe('data:image/png;base64,draft-auth-gate')
     })
@@ -195,6 +198,7 @@ describe('App auth flow persistence', () => {
     rerender(<App />)
 
     expect(await screen.findByLabelText('동화 제목')).toHaveValue('다이얼로그 진입 제목')
+    expect(screen.getByLabelText('지은이')).toHaveValue('다이얼로그 작가')
     expect(screen.getByLabelText('그림 설명')).toHaveValue('다이얼로그 진입 설명')
 
     getContextSpy.mockRestore()
@@ -225,7 +229,7 @@ describe('App auth flow persistence', () => {
 
     const { rerender } = render(<App />)
 
-    await fillDraftAndDraw(user, '헤더 진입 제목', '헤더 진입 설명')
+    await fillDraftAndDraw(user, '헤더 진입 제목', '헤더 진입 작가', '헤더 진입 설명')
     await user.click(screen.getByRole('button', { name: '로그인' }))
 
     expect(await screen.findByRole('heading', { name: '로그인하고 그림책 만들기' })).toBeInTheDocument()
@@ -234,6 +238,7 @@ describe('App auth flow persistence', () => {
       const stored = parseStoredWorkspaceDraft()
       expect(stored).not.toBeNull()
       expect(stored?.title).toBe('헤더 진입 제목')
+      expect(stored?.authorName).toBe('헤더 진입 작가')
       expect(stored?.description).toBe('헤더 진입 설명')
       expect(stored?.canvasDataUrl).toBe('data:image/png;base64,draft-header-login')
     })
@@ -245,6 +250,7 @@ describe('App auth flow persistence', () => {
     rerender(<App />)
 
     expect(await screen.findByLabelText('동화 제목')).toHaveValue('헤더 진입 제목')
+    expect(screen.getByLabelText('지은이')).toHaveValue('헤더 진입 작가')
     expect(screen.getByLabelText('그림 설명')).toHaveValue('헤더 진입 설명')
 
     getContextSpy.mockRestore()

@@ -2,12 +2,14 @@ const STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY = 'doodle-storybook.workspace-draft.
 
 export interface StorybookWorkspaceDraft {
   readonly title: string
+  readonly authorName: string
   readonly description: string
   readonly canvasDataUrl: string | null
 }
 
 const EMPTY_STORYBOOK_WORKSPACE_DRAFT: StorybookWorkspaceDraft = {
   title: '',
+  authorName: '',
   description: '',
   canvasDataUrl: null,
 }
@@ -67,6 +69,7 @@ export function loadStorybookWorkspaceDraft(): StorybookWorkspaceDraft {
 
     return {
       title: normalizeDraftField(parsed.title),
+      authorName: normalizeDraftField(parsed.authorName),
       description: normalizeDraftField(parsed.description),
       canvasDataUrl: normalizeCanvasDataUrl(parsed.canvasDataUrl),
     }

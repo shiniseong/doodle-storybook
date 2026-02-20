@@ -67,6 +67,9 @@ export const i18nResources = {
           cancel: '계속 작업할게요',
           close: '로그인 안내 닫기',
         },
+        reader: {
+          byAuthor: '지은이: {{author}}',
+        },
         panels: {
           canvas: {
             title: '드로잉 스테이지',
@@ -154,6 +157,8 @@ export const i18nResources = {
       },
       form: {
         titleLabel: '동화 제목',
+        authorLabel: '지은이',
+        authorPlaceholder: '지은이를 입력해 주세요',
         descriptionLabel: '그림 설명',
         counter: '{{current}} / {{max}}',
         submit: '동화 생성하기',
@@ -228,6 +233,9 @@ export const i18nResources = {
           confirm: 'Go to sign in / sign up',
           cancel: 'Keep editing',
           close: 'Close sign-in prompt',
+        },
+        reader: {
+          byAuthor: 'By {{author}}',
         },
         panels: {
           canvas: {
@@ -316,6 +324,8 @@ export const i18nResources = {
       },
       form: {
         titleLabel: 'Story title',
+        authorLabel: 'Author',
+        authorPlaceholder: 'Enter author name',
         descriptionLabel: 'Scene description',
         counter: '{{current}} / {{max}}',
         submit: 'Create Storybook',
@@ -390,6 +400,9 @@ export const i18nResources = {
           confirm: 'ログイン/登録ページへ移動',
           cancel: 'このまま編集する',
           close: 'ログイン案内を閉じる',
+        },
+        reader: {
+          byAuthor: '作：{{author}}',
         },
         panels: {
           canvas: {
@@ -478,6 +491,8 @@ export const i18nResources = {
       },
       form: {
         titleLabel: '絵本タイトル',
+        authorLabel: '著者',
+        authorPlaceholder: '著者名を入力してください',
         descriptionLabel: '絵の説明',
         counter: '{{current}} / {{max}}',
         submit: '絵本をつくる',
@@ -552,6 +567,9 @@ export const i18nResources = {
           confirm: '前往登录/注册页面',
           cancel: '继续编辑',
           close: '关闭登录提示',
+        },
+        reader: {
+          byAuthor: '作者：{{author}}',
         },
         panels: {
           canvas: {
@@ -640,6 +658,8 @@ export const i18nResources = {
       },
       form: {
         titleLabel: '绘本标题',
+        authorLabel: '作者',
+        authorPlaceholder: '请输入作者名',
         descriptionLabel: '画面说明',
         counter: '{{current}} / {{max}}',
         submit: '生成绘本',

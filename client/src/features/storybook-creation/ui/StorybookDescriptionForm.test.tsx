@@ -15,6 +15,7 @@ describe('StorybookDescriptionForm', () => {
     )
 
     expect(screen.getByLabelText('동화 제목')).toBeInTheDocument()
+    expect(screen.getByLabelText('지은이')).toBeInTheDocument()
     expect(screen.getByText('0 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
@@ -56,6 +57,7 @@ describe('StorybookDescriptionForm', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       title: '달빛 등불',
+      authorName: '',
       description: '작은 고양이가 등불을 들고 있어요',
     })
   })
@@ -77,7 +79,26 @@ describe('StorybookDescriptionForm', () => {
     expect(titleInput).toHaveValue('123456789012345678901234567890')
     expect(onSubmit).toHaveBeenCalledWith({
       title: '123456789012345678901234567890',
+      authorName: '',
       description: '달빛 정원에서 고양이가 춤춰요',
+    })
+  })
+
+  it('지은이 입력값도 trim 되어 제출된다', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn(async () => undefined)
+
+    render(<StorybookDescriptionForm onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('동화 제목'), '은하수 산책')
+    await user.type(screen.getByLabelText('지은이'), '  달빛 작가  ')
+    await user.type(screen.getByLabelText('그림 설명'), '고양이가 별길을 걸어요')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      title: '은하수 산책',
+      authorName: '달빛 작가',
+      description: '고양이가 별길을 걸어요',
     })
   })
 
@@ -101,6 +122,7 @@ describe('StorybookDescriptionForm', () => {
     render(
       <StorybookDescriptionForm
         initialTitle="복원된 제목"
+        initialAuthorName="복원된 지은이"
         initialDescription="복원된 설명"
         onDraftChange={onDraftChange}
         onSubmit={() => Promise.resolve()}
@@ -108,12 +130,14 @@ describe('StorybookDescriptionForm', () => {
     )
 
     const titleInput = screen.getByLabelText('동화 제목')
+    const authorInput = screen.getByLabelText('지은이')
     const descriptionInput = screen.getByLabelText('그림 설명')
 
     expect(titleInput).toHaveValue('복원된 제목')
+    expect(authorInput).toHaveValue('복원된 지은이')
     expect(descriptionInput).toHaveValue('복원된 설명')
 
-    await user.type(titleInput, '!')
+    await user.type(authorInput, '!')
 
     expect(onDraftChange).toHaveBeenCalled()
   })
