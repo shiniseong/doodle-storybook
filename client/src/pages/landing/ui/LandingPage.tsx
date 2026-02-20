@@ -45,8 +45,11 @@ const FAIRY_GENTLE_MAX_OFFSET_X = 13
 const FAIRY_GENTLE_MAX_OFFSET_Y = 10
 const FAIRY_HIT_SPEED_THRESHOLD = 1.2
 const FAIRY_HIT_ACCELERATION_THRESHOLD = 0.016
-const FAIRY_HIT_IMPULSE_MIN = 8
-const FAIRY_HIT_IMPULSE_MAX = 20
+const FAIRY_HIT_IMPULSE_MIN = 12
+const FAIRY_HIT_IMPULSE_MAX = 34
+const FAIRY_HIT_PUSH_DISTANCE_MIN = 5
+const FAIRY_HIT_PUSH_DISTANCE_MAX = 16
+const FAIRY_HIT_CENTER_PASS_RADIUS_RATIO = 0.26
 const FAIRY_HIT_COOLDOWN_MS = 220
 const FAIRY_SPRING_STIFFNESS = 0.17
 const FAIRY_DAMPING = 0.84
@@ -204,9 +207,34 @@ export function LandingPage({ onStart }: LandingPageProps) {
     const relativePointerXFromFairy = clientX - fairyCenterX
     const relativePointerYFromFairy = clientY - fairyCenterY
     const distanceFromFairy = Math.hypot(relativePointerXFromFairy, relativePointerYFromFairy)
+    const previousRelativeXFromFairy = previousMotionSnapshot.clientX - fairyCenterX
+    const previousRelativeYFromFairy = previousMotionSnapshot.clientY - fairyCenterY
+    const previousDistanceFromFairy = Math.hypot(previousRelativeXFromFairy, previousRelativeYFromFairy)
     const interactionRadius = Math.max(fairyBounds.width, fairyBounds.height) * 0.82
 
-    if (distanceFromFairy > interactionRadius) {
+    const segmentDeltaX = clientX - previousMotionSnapshot.clientX
+    const segmentDeltaY = clientY - previousMotionSnapshot.clientY
+    const segmentLengthSquared = segmentDeltaX * segmentDeltaX + segmentDeltaY * segmentDeltaY
+    const hasValidSegment = segmentLengthSquared > 0.0001
+    const rawCenterProjection = hasValidSegment
+      ? ((fairyCenterX - previousMotionSnapshot.clientX) * segmentDeltaX +
+          (fairyCenterY - previousMotionSnapshot.clientY) * segmentDeltaY) /
+        segmentLengthSquared
+      : 0
+    const clampedCenterProjection = clamp(rawCenterProjection, 0, 1)
+    const closestPointX = hasValidSegment
+      ? previousMotionSnapshot.clientX + segmentDeltaX * clampedCenterProjection
+      : clientX
+    const closestPointY = hasValidSegment
+      ? previousMotionSnapshot.clientY + segmentDeltaY * clampedCenterProjection
+      : clientY
+    const closestDistanceFromFairy = Math.hypot(closestPointX - fairyCenterX, closestPointY - fairyCenterY)
+    const isPointerInsideNow = distanceFromFairy <= interactionRadius
+    const wasPointerInside = previousDistanceFromFairy <= interactionRadius
+    const didSweepTouchFairy = hasValidSegment && closestDistanceFromFairy <= interactionRadius
+    const isInteractionReachable = isPointerInsideNow || wasPointerInside || didSweepTouchFairy
+
+    if (!isInteractionReachable) {
       fairyTargetOffsetRef.current = { x: 0, y: 0 }
       return
     }
@@ -229,14 +257,50 @@ export function LandingPage({ onStart }: LandingPageProps) {
       return
     }
 
-    const normalizedVelocityMagnitude = Math.max(0.0001, Math.hypot(velocityX, velocityY))
-    const normalizedVelocityX = velocityX / normalizedVelocityMagnitude
-    const normalizedVelocityY = velocityY / normalizedVelocityMagnitude
-    const rawImpulseStrength = speed * 8 + accelerationMagnitude * 540
+    const isApproachingCenter =
+      hasValidSegment &&
+      (fairyCenterX - previousMotionSnapshot.clientX) * segmentDeltaX +
+        (fairyCenterY - previousMotionSnapshot.clientY) * segmentDeltaY >
+        0
+
+    if (!isApproachingCenter) {
+      return
+    }
+
+    const didPassCenterOnSweep =
+      hasValidSegment &&
+      rawCenterProjection >= 0 &&
+      rawCenterProjection <= 1 &&
+      closestDistanceFromFairy <= interactionRadius * FAIRY_HIT_CENTER_PASS_RADIUS_RATIO
+
+    const depthRatio = clamp(
+      1 - (didPassCenterOnSweep ? 0 : closestDistanceFromFairy) / interactionRadius,
+      0,
+      1,
+    )
+    const centerPassBonus = didPassCenterOnSweep ? 0.9 : 0
+    const impactMultiplier = 1 + depthRatio * 0.9 + centerPassBonus
+    const segmentLength = hasValidSegment ? Math.sqrt(segmentLengthSquared) : 0
+    const movementMagnitude = Math.max(segmentLength, Math.hypot(velocityX, velocityY))
+
+    if (movementMagnitude <= 0.0001) {
+      return
+    }
+
+    const impactDirectionX =
+      segmentLength > 0.0001 ? segmentDeltaX / segmentLength : velocityX / movementMagnitude
+    const impactDirectionY =
+      segmentLength > 0.0001 ? segmentDeltaY / segmentLength : velocityY / movementMagnitude
+
+    const rawImpulseStrength = (speed * 9 + accelerationMagnitude * 620) * impactMultiplier
     const impulseStrength = clamp(rawImpulseStrength, FAIRY_HIT_IMPULSE_MIN, FAIRY_HIT_IMPULSE_MAX)
+    const rawPushDistance = (speed * 4.2 + accelerationMagnitude * 380) * (0.62 + depthRatio + centerPassBonus * 0.55)
+    const pushDistance = clamp(rawPushDistance, FAIRY_HIT_PUSH_DISTANCE_MIN, FAIRY_HIT_PUSH_DISTANCE_MAX)
     const fairyPhysics = fairyPhysicsRef.current
-    fairyPhysics.velocityX += -normalizedVelocityX * impulseStrength
-    fairyPhysics.velocityY += -normalizedVelocityY * impulseStrength
+    fairyPhysics.x = clamp(fairyPhysics.x - impactDirectionX * pushDistance, -FAIRY_MAX_OFFSET_X, FAIRY_MAX_OFFSET_X)
+    fairyPhysics.y = clamp(fairyPhysics.y - impactDirectionY * pushDistance, -FAIRY_MAX_OFFSET_Y, FAIRY_MAX_OFFSET_Y)
+    fairyPhysics.velocityX += -impactDirectionX * impulseStrength
+    fairyPhysics.velocityY += -impactDirectionY * impulseStrength
     fairyHitCooldownUntilMsRef.current = timestampMs + FAIRY_HIT_COOLDOWN_MS
   }
 
