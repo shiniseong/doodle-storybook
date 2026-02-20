@@ -1,0 +1,100 @@
+.auth-page {
+  position: relative;
+  min-height: 100dvh;
+  padding: clamp(1rem, 3vw, 2rem);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.auth-page__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 16% 22%, rgba(255, 220, 161, 0.55), transparent 34%),
+    radial-gradient(circle at 84% 78%, rgba(160, 223, 255, 0.48), transparent 38%),
+    linear-gradient(158deg, #f7fbff 0%, #eef7ff 55%, #fff7ea 100%);
+}
+
+.auth-page__card {
+  position: relative;
+  width: min(100%, 30rem);
+  border: 1px solid rgba(110, 156, 185, 0.28);
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 1.3rem 2.5rem rgba(20, 69, 99, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(0.4rem);
+  padding: clamp(1rem, 3vw, 1.4rem);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-page__header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.auth-page__card h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.38rem, 3.8vw, 1.82rem);
+  line-height: 1.12;
+  color: var(--ink-strong);
+}
+
+.auth-page__description {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.auth-page__actions {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.auth-provider-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: 1px solid rgba(112, 155, 183, 0.38);
+  border-radius: 0.86rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: #17364f;
+  padding: 0.72rem 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-provider-button--google {
+  border-color: rgba(107, 144, 167, 0.38);
+}
+
+.auth-provider-button--apple {
+  border-color: rgba(88, 104, 117, 0.34);
+}
+
+.auth-provider-button--kakao {
+  border-color: rgba(193, 157, 50, 0.44);
+}
+
+.auth-provider-button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.auth-provider-button:focus-visible {
+  outline: 3px solid rgba(78, 177, 225, 0.3);
+  outline-offset: 2px;
+}
+
+.auth-page__status {
+  margin: 0;
+  min-height: 1.2rem;
+  color: #3a617f;
+  font-size: 0.84rem;
+}

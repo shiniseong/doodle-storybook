@@ -9,6 +9,16 @@ const VITE_SUPABASE_URL = 'https://vite-project.supabase.co'
 const VITE_SUPABASE_KEY = 'sb_publishable_vite_key'
 const NEXT_PUBLIC_SUPABASE_URL = 'https://next-project.supabase.co'
 const NEXT_PUBLIC_SUPABASE_KEY = 'sb_publishable_next_key'
+const SUPABASE_ENV_KEYS = [
+  'VITE_SUPABASE_URL',
+  'VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY',
+  'VITE_SUPABASE_PUBLISHABLE_KEY',
+  'VITE_SUPABASE_ANON_KEY',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY',
+  'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+] as const
 
 function createMockClient(label: string): SupabaseClient {
   return { __label: label } as unknown as SupabaseClient
@@ -25,6 +35,9 @@ async function loadClientModule() {
 beforeEach(() => {
   vi.resetModules()
   vi.unstubAllEnvs()
+  for (const envKey of SUPABASE_ENV_KEYS) {
+    vi.stubEnv(envKey, '')
+  }
   getCreateClientMock().mockReset()
 })
 

@@ -6,6 +6,16 @@ export const i18nResources = {
         appSubtitle: 'Doodle Storybook',
         language: '언어',
       },
+      authPage: {
+        title: '로그인하고 그림책 만들기',
+        description: '소셜 로그인으로 시작하면 내 동화를 안전하게 저장할 수 있어요.',
+        startWithGoogle: 'Google로 시작하기',
+        startWithApple: 'Apple로 시작하기',
+        startWithKakao: '카카오로 시작하기',
+        loadingSession: '로그인 상태 확인 중...',
+        signingIn: '로그인 진행 중...',
+        notConfigured: 'Supabase 인증 환경설정이 필요해요.',
+      },
       workspace: {
         eyebrow: '아이의 상상을 책으로 만드는 AI 스튜디오',
         status: {
@@ -124,6 +134,16 @@ export const i18nResources = {
         appName: 'Doodle Storybook',
         appSubtitle: 'Draw. Imagine. Read.',
         language: 'Language',
+      },
+      authPage: {
+        title: 'Sign in to start your storybook',
+        description: 'Use social login to keep your storybooks safely saved.',
+        startWithGoogle: 'Continue with Google',
+        startWithApple: 'Continue with Apple',
+        startWithKakao: 'Continue with Kakao',
+        loadingSession: 'Checking your session...',
+        signingIn: 'Signing in...',
+        notConfigured: 'Supabase auth environment is not configured.',
       },
       workspace: {
         eyebrow: 'An AI studio that turns a child’s imagination into a storybook',
@@ -244,6 +264,16 @@ export const i18nResources = {
         appSubtitle: 'Doodle Storybook',
         language: '言語',
       },
+      authPage: {
+        title: 'ログインして絵本をはじめる',
+        description: 'ソーシャルログインで作った絵本を安全に保存できます。',
+        startWithGoogle: 'Googleで始める',
+        startWithApple: 'Appleで始める',
+        startWithKakao: 'Kakaoで始める',
+        loadingSession: 'ログイン状態を確認中...',
+        signingIn: 'ログイン中...',
+        notConfigured: 'Supabase 認証の環境設定が必要です。',
+      },
       workspace: {
         eyebrow: '子どもの想像を絵本に変えるAIスタジオ',
         status: {
@@ -362,6 +392,16 @@ export const i18nResources = {
         appName: '咚咚绘本',
         appSubtitle: 'Doodle Storybook',
         language: '语言',
+      },
+      authPage: {
+        title: '登录后开始创作绘本',
+        description: '使用社交登录可安全保存你的绘本内容。',
+        startWithGoogle: '使用 Google 开始',
+        startWithApple: '使用 Apple 开始',
+        startWithKakao: '使用 Kakao 开始',
+        loadingSession: '正在检查登录状态...',
+        signingIn: '正在登录...',
+        notConfigured: '需要配置 Supabase 认证环境变量。',
       },
       workspace: {
         eyebrow: '把孩子的想象变成绘本的 AI 创作工作室',

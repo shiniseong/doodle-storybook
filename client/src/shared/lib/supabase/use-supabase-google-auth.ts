@@ -3,13 +3,30 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { resolveSupabaseClient } from '@shared/lib/supabase/client'
 
-interface SupabaseGoogleAuthResult {
+type SupportedSupabaseOAuthProvider = 'google' | 'apple' | 'kakao'
+
+interface SignUpWithEmailInput {
+  readonly email: string
+  readonly password: string
+}
+
+export interface SignUpWithEmailResult {
+  readonly ok: boolean
+  readonly requiresEmailVerification: boolean
+  readonly errorMessage?: string
+}
+
+export interface SupabaseGoogleAuthResult {
   readonly isConfigured: boolean
   readonly isLoading: boolean
   readonly isSigningIn: boolean
   readonly userId: string | null
   readonly userEmail: string | null
+  readonly signUpWithEmail: (input: SignUpWithEmailInput) => Promise<SignUpWithEmailResult>
+  readonly signInWithProvider: (provider: SupportedSupabaseOAuthProvider) => Promise<void>
   readonly signInWithGoogle: () => Promise<void>
+  readonly signInWithApple: () => Promise<void>
+  readonly signInWithKakao: () => Promise<void>
   readonly signOut: () => Promise<void>
 }
 
@@ -60,7 +77,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     }
   }, [supabaseClient])
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithProvider = useCallback(async (provider: SupportedSupabaseOAuthProvider) => {
     if (!supabaseClient || isSigningIn) {
       return
     }
@@ -69,7 +86,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     setIsSigningIn(true)
 
     const { error } = await supabaseClient.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       ...(redirectTo ? { options: { redirectTo } } : {}),
     })
 
@@ -77,6 +94,68 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
       setIsSigningIn(false)
     }
   }, [isSigningIn, supabaseClient])
+
+  const signInWithGoogle = useCallback(async () => {
+    await signInWithProvider('google')
+  }, [signInWithProvider])
+
+  const signInWithApple = useCallback(async () => {
+    await signInWithProvider('apple')
+  }, [signInWithProvider])
+
+  const signInWithKakao = useCallback(async () => {
+    await signInWithProvider('kakao')
+  }, [signInWithProvider])
+
+  const signUpWithEmail = useCallback(
+    async ({ email, password }: SignUpWithEmailInput): Promise<SignUpWithEmailResult> => {
+      if (!supabaseClient || isSigningIn) {
+        return {
+          ok: false,
+          requiresEmailVerification: true,
+        }
+      }
+
+      const normalizedEmail = email.trim()
+      if (normalizedEmail.length === 0 || password.length === 0) {
+        return {
+          ok: false,
+          requiresEmailVerification: true,
+        }
+      }
+
+      const emailRedirectTo = typeof window === 'undefined' ? undefined : window.location.origin
+      setIsSigningIn(true)
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: normalizedEmail,
+        password,
+        ...(emailRedirectTo
+          ? {
+              options: {
+                emailRedirectTo,
+              },
+            }
+          : {}),
+      })
+
+      setIsSigningIn(false)
+
+      if (error) {
+        return {
+          ok: false,
+          requiresEmailVerification: true,
+          errorMessage: error.message,
+        }
+      }
+
+      return {
+        ok: true,
+        requiresEmailVerification: data.session === null,
+      }
+    },
+    [isSigningIn, supabaseClient],
+  )
 
   const signOut = useCallback(async () => {
     if (!supabaseClient) {
@@ -92,7 +171,11 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     isSigningIn,
     userId: user?.id ?? null,
     userEmail: resolveUserEmail(user),
+    signUpWithEmail,
+    signInWithProvider,
     signInWithGoogle,
+    signInWithApple,
+    signInWithKakao,
     signOut,
   }
 }
