@@ -822,7 +822,7 @@ describe('StorybookWorkspace', () => {
     getBoundingClientRectSpy.mockRestore()
   })
 
-  it('생성 응답에 pages/images가 있으면 전체 화면 이북 다이얼로그를 열고 표지/하이라이트/마지막 이미지를 매핑한다', async () => {
+  it('생성 응답에 pages/images가 있으면 표지 이후 양면 스프레드로 열고 엣지 클릭으로 넘긴다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
@@ -863,28 +863,37 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('Page 1')).toBeInTheDocument()
+        expect(screen.getByText('- 1 -')).toBeInTheDocument()
+        expect(screen.getByText('- 2 -')).toBeInTheDocument()
       },
       { timeout: 1200 },
     )
 
-    expect(screen.queryByAltText('1페이지 삽화')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Prompt v/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '다음' }))
-    await waitFor(() => {
-      expect(screen.getByText('Page 2 · Highlight')).toBeInTheDocument()
-    })
+    expect(screen.queryByAltText('1페이지 삽화')).not.toBeInTheDocument()
 
     const highlightImage = screen.getByAltText('2페이지 삽화') as HTMLImageElement
     expect(highlightImage.src).toContain('data:image/png;base64,highlightimg')
 
-    await user.click(screen.getByRole('button', { name: '다음' }))
+    await user.click(screen.getByRole('button', { name: '다음 장으로 넘기기' }))
     await waitFor(() => {
-      expect(screen.getByText('Page 3')).toBeInTheDocument()
+      expect(screen.getByText('- 3 -')).toBeInTheDocument()
     })
 
     const lastImage = screen.getByAltText('3페이지 삽화') as HTMLImageElement
     expect(lastImage.src).toContain('data:image/png;base64,lastimg')
+
+    await user.click(screen.getByRole('button', { name: '이전 장으로 넘기기' }))
+    await waitFor(() => {
+      expect(screen.getByText('- 1 -')).toBeInTheDocument()
+      expect(screen.getByText('- 2 -')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '표지로 돌아가기' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '표지 넘기기' })).toBeInTheDocument()
+    })
   })
 
   it('라이브 북 미리보기 섹션을 렌더링하지 않는다', () => {
