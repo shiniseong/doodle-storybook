@@ -71,3 +71,48 @@ export default defineConfig([
   },
 ])
 ```
+
+## Cloudflare Pages Functions + OpenAI
+
+This project now includes a Pages Function endpoint:
+
+- `POST /api/storybooks`
+- file: `functions/api/storybooks.ts`
+
+### Required environment variables
+
+Set in Cloudflare Pages project:
+
+- `OPENAI_API_KEY` (secret)
+- `OPENAI_PROMPT_ID` (var, default configured in `wrangler.jsonc`)
+- `OPENAI_PROMPT_VERSION` (var, default `2`)
+- `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1`)
+
+For local Pages dev, create `client/.dev.vars`:
+
+```bash
+OPENAI_API_KEY="sk-..."
+OPENAI_PROMPT_ID="pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697"
+OPENAI_PROMPT_VERSION="2"
+OPENAI_IMAGE_MODEL="gpt-image-1"
+```
+
+If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
+
+```bash
+VITE_API_BASE_URL="http://127.0.0.1:8788"
+```
+
+### Commands
+
+```bash
+npm run build
+npm run cf:pages:dev
+```
+
+Deploy:
+
+```bash
+npm run build
+npm run cf:pages:deploy -- --project-name doodle-storybook
+```

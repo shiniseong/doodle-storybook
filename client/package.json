@@ -13,7 +13,10 @@
     "verify": "npm run lint && npm run test:coverage && npm run build",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "cf:types": "npx wrangler types",
+    "cf:pages:dev": "npx wrangler pages dev dist",
+    "cf:pages:deploy": "npx wrangler pages deploy dist"
   },
   "dependencies": {
     "framer-motion": "^12.34.2",
