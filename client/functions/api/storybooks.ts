@@ -726,6 +726,8 @@ function buildSingleImagePrompt(
   scenePrompt: string,
   imagePrompts: StoryImagePrompts,
   characters: StoryCharacter[],
+  storyTitle: string,
+  storyDescription: string,
 ): string {
   const commonStyleGuide =
     imagePrompts.commonStyleGuide && imagePrompts.commonStyleGuide.trim().length > 0
@@ -749,6 +751,9 @@ function buildSingleImagePrompt(
     'Create exactly one children\'s storybook illustration for a single scene.',
     'Output one full-frame image only. Do not create a collage, split-panel, triptych, or multi-scene composition.',
     'Keep protagonist identity, color palette, line quality, and painting style consistent with the rest of the book images.',
+    'Service context: This service creates high-quality children\'s storybooks from a child\'s drawing, the user\'s story title, and the user\'s story description.',
+    `User-provided story title: ${storyTitle}`,
+    `User-provided story description: ${storyDescription}`,
     'No text, letters, logos, or watermarks.',
     ...characterLines,
     ...(commonStyleGuide ? [`Shared style guide: ${commonStyleGuide}`] : []),
@@ -784,6 +789,8 @@ async function generateImageFromPrompt(
   scenePrompt: string,
   imagePrompts: StoryImagePrompts,
   characters: StoryCharacter[],
+  storyTitle: string,
+  storyDescription: string,
   env: Env,
 ): Promise<string | null> {
   if (scenePrompt.trim().length === 0) {
@@ -801,7 +808,14 @@ async function generateImageFromPrompt(
       },
       body: JSON.stringify({
         model: env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-        prompt: buildSingleImagePrompt(sceneRole, scenePrompt, imagePrompts, characters),
+        prompt: buildSingleImagePrompt(
+          sceneRole,
+          scenePrompt,
+          imagePrompts,
+          characters,
+          storyTitle,
+          storyDescription,
+        ),
         size: '1024x1024',
         quality: 'low',
         output_format: 'png',
@@ -1002,6 +1016,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       parsedPromptStorybook.imagePrompts.cover,
       parsedPromptStorybook.imagePrompts,
       parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
       context.env,
     ),
     generateImageFromPrompt(
@@ -1009,6 +1025,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       parsedPromptStorybook.imagePrompts.highlight,
       parsedPromptStorybook.imagePrompts,
       parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
       context.env,
     ),
     generateImageFromPrompt(
@@ -1016,6 +1034,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       parsedPromptStorybook.imagePrompts.end,
       parsedPromptStorybook.imagePrompts,
       parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
       context.env,
     ),
     ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),

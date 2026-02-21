@@ -176,6 +176,11 @@ describe('storybooks function (v13 pipeline)', () => {
         expect(requestBody.n).toBeUndefined()
         expect(requestBody.prompt).toContain('Output one full-frame image only')
         expect(requestBody.prompt).toContain('Do not create a collage')
+        expect(requestBody.prompt).toContain(
+          'Service context: This service creates high-quality children\'s storybooks from a child\'s drawing, the user\'s story title, and the user\'s story description.',
+        )
+        expect(requestBody.prompt).toContain('User-provided story title: 별빛 숲의 비밀')
+        expect(requestBody.prompt).toContain('User-provided story description: 작은 토끼가 별빛 숲에서 친구를 만나는 이야기')
         expect(requestBody.prompt).toContain('Character consistency reference')
         expect(requestBody.prompt).toContain('[p1] 토비: 작은 흰 토끼, 파란 목도리, 둥근 눈')
         expect(requestBody.prompt).toContain('Main protagonist: 토비. Keep this protagonist as the clear visual focus.')
