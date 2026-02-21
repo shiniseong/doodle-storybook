@@ -275,9 +275,10 @@ describe('storybooks function (v21 pipeline)', () => {
 
     expect(response.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledTimes(17)
-    expect(bucketPutMock).toHaveBeenCalledTimes(16)
+    expect(bucketPutMock).toHaveBeenCalledTimes(17)
 
     const payload = (await response.json()) as {
+      storybookId: string
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
       images: string[]
       narrations: Array<{ page: number; audioDataUrl: string }>
@@ -305,14 +306,27 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(payload.createdStoryBookId.length).toBeGreaterThan(0)
 
     const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-cover`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-cover-thumbnail`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-highlight`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-highlight-thumbnail`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-end`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-end-thumbnail`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-tts-p1`)
-    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-tts-p10`)
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-origin`,
+    )
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-cover`,
+    )
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-cover-thumbnail`,
+    )
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-highlight`,
+    )
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-highlight-thumbnail`,
+    )
+    expect(storedKeys).toContain(`user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end`)
+    expect(storedKeys).toContain(
+      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end-thumbnail`,
+    )
+    expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p1`)
+    expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p10`)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {

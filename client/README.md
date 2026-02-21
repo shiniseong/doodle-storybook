@@ -96,6 +96,7 @@ Configure R2 bucket binding in `wrangler.jsonc`:
 
 Stored object naming convention:
 
+- `{userId}-{createdStoryBookId}-image-origin`
 - `{userId}-{createdStoryBookId}-image-cover`
 - `{userId}-{createdStoryBookId}-image-cover-thumbnail`
 - `{userId}-{createdStoryBookId}-image-highlight`
@@ -103,6 +104,11 @@ Stored object naming convention:
 - `{userId}-{createdStoryBookId}-image-end`
 - `{userId}-{createdStoryBookId}-image-end-thumbnail`
 - `{userId}-{createdStoryBookId}-tts-p1` ... `{userId}-{createdStoryBookId}-tts-p10`
+
+Stored path convention:
+
+- Images (including origin and generated): `{userId}/{storyBookId}/images/*`
+- TTS files: `{userId}/{storyBookId}/tts/*`
 
 For local Pages dev, create `client/.dev.vars`:
 

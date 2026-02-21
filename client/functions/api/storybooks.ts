@@ -49,6 +49,7 @@ interface StoryPageNarration {
 }
 
 interface StoryImageStorageKeys {
+  origin: string
   cover: string
   coverThumbnail: string
   highlight: string
@@ -684,20 +685,25 @@ function parseDataUrl(value: string): { mimeType: string; bytes: Uint8Array } | 
   }
 }
 
-function buildStoryImageStorageKeys(userId: string, createdStoryBookId: string): StoryImageStorageKeys {
+function buildStoryImageStorageKeys(
+  userId: string,
+  createdStoryBookId: string,
+  imagesDirectory: string,
+): StoryImageStorageKeys {
   const keyPrefix = `${userId}-${createdStoryBookId}`
   return {
-    cover: `${keyPrefix}-image-cover`,
-    coverThumbnail: `${keyPrefix}-image-cover-thumbnail`,
-    highlight: `${keyPrefix}-image-highlight`,
-    highlightThumbnail: `${keyPrefix}-image-highlight-thumbnail`,
-    end: `${keyPrefix}-image-end`,
-    endThumbnail: `${keyPrefix}-image-end-thumbnail`,
+    origin: `${imagesDirectory}/${keyPrefix}-image-origin`,
+    cover: `${imagesDirectory}/${keyPrefix}-image-cover`,
+    coverThumbnail: `${imagesDirectory}/${keyPrefix}-image-cover-thumbnail`,
+    highlight: `${imagesDirectory}/${keyPrefix}-image-highlight`,
+    highlightThumbnail: `${imagesDirectory}/${keyPrefix}-image-highlight-thumbnail`,
+    end: `${imagesDirectory}/${keyPrefix}-image-end`,
+    endThumbnail: `${imagesDirectory}/${keyPrefix}-image-end-thumbnail`,
   }
 }
 
-function buildTtsStorageKey(userId: string, createdStoryBookId: string, page: number): string {
-  return `${userId}-${createdStoryBookId}-tts-p${page}`
+function buildTtsStorageKey(userId: string, createdStoryBookId: string, page: number, ttsDirectory: string): string {
+  return `${ttsDirectory}/${userId}-${createdStoryBookId}-tts-p${page}`
 }
 
 async function uploadDataUrlToR2(
@@ -1118,7 +1124,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const assetsBucket = context.env.STORYBOOK_ASSETS_BUCKET
   const createdStoryBookId = crypto.randomUUID()
-  const imageStorageKeys = buildStoryImageStorageKeys(normalizedBody.userId, createdStoryBookId)
+  const storybookId = `storybook-${createdStoryBookId}`
+  const imagesDirectory = `${normalizedBody.userId}/${storybookId}/images`
+  const ttsDirectory = `${normalizedBody.userId}/${storybookId}/tts`
+  const imageStorageKeys = buildStoryImageStorageKeys(normalizedBody.userId, createdStoryBookId, imagesDirectory)
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
@@ -1211,7 +1220,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   ]
 
   const narrationStorageKeys = narrations.map((narration) =>
-    buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page),
+    buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
   )
 
   const uploadResults = await Promise.all([
@@ -1257,10 +1266,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.userId,
       createdStoryBookId,
     ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.origin,
+      normalizedBody.imageDataUrl ?? TRANSPARENT_PNG_DATA_URL,
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
     ...narrations.map((narration) =>
       uploadDataUrlToR2(
         assetsBucket,
-        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page),
+        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
         narration.audioDataUrl,
         normalizedBody.userId,
         createdStoryBookId,
@@ -1278,7 +1294,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   return jsonResponse({
-    storybookId: `storybook-${createdStoryBookId}`,
+    storybookId,
     createdStoryBookId,
     openaiResponseId: openAIResponseBody.id ?? null,
     promptVersion,
