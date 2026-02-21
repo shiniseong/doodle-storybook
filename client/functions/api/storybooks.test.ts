@@ -83,7 +83,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
     env: {
       OPENAI_API_KEY: 'test-api-key',
       OPENAI_PROMPT_ID: 'pmpt_test',
-      OPENAI_PROMPT_VERSION: '17',
+      OPENAI_PROMPT_VERSION: '19',
       OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
       OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
       OPENAI_TTS_VOICE: 'alloy',
@@ -92,7 +92,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
   } as unknown as Parameters<typeof onRequestPost>[0]
 }
 
-describe('storybooks function (v17 pipeline)', () => {
+describe('storybooks function (v19 pipeline)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -101,7 +101,7 @@ describe('storybooks function (v17 pipeline)', () => {
     vi.restoreAllMocks()
   })
 
-  it('v17 스키마를 파싱해 highlightPage를 isHighlight 플래그로 변환한다', () => {
+  it('v19 스키마를 파싱해 highlightPage를 isHighlight 플래그로 변환한다', () => {
     const schema = createStoryPromptSchemaOutput()
     const parsed = parsePromptStorybookOutput(JSON.stringify(schema))
 
@@ -183,7 +183,7 @@ describe('storybooks function (v17 pipeline)', () => {
           id: 'resp-v9-1',
           prompt: {
             id: 'pmpt_test',
-            version: '17',
+            version: '19',
           },
           output_text: JSON.stringify(schema),
         })
@@ -254,8 +254,8 @@ describe('storybooks function (v17 pipeline)', () => {
       openaiResponseId: string
     }
 
-    expect(payload.promptVersion).toBe('17')
-    expect(payload.upstreamPromptVersion).toBe('17')
+    expect(payload.promptVersion).toBe('19')
+    expect(payload.upstreamPromptVersion).toBe('19')
     expect(payload.openaiResponseId).toBe('resp-v9-1')
     expect(payload.pages).toHaveLength(10)
     expect(payload.pages.filter((page) => page.isHighlight)).toHaveLength(1)
@@ -392,7 +392,7 @@ describe('storybooks function (v17 pipeline)', () => {
     expect(response.status).toBe(200)
   })
 
-  it('v17 스키마가 아니면 502 에러를 반환한다', async () => {
+  it('v19 스키마가 아니면 502 에러를 반환한다', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       if (url === 'https://api.openai.com/v1/responses') {
