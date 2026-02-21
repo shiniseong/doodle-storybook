@@ -162,11 +162,7 @@ describe('storybooks function (v17 pipeline)', () => {
 
       if (url === 'https://api.openai.com/v1/responses') {
         const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
-          prompt?: {
-            variables?: {
-              is_preserve_original_drawing_style?: string
-            }
-          }
+          prompt?: Record<string, unknown>
           input?: Array<{
             content?: Array<{
               type?: string
@@ -180,7 +176,6 @@ describe('storybooks function (v17 pipeline)', () => {
           .map((contentItem) => contentItem.text ?? '')
           .join('\n')
 
-        expect(requestBody.prompt?.variables?.is_preserve_original_drawing_style).toBe('false')
         expect(inputTexts).not.toContain('PRESERVE (DO NOT CHANGE):')
         expect(inputTexts).not.toContain('MANDATORY MEDIUM REQUIREMENT:')
 
@@ -273,66 +268,6 @@ describe('storybooks function (v17 pipeline)', () => {
     expect(payload.narrations).toHaveLength(10)
     expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.content))
-  })
-
-  it('원본 그림체 보존 옵션 true를 최초 프롬프트 변수 문자열로 전달한다', async () => {
-    let capturedOptionValue: string | undefined
-    let capturedInputText = ''
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-
-      if (url === 'https://api.openai.com/v1/responses') {
-        const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
-          prompt?: {
-            variables?: {
-              is_preserve_original_drawing_style?: string
-            }
-          }
-          input?: Array<{
-            content?: Array<{
-              type?: string
-              text?: string
-            }>
-          }>
-        }
-        capturedOptionValue = requestBody.prompt?.variables?.is_preserve_original_drawing_style
-        capturedInputText = (requestBody.input ?? [])
-          .flatMap((item) => item.content ?? [])
-          .filter((contentItem) => contentItem.type === 'input_text')
-          .map((contentItem) => contentItem.text ?? '')
-          .join('\n')
-
-        return createJsonResponse({
-          id: 'resp-invalid-style-option',
-          output_text: JSON.stringify({
-            pages: [{ page: 1, content: 'invalid' }],
-          }),
-        })
-      }
-
-      throw new Error('No downstream call should happen.')
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await onRequestPost(
-      createContext({
-        userId: 'user-style-option',
-        language: 'ko',
-        title: '그림체 옵션 전달',
-        description: '옵션이 최초 프롬프트 변수로 전달되어야 해요',
-        is_preserve_original_drawing_style: true,
-      }),
-    )
-
-    expect(response.status).toBe(502)
-    expect(capturedOptionValue).toBe('true')
-    expect(capturedInputText).toContain(
-      "We are a service that turns children's drawings into storybooks, and we received a request to preserve the child's original drawing style.",
-    )
-    expect(capturedInputText).toContain('MANDATORY MEDIUM REQUIREMENT:')
-    expect(capturedInputText).toContain('The final illustrations must use a crayon-drawn texture and look.')
-    expect(capturedInputText).toContain('PRESERVE (DO NOT CHANGE):')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {

@@ -14,7 +14,6 @@ interface StorybookCreateRequestBody {
   language: StoryLanguage
   title: string
   description: string
-  is_preserve_original_drawing_style: boolean
   imageDataUrl?: string
 }
 
@@ -94,31 +93,6 @@ const DEFAULT_TTS_VOICE = 'alloy'
 const MAX_NARRATION_COUNT = 10
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
-const PRESERVE_ORIGINAL_DRAWING_STYLE_PROMPT = `We are a service that turns children's drawings into storybooks, and we received a request to preserve the child's original drawing style.
-
-MANDATORY MEDIUM REQUIREMENT:
-- The final illustrations must use a crayon-drawn texture and look.
-- Keep visible waxy crayon strokes, soft layered coloring, slight pressure variation, and subtle paper grain.
-- Keep it hand-drawn and childlike in medium; do not switch to photoreal, 3D, vector-flat, glossy digital paint, or oil/acrylic-like rendering.
-
-PRESERVE (DO NOT CHANGE):
-- Character count and CAST ROSTER identifiers exactly.
-- Core silhouettes and quirky proportions (e.g., big head / tiny body / stick arms) IF present.
-- Childlike face design (simple dot eyes, simple mouth) IF present.
-- Unique accessories/props and unusual color choices from the roster.
-- The "weird but charming" traits that make it recognizably the child’s idea.
-
-IMPROVE (UPGRADE TECHNICAL QUALITY ONLY):
-- Clean, confident ink outlines (remove shaky/noisy strokes).
-- Smooth crayon fills with tidy edges (no messy spill).
-- Correct rendering errors (no extra limbs/fingers, no melted faces).
-- Higher resolution, consistent lighting, consistent materials.
-- Keep anatomy simple and cute; do not add realistic micro-details.
-
-Rule of thumb:
-"Keep the design, upgrade the rendering."
-
-For each cast member, if the child concept implies a quirky proportion/shape (e.g., huge head, tiny legs, stick arms), include it as one of the identifiers so it is preserved.`
 
 function withCors(headers?: HeadersInit): Headers {
   const nextHeaders = new Headers(headers)
@@ -179,16 +153,8 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
     return null
   }
 
-  if (
-    candidate.is_preserve_original_drawing_style !== undefined &&
-    typeof candidate.is_preserve_original_drawing_style !== 'boolean'
-  ) {
-    return null
-  }
-
   const normalizedTitle = candidate.title.trim()
   const normalizedDescription = candidate.description.trim()
-  const normalizedIsPreserveOriginalDrawingStyle = candidate.is_preserve_original_drawing_style === true
   const normalizedImageDataUrl =
     typeof candidate.imageDataUrl === 'string' && candidate.imageDataUrl.startsWith('data:image/')
       ? candidate.imageDataUrl
@@ -203,7 +169,6 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
     language: candidate.language,
     title: normalizedTitle,
     description: normalizedDescription,
-    is_preserve_original_drawing_style: normalizedIsPreserveOriginalDrawingStyle,
     ...(normalizedImageDataUrl ? { imageDataUrl: normalizedImageDataUrl } : {}),
   }
 }
@@ -974,13 +939,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     })
   }
 
-  if (normalizedBody.is_preserve_original_drawing_style) {
-    inputContent.push({
-      type: 'input_text',
-      text: PRESERVE_ORIGINAL_DRAWING_STYLE_PROMPT,
-    })
-  }
-
   const promptVersion = context.env.OPENAI_PROMPT_VERSION || DEFAULT_PROMPT_VERSION
 
   let upstreamResponse: Response
@@ -1000,7 +958,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             language: resolvePromptLanguage(normalizedBody.language),
             title: normalizedBody.title,
             description: normalizedBody.description,
-            is_preserve_original_drawing_style: normalizedBody.is_preserve_original_drawing_style ? 'true' : 'false',
           },
         },
         input: [

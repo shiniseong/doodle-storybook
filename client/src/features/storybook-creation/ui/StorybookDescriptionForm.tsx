@@ -10,7 +10,6 @@ export interface StorybookDescriptionFormSubmit {
   title: string
   authorName: string
   description: string
-  isPreserveOriginalDrawingStyle: boolean
 }
 
 interface StorybookDescriptionFormProps {
@@ -21,13 +20,7 @@ interface StorybookDescriptionFormProps {
   initialTitle?: string
   initialAuthorName?: string
   initialDescription?: string
-  initialIsPreserveOriginalDrawingStyle?: boolean
-  onDraftChange?: (draft: {
-    title: string
-    authorName: string
-    description: string
-    isPreserveOriginalDrawingStyle: boolean
-  }) => void
+  onDraftChange?: (draft: { title: string; authorName: string; description: string }) => void
   onSubmit: (payload: StorybookDescriptionFormSubmit) => void | Promise<void>
 }
 
@@ -39,7 +32,6 @@ export function StorybookDescriptionForm({
   initialTitle = '',
   initialAuthorName = '',
   initialDescription = '',
-  initialIsPreserveOriginalDrawingStyle = false,
   onDraftChange,
   onSubmit,
 }: StorybookDescriptionFormProps) {
@@ -47,7 +39,6 @@ export function StorybookDescriptionForm({
   const [title, setTitle] = useState(initialTitle)
   const [authorName, setAuthorName] = useState(initialAuthorName)
   const [description, setDescription] = useState(initialDescription)
-  const [isPreserveOriginalDrawingStyle, setIsPreserveOriginalDrawingStyle] = useState(initialIsPreserveOriginalDrawingStyle)
 
   const trimmedTitle = title.trim()
   const trimmedAuthorName = authorName.trim()
@@ -63,9 +54,8 @@ export function StorybookDescriptionForm({
       title,
       authorName,
       description,
-      isPreserveOriginalDrawingStyle,
     })
-  }, [authorName, description, isPreserveOriginalDrawingStyle, onDraftChange, title])
+  }, [authorName, description, onDraftChange, title])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -77,7 +67,6 @@ export function StorybookDescriptionForm({
       title: trimmedTitle,
       authorName: trimmedAuthorName,
       description: trimmedDescription,
-      isPreserveOriginalDrawingStyle,
     })
   }
 
@@ -119,39 +108,6 @@ export function StorybookDescriptionForm({
           setDescription(event.target.value)
         }}
       />
-      <div className="compose-form__style-toggle" role="group" aria-labelledby="preserve-style-label">
-        <div className="compose-form__style-toggle-copy">
-          <p id="preserve-style-label" className="compose-form__style-toggle-label">
-            {t('form.preserveOriginalDrawingStyleLabel')}
-          </p>
-          <p id="preserve-style-description" className="compose-form__style-toggle-description">
-            {isPreserveOriginalDrawingStyle
-              ? t('form.preserveOriginalDrawingStyleDescriptionOn')
-              : t('form.preserveOriginalDrawingStyleDescriptionOff')}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          className={`compose-form__style-toggle-switch${
-            isPreserveOriginalDrawingStyle ? ' compose-form__style-toggle-switch--active' : ''
-          }`}
-          aria-checked={isPreserveOriginalDrawingStyle}
-          aria-labelledby="preserve-style-label"
-          aria-describedby="preserve-style-description"
-          disabled={isSubmitting}
-          onClick={() => {
-            setIsPreserveOriginalDrawingStyle((previous) => !previous)
-          }}
-        >
-          <span className="compose-form__style-toggle-track" aria-hidden="true">
-            <span className="compose-form__style-toggle-thumb" />
-          </span>
-          <span className="compose-form__style-toggle-state" aria-hidden="true">
-            {isPreserveOriginalDrawingStyle ? t('form.toggleOn') : t('form.toggleOff')}
-          </span>
-        </button>
-      </div>
       <div className="compose-form__footer">
         <span aria-live="polite">
           {t('form.counter', { current: description.length, max: maxLength })}

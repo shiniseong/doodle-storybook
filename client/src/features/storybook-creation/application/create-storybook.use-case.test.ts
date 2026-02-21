@@ -33,33 +33,6 @@ describe('CreateStorybookUseCase', () => {
       title: '달빛 숲 모험',
       description: '토끼가 달빛 숲에서 길을 찾아요',
       language: 'ko',
-      isPreserveOriginalDrawingStyle: false,
-    })
-  })
-
-  it('원본 그림체 보존 옵션을 명령 포트로 전달한다', async () => {
-    const quotaPort: StorybookQuotaPort = {
-      canCreateStorybook: vi.fn(async () => true),
-    }
-    const commandPort: StorybookCommandPort = {
-      createStorybook: vi.fn(async () => ({ storybookId: 'storybook-2' })),
-    }
-
-    const useCase = new CreateStorybookUseCase(quotaPort, commandPort)
-    await useCase.execute({
-      userId: 'user-2',
-      title: '그림체 보존',
-      description: '아이 그림 느낌을 살려서 동화를 만들어요',
-      language: 'ko',
-      isPreserveOriginalDrawingStyle: true,
-    })
-
-    expect(commandPort.createStorybook).toHaveBeenCalledWith({
-      userId: 'user-2',
-      title: '그림체 보존',
-      description: '아이 그림 느낌을 살려서 동화를 만들어요',
-      language: 'ko',
-      isPreserveOriginalDrawingStyle: true,
     })
   })
 

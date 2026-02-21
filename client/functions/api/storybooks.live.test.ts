@@ -32,7 +32,6 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
             language: 'ko',
             title: '작은 별 배달부',
             description: '작은 여우가 잃어버린 별을 찾아 밤하늘에 돌려주는 이야기',
-            is_preserve_original_drawing_style: false,
           }),
         }),
         env: {

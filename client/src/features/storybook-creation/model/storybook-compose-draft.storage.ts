@@ -4,7 +4,6 @@ export interface StorybookWorkspaceDraft {
   readonly title: string
   readonly authorName: string
   readonly description: string
-  readonly isPreserveOriginalDrawingStyle: boolean
   readonly canvasDataUrl: string | null
 }
 
@@ -12,7 +11,6 @@ export const EMPTY_STORYBOOK_WORKSPACE_DRAFT: StorybookWorkspaceDraft = {
   title: '',
   authorName: '',
   description: '',
-  isPreserveOriginalDrawingStyle: false,
   canvasDataUrl: null,
 }
 
@@ -52,16 +50,11 @@ function normalizeCanvasDataUrl(value: unknown): string | null {
   return value
 }
 
-function normalizeIsPreserveOriginalDrawingStyle(value: unknown): boolean {
-  return value === true
-}
-
 function isEmptyDraft(draft: StorybookWorkspaceDraft): boolean {
   return (
     draft.title.length === 0 &&
     draft.authorName.length === 0 &&
     draft.description.length === 0 &&
-    draft.isPreserveOriginalDrawingStyle === false &&
     draft.canvasDataUrl === null
   )
 }
@@ -87,7 +80,6 @@ export function loadStorybookWorkspaceDraft(): StorybookWorkspaceDraft {
       title: normalizeDraftField(parsed.title),
       authorName: normalizeDraftField(parsed.authorName),
       description: normalizeDraftField(parsed.description),
-      isPreserveOriginalDrawingStyle: normalizeIsPreserveOriginalDrawingStyle(parsed.isPreserveOriginalDrawingStyle),
       canvasDataUrl: normalizeCanvasDataUrl(parsed.canvasDataUrl),
     }
   } catch {
