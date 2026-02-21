@@ -93,6 +93,7 @@ Set in Cloudflare Pages project:
 Configure R2 bucket binding in `wrangler.jsonc`:
 
 - `STORYBOOK_ASSETS_BUCKET` (R2 binding)
+- `remote: true` is enabled, so `wrangler pages dev` writes to the real Cloudflare R2 bucket (not local SQLite)
 
 Stored object naming convention:
 
@@ -109,6 +110,11 @@ Stored path convention:
 
 - Images (including origin and generated): `{userId}/{storyBookId}/images/*`
 - TTS files: `{userId}/{storyBookId}/tts/*`
+
+When running local preview with remote R2:
+
+- You must be logged in to Cloudflare in this shell (`npx wrangler login`) or provide `CLOUDFLARE_API_TOKEN`.
+- Writes in local preview affect the real R2 bucket.
 
 For local Pages dev, create `client/.dev.vars`:
 
