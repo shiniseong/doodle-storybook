@@ -6,6 +6,12 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "r2_buckets": [
+    {
+      "binding": "STORYBOOK_ASSETS_BUCKET",
+      "bucket_name": "doodle-storybook-assets"
+    }
+  ],
   "vars": {
     "OPENAI_PROMPT_ID": "pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697",
     "OPENAI_PROMPT_VERSION": "21",

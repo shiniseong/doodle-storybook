@@ -1,5 +1,19 @@
 type StoryLanguage = 'ko' | 'en' | 'ja' | 'zh'
 
+interface StorybookAssetsBucket {
+  put(
+    key: string,
+    value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob,
+    options?: {
+      httpMetadata?: {
+        contentType?: string
+        cacheControl?: string
+      }
+      customMetadata?: Record<string, string>
+    },
+  ): Promise<unknown>
+}
+
 interface Env {
   OPENAI_API_KEY: string
   OPENAI_PROMPT_ID?: string
@@ -7,6 +21,7 @@ interface Env {
   OPENAI_IMAGE_MODEL?: string
   OPENAI_TTS_MODEL?: string
   OPENAI_TTS_VOICE?: string
+  STORYBOOK_ASSETS_BUCKET?: StorybookAssetsBucket
 }
 
 interface StorybookCreateRequestBody {
@@ -31,6 +46,15 @@ interface StoryPageTtsSource {
 interface StoryPageNarration {
   page: number
   audioDataUrl: string
+}
+
+interface StoryImageStorageKeys {
+  cover: string
+  coverThumbnail: string
+  highlight: string
+  highlightThumbnail: string
+  end: string
+  endThumbnail: string
 }
 
 interface StoryImagePrompts {
@@ -90,6 +114,8 @@ const DEFAULT_PROMPT_VERSION = '21'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
+const DEFAULT_IMAGE_SIZE = '1024x1024'
+const THUMBNAIL_IMAGE_SIZE = '512x512'
 const MAX_NARRATION_COUNT = 10
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
@@ -630,6 +656,79 @@ function encodeBytesAsBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+function decodeBase64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes
+}
+
+function parseDataUrl(value: string): { mimeType: string; bytes: Uint8Array } | null {
+  const compact = value.trim().replace(/\s+/g, '')
+  const match = compact.match(/^data:([^;,]+);base64,(.+)$/i)
+  if (!match?.[1] || !match[2]) {
+    return null
+  }
+
+  try {
+    return {
+      mimeType: match[1],
+      bytes: decodeBase64ToBytes(match[2]),
+    }
+  } catch {
+    return null
+  }
+}
+
+function buildStoryImageStorageKeys(userId: string, createdStoryBookId: string): StoryImageStorageKeys {
+  const keyPrefix = `${userId}-${createdStoryBookId}`
+  return {
+    cover: `${keyPrefix}-image-cover`,
+    coverThumbnail: `${keyPrefix}-image-cover-thumbnail`,
+    highlight: `${keyPrefix}-image-highlight`,
+    highlightThumbnail: `${keyPrefix}-image-highlight-thumbnail`,
+    end: `${keyPrefix}-image-end`,
+    endThumbnail: `${keyPrefix}-image-end-thumbnail`,
+  }
+}
+
+function buildTtsStorageKey(userId: string, createdStoryBookId: string, page: number): string {
+  return `${userId}-${createdStoryBookId}-tts-p${page}`
+}
+
+async function uploadDataUrlToR2(
+  bucket: StorybookAssetsBucket,
+  key: string,
+  dataUrl: string,
+  userId: string,
+  createdStoryBookId: string,
+): Promise<boolean> {
+  const parsed = parseDataUrl(dataUrl)
+  if (!parsed) {
+    return false
+  }
+
+  try {
+    await bucket.put(key, parsed.bytes, {
+      httpMetadata: {
+        contentType: parsed.mimeType,
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+      customMetadata: {
+        userId,
+        createdStoryBookId,
+      },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function generatePageNarration(
   source: StoryPageTtsSource,
   instructions: string,
@@ -792,6 +891,7 @@ async function generateImageFromPrompt(
   storyTitle: string,
   storyDescription: string,
   env: Env,
+  size: string = DEFAULT_IMAGE_SIZE,
 ): Promise<string | null> {
   if (scenePrompt.trim().length === 0) {
     return null
@@ -816,7 +916,7 @@ async function generateImageFromPrompt(
           storyTitle,
           storyDescription,
         ),
-        size: '1024x1024',
+        size,
         quality: 'low',
         output_format: 'png',
         background: 'auto',
@@ -896,6 +996,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return jsonResponse(
       {
         error: 'OPENAI_API_KEY is not configured.',
+      },
+      500,
+    )
+  }
+
+  if (!context.env.STORYBOOK_ASSETS_BUCKET) {
+    return jsonResponse(
+      {
+        error: 'STORYBOOK_ASSETS_BUCKET is not configured.',
       },
       500,
     )
@@ -1007,10 +1116,21 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
+  const assetsBucket = context.env.STORYBOOK_ASSETS_BUCKET
+  const createdStoryBookId = crypto.randomUUID()
+  const imageStorageKeys = buildStoryImageStorageKeys(normalizedBody.userId, createdStoryBookId)
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
-  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
+  const [
+    coverImage,
+    coverThumbnailImage,
+    highlightImage,
+    highlightThumbnailImage,
+    endImage,
+    endThumbnailImage,
+    ...narrationResults
+  ] = await Promise.all([
     generateImageFromPrompt(
       'cover',
       parsedPromptStorybook.imagePrompts.cover,
@@ -1019,6 +1139,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.title,
       normalizedBody.description,
       context.env,
+      DEFAULT_IMAGE_SIZE,
+    ),
+    generateImageFromPrompt(
+      'cover',
+      parsedPromptStorybook.imagePrompts.cover,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
+      context.env,
+      THUMBNAIL_IMAGE_SIZE,
     ),
     generateImageFromPrompt(
       'highlight',
@@ -1028,6 +1159,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.title,
       normalizedBody.description,
       context.env,
+      DEFAULT_IMAGE_SIZE,
+    ),
+    generateImageFromPrompt(
+      'highlight',
+      parsedPromptStorybook.imagePrompts.highlight,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
+      context.env,
+      THUMBNAIL_IMAGE_SIZE,
     ),
     generateImageFromPrompt(
       'end',
@@ -1037,6 +1179,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.title,
       normalizedBody.description,
       context.env,
+      DEFAULT_IMAGE_SIZE,
+    ),
+    generateImageFromPrompt(
+      'end',
+      parsedPromptStorybook.imagePrompts.end,
+      parsedPromptStorybook.imagePrompts,
+      parsedPromptStorybook.characters,
+      normalizedBody.title,
+      normalizedBody.description,
+      context.env,
+      THUMBNAIL_IMAGE_SIZE,
     ),
     ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
   ])
@@ -1045,18 +1198,98 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     .filter((narration): narration is StoryPageNarration => narration !== null)
     .sort((left, right) => left.page - right.page)
 
+  const imagesForResponse = [
+    coverImage ?? TRANSPARENT_PNG_DATA_URL,
+    highlightImage ?? TRANSPARENT_PNG_DATA_URL,
+    endImage ?? TRANSPARENT_PNG_DATA_URL,
+  ]
+
+  const thumbnailsForStorage = [
+    coverThumbnailImage ?? coverImage ?? TRANSPARENT_PNG_DATA_URL,
+    highlightThumbnailImage ?? highlightImage ?? TRANSPARENT_PNG_DATA_URL,
+    endThumbnailImage ?? endImage ?? TRANSPARENT_PNG_DATA_URL,
+  ]
+
+  const narrationStorageKeys = narrations.map((narration) =>
+    buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page),
+  )
+
+  const uploadResults = await Promise.all([
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.cover,
+      imagesForResponse[0],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.coverThumbnail,
+      thumbnailsForStorage[0],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.highlight,
+      imagesForResponse[1],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.highlightThumbnail,
+      thumbnailsForStorage[1],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.end,
+      imagesForResponse[2],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    uploadDataUrlToR2(
+      assetsBucket,
+      imageStorageKeys.endThumbnail,
+      thumbnailsForStorage[2],
+      normalizedBody.userId,
+      createdStoryBookId,
+    ),
+    ...narrations.map((narration) =>
+      uploadDataUrlToR2(
+        assetsBucket,
+        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page),
+        narration.audioDataUrl,
+        normalizedBody.userId,
+        createdStoryBookId,
+      ),
+    ),
+  ])
+
+  if (uploadResults.some((result) => !result)) {
+    return jsonResponse(
+      {
+        error: 'Failed to store generated assets to R2.',
+      },
+      502,
+    )
+  }
+
   return jsonResponse({
-    storybookId: `storybook-${crypto.randomUUID()}`,
+    storybookId: `storybook-${createdStoryBookId}`,
+    createdStoryBookId,
     openaiResponseId: openAIResponseBody.id ?? null,
     promptVersion,
     upstreamPromptVersion,
     pages: parsedPromptStorybook.pages,
-    images: [
-      coverImage ?? TRANSPARENT_PNG_DATA_URL,
-      highlightImage ?? TRANSPARENT_PNG_DATA_URL,
-      endImage ?? TRANSPARENT_PNG_DATA_URL,
-    ],
+    images: imagesForResponse,
     narrations,
     storyText,
+    assetObjectKeys: {
+      images: imageStorageKeys,
+      narrations: narrationStorageKeys,
+    },
   })
 }

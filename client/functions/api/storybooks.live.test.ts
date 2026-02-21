@@ -37,6 +37,9 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
         env: {
           OPENAI_API_KEY: openaiApiKey,
           OPENAI_PROMPT_VERSION: openaiPromptVersion,
+          STORYBOOK_ASSETS_BUCKET: {
+            put: async () => null,
+          },
           ...(openaiPromptId ? { OPENAI_PROMPT_ID: openaiPromptId } : {}),
           ...(openaiImageModel ? { OPENAI_IMAGE_MODEL: openaiImageModel } : {}),
           ...(openaiTtsModel ? { OPENAI_TTS_MODEL: openaiTtsModel } : {}),

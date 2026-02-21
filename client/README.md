@@ -88,6 +88,22 @@ Set in Cloudflare Pages project:
 - `OPENAI_PROMPT_VERSION` (var, default `21`)
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1.5`)
 
+### Required Cloudflare binding
+
+Configure R2 bucket binding in `wrangler.jsonc`:
+
+- `STORYBOOK_ASSETS_BUCKET` (R2 binding)
+
+Stored object naming convention:
+
+- `{userId}-{createdStoryBookId}-image-cover`
+- `{userId}-{createdStoryBookId}-image-cover-thumbnail`
+- `{userId}-{createdStoryBookId}-image-highlight`
+- `{userId}-{createdStoryBookId}-image-highlight-thumbnail`
+- `{userId}-{createdStoryBookId}-image-end`
+- `{userId}-{createdStoryBookId}-image-end-thumbnail`
+- `{userId}-{createdStoryBookId}-tts-p1` ... `{userId}-{createdStoryBookId}-tts-p10`
+
 For local Pages dev, create `client/.dev.vars`:
 
 ```bash

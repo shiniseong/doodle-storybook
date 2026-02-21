@@ -9,6 +9,19 @@ interface TestEnv {
   OPENAI_IMAGE_MODEL?: string
   OPENAI_TTS_MODEL?: string
   OPENAI_TTS_VOICE?: string
+  STORYBOOK_ASSETS_BUCKET?: {
+    put: (
+      key: string,
+      value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob,
+      options?: {
+        httpMetadata?: {
+          contentType?: string
+          cacheControl?: string
+        }
+        customMetadata?: Record<string, string>
+      },
+    ) => Promise<unknown>
+  }
 }
 
 const encoder = new TextEncoder()
@@ -87,6 +100,9 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
       OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
       OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
       OPENAI_TTS_VOICE: 'alloy',
+      STORYBOOK_ASSETS_BUCKET: {
+        put: async () => null,
+      },
       ...envOverrides,
     },
   } as unknown as Parameters<typeof onRequestPost>[0]
@@ -157,6 +173,7 @@ describe('storybooks function (v21 pipeline)', () => {
   it('첫 프롬프트 응답 후 이미지 3장을 병렬 개별 요청으로 만들고 TTS 10과 함께 처리한다', async () => {
     const schema = createStoryPromptSchemaOutput()
     const ttsInputs: string[] = []
+    const bucketPutMock = vi.fn(async () => null)
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
@@ -190,8 +207,9 @@ describe('storybooks function (v21 pipeline)', () => {
       }
 
       if (url === 'https://api.openai.com/v1/images/generations') {
-        const requestBody = JSON.parse(String(init?.body)) as { prompt?: string; n?: number }
+        const requestBody = JSON.parse(String(init?.body)) as { prompt?: string; n?: number; size?: string }
         expect(requestBody.n).toBeUndefined()
+        expect(requestBody.size === '1024x1024' || requestBody.size === '512x512').toBe(true)
         expect(requestBody.prompt).toContain('Output one full-frame image only')
         expect(requestBody.prompt).toContain('Do not create a collage')
         expect(requestBody.prompt).toContain(
@@ -207,17 +225,26 @@ describe('storybooks function (v21 pipeline)', () => {
 
         if (requestBody.prompt?.includes('Scene role: cover.')) {
           expect(requestBody.prompt).toContain('Scene description: cover prompt')
-          return createJsonResponse({ data: [{ b64_json: 'cover-b64' }] })
+          if (requestBody.size === '512x512') {
+            return createJsonResponse({ data: [{ b64_json: 'Y292ZXItdGh1bWItYjY0' }] })
+          }
+          return createJsonResponse({ data: [{ b64_json: 'Y292ZXItYjY0' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: highlight.')) {
           expect(requestBody.prompt).toContain('Scene description: highlight prompt')
-          return createJsonResponse({ data: [{ b64_json: 'highlight-b64' }] })
+          if (requestBody.size === '512x512') {
+            return createJsonResponse({ data: [{ b64_json: 'aGlnaGxpZ2h0LXRodW1iLWI2NA==' }] })
+          }
+          return createJsonResponse({ data: [{ b64_json: 'aGlnaGxpZ2h0LWI2NA==' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: end.')) {
           expect(requestBody.prompt).toContain('Scene description: end prompt')
-          return createJsonResponse({ data: [{ b64_json: 'end-b64' }] })
+          if (requestBody.size === '512x512') {
+            return createJsonResponse({ data: [{ b64_json: 'ZW5kLXRodW1iLWI2NA==' }] })
+          }
+          return createJsonResponse({ data: [{ b64_json: 'ZW5kLWI2NA==' }] })
         }
 
         throw new Error(`Unexpected scene role prompt: ${requestBody.prompt ?? '<missing>'}`)
@@ -239,11 +266,16 @@ describe('storybooks function (v21 pipeline)', () => {
         language: 'ko',
         title: '별빛 숲의 비밀',
         description: '작은 토끼가 별빛 숲에서 친구를 만나는 이야기',
+      }, {
+        STORYBOOK_ASSETS_BUCKET: {
+          put: bucketPutMock,
+        },
       }),
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(bucketPutMock).toHaveBeenCalledTimes(16)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -252,6 +284,7 @@ describe('storybooks function (v21 pipeline)', () => {
       promptVersion: string
       upstreamPromptVersion: string | null
       openaiResponseId: string
+      createdStoryBookId: string
     }
 
     expect(payload.promptVersion).toBe('21')
@@ -261,13 +294,25 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(payload.pages.filter((page) => page.isHighlight)).toHaveLength(1)
     expect(payload.pages.find((page) => page.page === schema.highlightPage)?.isHighlight).toBe(true)
     expect(payload.images).toEqual([
-      'data:image/png;base64,cover-b64',
-      'data:image/png;base64,highlight-b64',
-      'data:image/png;base64,end-b64',
+      'data:image/png;base64,Y292ZXItYjY0',
+      'data:image/png;base64,aGlnaGxpZ2h0LWI2NA==',
+      'data:image/png;base64,ZW5kLWI2NA==',
     ])
     expect(payload.narrations).toHaveLength(10)
     expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.content))
+    expect(typeof payload.createdStoryBookId).toBe('string')
+    expect(payload.createdStoryBookId.length).toBeGreaterThan(0)
+
+    const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-cover`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-cover-thumbnail`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-highlight`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-highlight-thumbnail`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-end`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-image-end-thumbnail`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-tts-p1`)
+    expect(storedKeys).toContain(`user-1-${payload.createdStoryBookId}-tts-p10`)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {
@@ -283,15 +328,29 @@ describe('storybooks function (v21 pipeline)', () => {
       }
 
       if (url === 'https://api.openai.com/v1/images/generations') {
-        const requestBody = JSON.parse(String(init?.body ?? '')) as { prompt?: string }
+        const requestBody = JSON.parse(String(init?.body ?? '')) as { prompt?: string; size?: string }
+        expect(requestBody.size === '1024x1024' || requestBody.size === '512x512').toBe(true)
         if (requestBody.prompt?.includes('Scene role: cover.')) {
-          return createJsonResponse({ data: [{ b64_json: 'legacy-cover' }] })
+          return createJsonResponse({
+            data: [{ b64_json: requestBody.size === '512x512' ? 'bGVnYWN5LWNvdmVyLXRodW1i' : 'bGVnYWN5LWNvdmVy' }],
+          })
         }
         if (requestBody.prompt?.includes('Scene role: highlight.')) {
-          return createJsonResponse({ data: [{ b64_json: 'legacy-highlight' }] })
+          return createJsonResponse({
+            data: [
+              {
+                b64_json:
+                  requestBody.size === '512x512'
+                    ? 'bGVnYWN5LWhpZ2hsaWdodC10aHVtYg=='
+                    : 'bGVnYWN5LWhpZ2hsaWdodA==',
+              },
+            ],
+          })
         }
         if (requestBody.prompt?.includes('Scene role: end.')) {
-          return createJsonResponse({ data: [{ b64_json: 'legacy-end' }] })
+          return createJsonResponse({
+            data: [{ b64_json: requestBody.size === '512x512' ? 'bGVnYWN5LWVuZC10aHVtYg==' : 'bGVnYWN5LWVuZA==' }],
+          })
         }
         throw new Error(`Unexpected scene role prompt: ${requestBody.prompt ?? '<missing>'}`)
       }
@@ -314,7 +373,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -371,12 +430,12 @@ describe('storybooks function (v21 pipeline)', () => {
       setTimeout(resolve, 0)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(14)
-    expect(deferredRequests).toHaveLength(13)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(deferredRequests).toHaveLength(16)
 
       deferredRequests.forEach((request, index) => {
         if (request.url === 'https://api.openai.com/v1/images/generations') {
-          request.resolve(createJsonResponse({ data: [{ b64_json: `img-${index}` }] }))
+          request.resolve(createJsonResponse({ data: [{ b64_json: 'aW1n' }] }))
           return
         }
 
@@ -422,5 +481,25 @@ describe('storybooks function (v21 pipeline)', () => {
 
     const payload = (await response.json()) as { error?: string }
     expect(payload.error).toBe('Invalid storybook prompt output schema.')
+  })
+
+  it('R2 버킷 바인딩이 없으면 500 에러를 반환한다', async () => {
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-missing-r2',
+          language: 'ko',
+          title: '버킷 없음',
+          description: '버킷 바인딩이 필요하다',
+        },
+        {
+          STORYBOOK_ASSETS_BUCKET: undefined,
+        },
+      ),
+    )
+
+    expect(response.status).toBe(500)
+    const payload = (await response.json()) as { error?: string }
+    expect(payload.error).toBe('STORYBOOK_ASSETS_BUCKET is not configured.')
   })
 })
