@@ -12,7 +12,7 @@ export type StorybookCreationErrorCode =
 
 export type StorybookCreationFeedback =
   | { kind: 'success'; storybookId: string }
-  | { kind: 'error'; code: StorybookCreationErrorCode }
+  | { kind: 'error'; code: StorybookCreationErrorCode; message?: string }
 
 interface StorybookCreationState {
   readonly createStatus: StorybookCreationStatus
@@ -22,7 +22,7 @@ interface StorybookCreationState {
   readonly freeStoryQuotaUsed: number
   startSubmitting: () => void
   markSuccess: (storybookId: string) => void
-  markError: (code: StorybookCreationErrorCode) => void
+  markError: (code: StorybookCreationErrorCode, message?: string) => void
   syncQuota: (total: number, used: number) => void
   reset: () => void
 }
@@ -51,10 +51,10 @@ export const useStorybookCreationStore = create<StorybookCreationState>((set) =>
       freeStoryQuotaUsed: Math.min(state.freeStoryQuotaUsed + 1, state.freeStoryQuotaTotal),
     }))
   },
-  markError: (code: StorybookCreationErrorCode) => {
+  markError: (code: StorybookCreationErrorCode, message?: string) => {
     set({
       createStatus: 'error',
-      feedback: { kind: 'error', code },
+      feedback: { kind: 'error', code, ...(message ? { message } : {}) },
     })
   },
   syncQuota: (total: number, used: number) => {

@@ -1504,7 +1504,12 @@ function resolveErrorFeedbackText(
     return null
   }
 
-  return t(`workspace.feedback.error.${feedback.code}`)
+  const localized = t(`workspace.feedback.error.${feedback.code}`)
+  if (feedback.code !== 'UNEXPECTED' || !feedback.message || feedback.message.trim().length === 0) {
+    return localized
+  }
+
+  return `${localized} (${feedback.message.trim()})`
 }
 
 function normalizeStorybookGeneratedPages(pages: readonly StorybookGeneratedPage[] | undefined): StorybookGeneratedPage[] {
@@ -3114,7 +3119,7 @@ function StoryComposerSection({
               })
             }
           } else {
-            markError(result.error.code)
+            markError(result.error.code, result.error.message)
           }
         }}
       />

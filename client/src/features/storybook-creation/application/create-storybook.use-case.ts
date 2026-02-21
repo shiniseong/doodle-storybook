@@ -91,10 +91,13 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
       })
 
       return ok(created)
-    } catch {
+    } catch (error) {
       return err({
         code: 'UNEXPECTED',
-        message: '동화 생성 요청 중 오류가 발생했습니다.',
+        message:
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : '동화 생성 요청 중 오류가 발생했습니다.',
       })
     }
   }

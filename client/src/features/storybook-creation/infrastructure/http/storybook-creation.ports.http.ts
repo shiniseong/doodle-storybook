@@ -15,6 +15,11 @@ interface CreateStorybookApiResponse {
   promptVersion?: string | number | null
 }
 
+interface CreateStorybookApiErrorResponse {
+  error?: unknown
+  failedAssets?: unknown
+}
+
 interface CreateStorybookApiRequest {
   userId: string
   title?: string
@@ -212,6 +217,38 @@ function parsePromptVersion(rawValue: unknown): string | undefined {
   return undefined
 }
 
+function parseApiErrorMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const candidate = payload as CreateStorybookApiErrorResponse
+
+  if (typeof candidate.error !== 'string' || candidate.error.trim().length === 0) {
+    return null
+  }
+
+  const baseMessage = candidate.error.trim()
+  if (!Array.isArray(candidate.failedAssets) || candidate.failedAssets.length === 0) {
+    return baseMessage
+  }
+
+  const failedAssetDetails = candidate.failedAssets
+    .filter((item): item is { key?: unknown; reason?: unknown } => typeof item === 'object' && item !== null)
+    .slice(0, 3)
+    .map((item) => {
+      const key = typeof item.key === 'string' ? item.key : 'unknown-key'
+      const reason = typeof item.reason === 'string' ? item.reason : 'unknown-reason'
+      return `${key} (${reason})`
+    })
+
+  if (failedAssetDetails.length === 0) {
+    return baseMessage
+  }
+
+  return `${baseMessage} ${failedAssetDetails.join(', ')}`
+}
+
 function resolveCanvasImageDataUrl(): string | undefined {
   if (typeof document === 'undefined') {
     return undefined
@@ -281,7 +318,20 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to create storybook: ${response.status}`)
+      let parsedErrorBody: unknown = null
+
+      try {
+        parsedErrorBody = await response.json()
+      } catch {
+        parsedErrorBody = null
+      }
+
+      const detailedMessage = parseApiErrorMessage(parsedErrorBody)
+      throw new Error(
+        detailedMessage
+          ? `Failed to create storybook (${response.status}): ${detailedMessage}`
+          : `Failed to create storybook: ${response.status}`,
+      )
     }
 
     const data = (await response.json()) as Partial<CreateStorybookApiResponse>

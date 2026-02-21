@@ -108,5 +108,6 @@ describe('CreateStorybookUseCase', () => {
     }
 
     expect(result.error.code).toBe('UNEXPECTED')
+    expect(result.error.message).toBe('network failure')
   })
 })

@@ -618,4 +618,65 @@ describe('storybooks function (v21 pipeline)', () => {
     const payload = (await response.json()) as { error?: string }
     expect(payload.error).toBe('STORYBOOK_ASSETS_BUCKET is not configured.')
   })
+
+  it('R2 저장 실패 시 실패 키와 사유를 포함한 502 에러를 반환한다', async () => {
+    const schema = createStoryPromptSchemaOutput()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url === 'https://api.openai.com/v1/responses') {
+        return createJsonResponse({
+          id: 'resp-r2-fail-1',
+          output_text: JSON.stringify(schema),
+        })
+      }
+
+      if (url === 'https://api.openai.com/v1/images/generations') {
+        return createJsonResponse({ data: [{ b64_json: 'aW1hZ2U=' }] })
+      }
+
+      if (url === 'https://api.openai.com/v1/audio/speech') {
+        return createAudioResponse('audio')
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const bucketPutMock = vi.fn(async (key: string) => {
+      if (key.includes('-image-cover')) {
+        throw new Error('simulated put failure')
+      }
+
+      return null
+    })
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-r2-fail',
+          language: 'ko',
+          title: 'R2 실패 테스트',
+          description: 'R2 실패 시 에러 응답을 확인한다',
+          imageDataUrl: 'data:image/png;base64,b3JpZ2lu',
+        },
+        {
+          STORYBOOK_ASSETS_BUCKET: {
+            put: bucketPutMock,
+          },
+        },
+      ),
+    )
+
+    expect(response.status).toBe(502)
+    const payload = (await response.json()) as {
+      error?: string
+      failedAssets?: Array<{ key?: string; reason?: string }>
+    }
+    expect(payload.error).toBe('Failed to store generated assets to R2.')
+    expect(Array.isArray(payload.failedAssets)).toBe(true)
+    expect(payload.failedAssets?.some((asset) => asset.key?.includes('-image-cover') && asset.reason === 'simulated put failure')).toBe(
+      true,
+    )
+  })
 })

@@ -84,7 +84,7 @@ describe('HttpStorybookCommandPort', () => {
     expect(requestBody.imageDataUrl).toBeUndefined()
   })
 
-  it('API 실패 응답이면 예외를 던진다', async () => {
+  it('API 실패 응답이면 서버 에러 메시지를 포함해 예외를 던진다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: false,
       status: 502,
@@ -103,7 +103,37 @@ describe('HttpStorybookCommandPort', () => {
         description: '다람쥐가 우편함을 열어요',
         language: 'ko',
       }),
-    ).rejects.toThrow('Failed to create storybook: 502')
+    ).rejects.toThrow('Failed to create storybook (502): upstream failed')
+  })
+
+  it('R2 저장 실패 응답이면 failedAssets 요약을 포함한 예외를 던진다', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: false,
+      status: 502,
+      json: async () => ({
+        error: 'Failed to store generated assets to R2.',
+        failedAssets: [
+          { key: 'u/s/images/u-id-image-cover', reason: 'network timeout' },
+          { key: 'u/s/tts/u-id-tts-p1', reason: 'quota exceeded' },
+        ],
+      }),
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const commandPort = new HttpStorybookCommandPort({
+      baseUrl: 'https://example.test',
+    })
+
+    await expect(
+      commandPort.createStorybook({
+        userId: 'user-3',
+        title: '붉은 지붕집',
+        description: '다람쥐가 우편함을 열어요',
+        language: 'ko',
+      }),
+    ).rejects.toThrow(
+      'Failed to create storybook (502): Failed to store generated assets to R2. u/s/images/u-id-image-cover (network timeout), u/s/tts/u-id-tts-p1 (quota exceeded)',
+    )
   })
 
   it('pages 문자열 JSON과 이미지/낭독 배열을 정규화해서 반환한다', async () => {

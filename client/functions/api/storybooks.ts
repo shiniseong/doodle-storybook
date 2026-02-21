@@ -58,6 +58,12 @@ interface StoryImageStorageKeys {
   endThumbnail: string
 }
 
+interface AssetUploadResult {
+  ok: boolean
+  key: string
+  reason?: string
+}
+
 interface StoryImagePrompts {
   cover: string
   highlight: string
@@ -712,10 +718,14 @@ async function uploadDataUrlToR2(
   dataUrl: string,
   userId: string,
   createdStoryBookId: string,
-): Promise<boolean> {
+): Promise<AssetUploadResult> {
   const parsed = parseDataUrl(dataUrl)
   if (!parsed) {
-    return false
+    return {
+      ok: false,
+      key,
+      reason: 'Invalid data URL payload.',
+    }
   }
 
   try {
@@ -729,9 +739,16 @@ async function uploadDataUrlToR2(
         createdStoryBookId,
       },
     })
-    return true
-  } catch {
-    return false
+    return {
+      ok: true,
+      key,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      key,
+      reason: error instanceof Error && error.message.trim().length > 0 ? error.message : 'Unknown R2 put error.',
+    }
   }
 }
 
@@ -1284,10 +1301,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     ),
   ])
 
-  if (uploadResults.some((result) => !result)) {
+  const failedUploads = uploadResults.filter((result) => !result.ok)
+
+  if (failedUploads.length > 0) {
+    console.error('Failed to store generated assets to R2.', {
+      storybookId,
+      createdStoryBookId,
+      failedAssets: failedUploads.map((upload) => ({
+        key: upload.key,
+        reason: upload.reason ?? 'Unknown error.',
+      })),
+    })
+
     return jsonResponse(
       {
         error: 'Failed to store generated assets to R2.',
+        failedAssets: failedUploads.map((upload) => ({
+          key: upload.key,
+          reason: upload.reason ?? 'Unknown error.',
+        })),
       },
       502,
     )
