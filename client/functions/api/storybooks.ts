@@ -87,7 +87,7 @@ const CORS_HEADERS = {
 } as const
 
 const DEFAULT_PROMPT_ID = 'pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697'
-const DEFAULT_PROMPT_VERSION = '16'
+const DEFAULT_PROMPT_VERSION = '17'
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
