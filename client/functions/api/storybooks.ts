@@ -1000,7 +1000,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             language: resolvePromptLanguage(normalizedBody.language),
             title: normalizedBody.title,
             description: normalizedBody.description,
-            is_preserve_original_drawing_style: normalizedBody.is_preserve_original_drawing_style,
+            is_preserve_original_drawing_style: normalizedBody.is_preserve_original_drawing_style ? 'true' : 'false',
           },
         },
         input: [

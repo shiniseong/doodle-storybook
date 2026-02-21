@@ -164,7 +164,7 @@ describe('storybooks function (v15 pipeline)', () => {
         const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
           prompt?: {
             variables?: {
-              is_preserve_original_drawing_style?: boolean
+              is_preserve_original_drawing_style?: string
             }
           }
           input?: Array<{
@@ -180,7 +180,7 @@ describe('storybooks function (v15 pipeline)', () => {
           .map((contentItem) => contentItem.text ?? '')
           .join('\n')
 
-        expect(requestBody.prompt?.variables?.is_preserve_original_drawing_style).toBe(false)
+        expect(requestBody.prompt?.variables?.is_preserve_original_drawing_style).toBe('false')
         expect(inputTexts).not.toContain('PRESERVE (DO NOT CHANGE):')
         expect(inputTexts).not.toContain('MANDATORY MEDIUM REQUIREMENT:')
 
@@ -275,8 +275,8 @@ describe('storybooks function (v15 pipeline)', () => {
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.content))
   })
 
-  it('원본 그림체 보존 옵션 true를 최초 프롬프트 변수로 전달한다', async () => {
-    let capturedOptionValue: boolean | undefined
+  it('원본 그림체 보존 옵션 true를 최초 프롬프트 변수 문자열로 전달한다', async () => {
+    let capturedOptionValue: string | undefined
     let capturedInputText = ''
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
@@ -285,7 +285,7 @@ describe('storybooks function (v15 pipeline)', () => {
         const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
           prompt?: {
             variables?: {
-              is_preserve_original_drawing_style?: boolean
+              is_preserve_original_drawing_style?: string
             }
           }
           input?: Array<{
@@ -325,7 +325,7 @@ describe('storybooks function (v15 pipeline)', () => {
     )
 
     expect(response.status).toBe(502)
-    expect(capturedOptionValue).toBe(true)
+    expect(capturedOptionValue).toBe('true')
     expect(capturedInputText).toContain(
       "We are a service that turns children's drawings into storybooks, and we received a request to preserve the child's original drawing style.",
     )
