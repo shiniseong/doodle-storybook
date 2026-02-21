@@ -69,7 +69,7 @@ function createMockAuth(overrides: Partial<StorybookWorkspaceAuth> = {}): Storyb
 describe('StorybookWorkspace', () => {
   beforeEach(() => {
     useStorybookCreationStore.getState().reset()
-    window.localStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+    window.sessionStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   })
 
   it('동화 생성 성공 시 uuid 디버그 메시지를 노출하지 않는다', async () => {
@@ -231,6 +231,51 @@ describe('StorybookWorkspace', () => {
 
     expect(screen.getByLabelText('동화 제목')).toHaveValue('보관할 제목')
     expect(screen.getByLabelText('그림 설명')).toHaveValue('보관할 설명')
+  })
+
+  it('로그아웃 버튼 클릭 시 저장된 draft와 입력값을 초기화한다', async () => {
+    const user = userEvent.setup()
+    const signOut = vi.fn(async () => {})
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-reset-on-logout' },
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'signed-in-user',
+          userEmail: 'signed-in-user@example.com',
+          signOut,
+        })}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('동화 제목'), '로그아웃 이전 제목')
+    await user.type(screen.getByLabelText('지은이'), '로그아웃 이전 작가')
+    await user.type(screen.getByLabelText('그림 설명'), '로그아웃 이전 설명')
+
+    await waitFor(() => {
+      const raw = window.sessionStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+      expect(raw).not.toBeNull()
+      expect(raw).toContain('로그아웃 이전 제목')
+    })
+
+    await user.click(screen.getByRole('button', { name: '로그아웃' }))
+    expect(signOut).toHaveBeenCalledTimes(1)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('동화 제목')).toHaveValue('')
+      expect(screen.getByLabelText('지은이')).toHaveValue('')
+      expect(screen.getByLabelText('그림 설명')).toHaveValue('')
+      expect(window.sessionStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)).toBeNull()
+    })
   })
 
   it('생성 진행 중에는 하단 CTA 버튼을 비활성화한다', async () => {

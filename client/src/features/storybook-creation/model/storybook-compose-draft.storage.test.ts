@@ -9,7 +9,7 @@ import {
 
 describe('storybookWorkspaceDraftStorage', () => {
   beforeEach(() => {
-    window.localStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+    window.sessionStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   })
 
   it('저장된 값이 없으면 빈 초안을 반환한다', () => {
@@ -38,7 +38,7 @@ describe('storybookWorkspaceDraftStorage', () => {
   })
 
   it('잘못된 저장값이면 빈 초안으로 안전하게 복구한다', () => {
-    window.localStorage.setItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY, '{not-json')
+    window.sessionStorage.setItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY, '{not-json')
 
     expect(loadStorybookWorkspaceDraft()).toEqual({
       title: '',
@@ -46,6 +46,27 @@ describe('storybookWorkspaceDraftStorage', () => {
       description: '',
       canvasDataUrl: null,
     })
+  })
+
+  it('빈 초안을 저장하면 기존 저장값을 제거한다', () => {
+    window.sessionStorage.setItem(
+      STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        title: '기존 제목',
+        authorName: '기존 작가',
+        description: '기존 설명',
+        canvasDataUrl: 'data:image/png;base64,existing',
+      }),
+    )
+
+    saveStorybookWorkspaceDraft({
+      title: '',
+      authorName: '',
+      description: '',
+      canvasDataUrl: null,
+    })
+
+    expect(window.sessionStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)).toBeNull()
   })
 
   it('clear는 저장된 초안을 제거한다', () => {
@@ -58,6 +79,6 @@ describe('storybookWorkspaceDraftStorage', () => {
 
     clearStorybookWorkspaceDraft()
 
-    expect(window.localStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)).toBeNull()
+    expect(window.sessionStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)).toBeNull()
   })
 })

@@ -77,7 +77,7 @@ function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): Supa
 }
 
 function parseStoredWorkspaceDraft() {
-  const raw = window.localStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+  const raw = window.sessionStorage.getItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   if (!raw) {
     return null
   }
@@ -275,6 +275,68 @@ describe('App auth flow persistence', () => {
     expect(await screen.findByLabelText('동화 제목')).toHaveValue('헤더 진입 제목')
     expect(screen.getByLabelText('지은이')).toHaveValue('헤더 진입 작가')
     expect(screen.getByLabelText('그림 설명')).toHaveValue('헤더 진입 설명')
+
+    getContextSpy.mockRestore()
+    getBoundingClientRectSpy.mockRestore()
+    toDataURLSpy.mockRestore()
+  })
+
+  it('로그아웃 이후에는 작업중 draft(제목/내용/그림)를 초기화한다', async () => {
+    const user = userEvent.setup()
+    const signOut = vi.fn(async () => {})
+    let authState = createMockAuth({
+      userId: 'user-before-logout',
+      userEmail: 'before-logout@example.com',
+      signOut,
+    })
+    vi.mocked(useSupabaseGoogleAuth).mockImplementation(() => authState)
+
+    const canvasWidth = 920
+    const canvasHeight = 460
+    const mockContext = createMockCanvasContext(canvasWidth, canvasHeight)
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(mockContext as unknown as CanvasRenderingContext2D)
+    const getBoundingClientRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => createFixedDomRect(canvasWidth, canvasHeight))
+    const toDataURLSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/png;base64,draft-before-signout')
+
+    const { rerender } = renderAppAt('/')
+    await enterWorkspaceFromLanding(user)
+    await fillDraftAndDraw(user, '로그아웃 전 제목', '로그아웃 전 작가', '로그아웃 전 설명')
+
+    await waitFor(() => {
+      const stored = parseStoredWorkspaceDraft()
+      expect(stored).not.toBeNull()
+      expect(stored?.title).toBe('로그아웃 전 제목')
+      expect(stored?.authorName).toBe('로그아웃 전 작가')
+      expect(stored?.description).toBe('로그아웃 전 설명')
+      expect(stored?.canvasDataUrl).toBe('data:image/png;base64,draft-before-signout')
+    })
+
+    await user.click(screen.getByRole('button', { name: '로그아웃' }))
+    expect(signOut).toHaveBeenCalledTimes(1)
+
+    authState = createMockAuth({
+      userId: null,
+      userEmail: null,
+      signOut,
+    })
+    rerender(
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <App />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('동화 제목')).toHaveValue('')
+      expect(screen.getByLabelText('지은이')).toHaveValue('')
+      expect(screen.getByLabelText('그림 설명')).toHaveValue('')
+      expect(parseStoredWorkspaceDraft()).toBeNull()
+    })
 
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()

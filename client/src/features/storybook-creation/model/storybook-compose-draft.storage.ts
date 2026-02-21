@@ -7,19 +7,19 @@ export interface StorybookWorkspaceDraft {
   readonly canvasDataUrl: string | null
 }
 
-const EMPTY_STORYBOOK_WORKSPACE_DRAFT: StorybookWorkspaceDraft = {
+export const EMPTY_STORYBOOK_WORKSPACE_DRAFT: StorybookWorkspaceDraft = {
   title: '',
   authorName: '',
   description: '',
   canvasDataUrl: null,
 }
 
-function resolveLocalStorage(): Storage | null {
+function resolveSessionStorage(): Storage | null {
   if (typeof window === 'undefined') {
     return null
   }
 
-  const storageCandidate = window.localStorage as unknown
+  const storageCandidate = window.sessionStorage as unknown
   if (
     typeof storageCandidate === 'object' &&
     storageCandidate !== null &&
@@ -50,8 +50,17 @@ function normalizeCanvasDataUrl(value: unknown): string | null {
   return value
 }
 
+function isEmptyDraft(draft: StorybookWorkspaceDraft): boolean {
+  return (
+    draft.title.length === 0 &&
+    draft.authorName.length === 0 &&
+    draft.description.length === 0 &&
+    draft.canvasDataUrl === null
+  )
+}
+
 export function loadStorybookWorkspaceDraft(): StorybookWorkspaceDraft {
-  const storage = resolveLocalStorage()
+  const storage = resolveSessionStorage()
   if (!storage) {
     return EMPTY_STORYBOOK_WORKSPACE_DRAFT
   }
@@ -79,12 +88,17 @@ export function loadStorybookWorkspaceDraft(): StorybookWorkspaceDraft {
 }
 
 export function saveStorybookWorkspaceDraft(draft: StorybookWorkspaceDraft): void {
-  const storage = resolveLocalStorage()
+  const storage = resolveSessionStorage()
   if (!storage) {
     return
   }
 
   try {
+    if (isEmptyDraft(draft)) {
+      storage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+      return
+    }
+
     storage.setItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY, JSON.stringify(draft))
   } catch {
     // Ignore storage quota and serialization failures.
@@ -92,7 +106,7 @@ export function saveStorybookWorkspaceDraft(draft: StorybookWorkspaceDraft): voi
 }
 
 export function clearStorybookWorkspaceDraft(): void {
-  const storage = resolveLocalStorage()
+  const storage = resolveSessionStorage()
   if (!storage) {
     return
   }

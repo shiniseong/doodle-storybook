@@ -41,6 +41,8 @@ import {
   useStorybookCreationStore,
 } from '@features/storybook-creation/model/storybook-creation.store'
 import {
+  EMPTY_STORYBOOK_WORKSPACE_DRAFT,
+  clearStorybookWorkspaceDraft,
   loadStorybookWorkspaceDraft,
   saveStorybookWorkspaceDraft,
   type StorybookWorkspaceDraft,
@@ -422,9 +424,10 @@ function AmbientBackdrop() {
 interface WorkspaceHeaderProps {
   auth?: StorybookWorkspaceAuth
   onRequestAuthentication?: () => void
+  onRequestWorkspaceReset?: () => void
 }
 
-function WorkspaceHeader({ auth, onRequestAuthentication }: WorkspaceHeaderProps) {
+function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceReset }: WorkspaceHeaderProps) {
   const { t } = useTranslation()
   const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
   const isLoginButtonDisabled = !auth || !onRequestAuthentication
@@ -460,6 +463,7 @@ function WorkspaceHeader({ auth, onRequestAuthentication }: WorkspaceHeaderProps
                     type="button"
                     className="workspace-auth__action"
                     onClick={() => {
+                      onRequestWorkspaceReset?.()
                       void auth.signOut()
                     }}
                   >
@@ -3187,12 +3191,19 @@ interface StorybookWorkspaceProps {
 
 export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication }: StorybookWorkspaceProps) {
   const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
+  const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0)
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
   const isSubmitting = createStatus === 'submitting'
 
   useEffect(() => {
     saveStorybookWorkspaceDraft(draft)
   }, [draft])
+
+  const resetWorkspaceDraft = useCallback(() => {
+    clearStorybookWorkspaceDraft()
+    setDraft(EMPTY_STORYBOOK_WORKSPACE_DRAFT)
+    setWorkspaceResetVersion((previous) => previous + 1)
+  }, [])
 
   const handleComposeDraftChange = useCallback((nextDraft: { title: string; authorName: string; description: string }) => {
     setDraft((previous) => {
@@ -3229,13 +3240,19 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
   return (
     <div className="storybook-app">
       <AmbientBackdrop />
-      <WorkspaceHeader auth={auth} onRequestAuthentication={onRequestAuthentication} />
+      <WorkspaceHeader
+        auth={auth}
+        onRequestAuthentication={onRequestAuthentication}
+        onRequestWorkspaceReset={resetWorkspaceDraft}
+      />
       <main className="layout-grid">
         <DrawingBoardSection
+          key={`drawing-board-${workspaceResetVersion}`}
           initialCanvasDataUrl={draft.canvasDataUrl}
           onCanvasSnapshotChange={handleCanvasSnapshotChange}
         />
         <StoryComposerSection
+          key={`story-composer-${workspaceResetVersion}`}
           dependencies={dependencies}
           auth={auth}
           initialTitle={draft.title}
