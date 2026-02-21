@@ -167,8 +167,22 @@ describe('storybooks function (v15 pipeline)', () => {
               is_preserve_original_drawing_style?: boolean
             }
           }
+          input?: Array<{
+            content?: Array<{
+              type?: string
+              text?: string
+            }>
+          }>
         }
+        const inputTexts = (requestBody.input ?? [])
+          .flatMap((item) => item.content ?? [])
+          .filter((contentItem) => contentItem.type === 'input_text')
+          .map((contentItem) => contentItem.text ?? '')
+          .join('\n')
+
         expect(requestBody.prompt?.variables?.is_preserve_original_drawing_style).toBe(false)
+        expect(inputTexts).not.toContain('PRESERVE (DO NOT CHANGE):')
+        expect(inputTexts).not.toContain('MANDATORY MEDIUM REQUIREMENT:')
 
         return createJsonResponse({
           id: 'resp-v9-1',
@@ -263,6 +277,7 @@ describe('storybooks function (v15 pipeline)', () => {
 
   it('원본 그림체 보존 옵션 true를 최초 프롬프트 변수로 전달한다', async () => {
     let capturedOptionValue: boolean | undefined
+    let capturedInputText = ''
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
@@ -273,8 +288,19 @@ describe('storybooks function (v15 pipeline)', () => {
               is_preserve_original_drawing_style?: boolean
             }
           }
+          input?: Array<{
+            content?: Array<{
+              type?: string
+              text?: string
+            }>
+          }>
         }
         capturedOptionValue = requestBody.prompt?.variables?.is_preserve_original_drawing_style
+        capturedInputText = (requestBody.input ?? [])
+          .flatMap((item) => item.content ?? [])
+          .filter((contentItem) => contentItem.type === 'input_text')
+          .map((contentItem) => contentItem.text ?? '')
+          .join('\n')
 
         return createJsonResponse({
           id: 'resp-invalid-style-option',
@@ -300,6 +326,12 @@ describe('storybooks function (v15 pipeline)', () => {
 
     expect(response.status).toBe(502)
     expect(capturedOptionValue).toBe(true)
+    expect(capturedInputText).toContain(
+      "We are a service that turns children's drawings into storybooks, and we received a request to preserve the child's original drawing style.",
+    )
+    expect(capturedInputText).toContain('MANDATORY MEDIUM REQUIREMENT:')
+    expect(capturedInputText).toContain('The final illustrations must use a crayon-drawn texture and look.')
+    expect(capturedInputText).toContain('PRESERVE (DO NOT CHANGE):')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

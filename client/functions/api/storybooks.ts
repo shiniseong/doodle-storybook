@@ -94,6 +94,31 @@ const DEFAULT_TTS_VOICE = 'alloy'
 const MAX_NARRATION_COUNT = 10
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
+const PRESERVE_ORIGINAL_DRAWING_STYLE_PROMPT = `We are a service that turns children's drawings into storybooks, and we received a request to preserve the child's original drawing style.
+
+MANDATORY MEDIUM REQUIREMENT:
+- The final illustrations must use a crayon-drawn texture and look.
+- Keep visible waxy crayon strokes, soft layered coloring, slight pressure variation, and subtle paper grain.
+- Keep it hand-drawn and childlike in medium; do not switch to photoreal, 3D, vector-flat, glossy digital paint, or oil/acrylic-like rendering.
+
+PRESERVE (DO NOT CHANGE):
+- Character count and CAST ROSTER identifiers exactly.
+- Core silhouettes and quirky proportions (e.g., big head / tiny body / stick arms) IF present.
+- Childlike face design (simple dot eyes, simple mouth) IF present.
+- Unique accessories/props and unusual color choices from the roster.
+- The "weird but charming" traits that make it recognizably the child’s idea.
+
+IMPROVE (UPGRADE TECHNICAL QUALITY ONLY):
+- Clean, confident ink outlines (remove shaky/noisy strokes).
+- Smooth crayon fills with tidy edges (no messy spill).
+- Correct rendering errors (no extra limbs/fingers, no melted faces).
+- Higher resolution, consistent lighting, consistent materials.
+- Keep anatomy simple and cute; do not add realistic micro-details.
+
+Rule of thumb:
+"Keep the design, upgrade the rendering."
+
+For each cast member, if the child concept implies a quirky proportion/shape (e.g., huge head, tiny legs, stick arms), include it as one of the identifiers so it is preserved.`
 
 function withCors(headers?: HeadersInit): Headers {
   const nextHeaders = new Headers(headers)
@@ -946,6 +971,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     inputContent.unshift({
       type: 'input_image',
       image_url: normalizedBody.imageDataUrl,
+    })
+  }
+
+  if (normalizedBody.is_preserve_original_drawing_style) {
+    inputContent.push({
+      type: 'input_text',
+      text: PRESERVE_ORIGINAL_DRAWING_STYLE_PROMPT,
     })
   }
 
