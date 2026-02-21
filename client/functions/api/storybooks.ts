@@ -51,11 +51,8 @@ interface StoryPageNarration {
 interface StoryImageStorageKeys {
   origin: string
   cover: string
-  coverThumbnail: string
   highlight: string
-  highlightThumbnail: string
   end: string
-  endThumbnail: string
 }
 
 interface AssetUploadResult {
@@ -122,7 +119,6 @@ const DEFAULT_IMAGE_MODEL = 'gpt-image-1.5'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
 const DEFAULT_IMAGE_SIZE = '1024x1024'
-const THUMBNAIL_IMAGE_SIZE = '512x512'
 const MAX_NARRATION_COUNT = 10
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
@@ -700,11 +696,8 @@ function buildStoryImageStorageKeys(
   return {
     origin: `${imagesDirectory}/${keyPrefix}-image-origin`,
     cover: `${imagesDirectory}/${keyPrefix}-image-cover`,
-    coverThumbnail: `${imagesDirectory}/${keyPrefix}-image-cover-thumbnail`,
     highlight: `${imagesDirectory}/${keyPrefix}-image-highlight`,
-    highlightThumbnail: `${imagesDirectory}/${keyPrefix}-image-highlight-thumbnail`,
     end: `${imagesDirectory}/${keyPrefix}-image-end`,
-    endThumbnail: `${imagesDirectory}/${keyPrefix}-image-end-thumbnail`,
   }
 }
 
@@ -1148,38 +1141,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
-  const [
-    coverImage,
-    coverThumbnailImage,
-    highlightImage,
-    highlightThumbnailImage,
-    endImage,
-    endThumbnailImage,
-    ...narrationResults
-  ] = await Promise.all([
+  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
     generateImageFromPrompt(
       'cover',
       parsedPromptStorybook.imagePrompts.cover,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
-      DEFAULT_IMAGE_SIZE,
-    ),
-    generateImageFromPrompt(
-      'cover',
-      parsedPromptStorybook.imagePrompts.cover,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
-      THUMBNAIL_IMAGE_SIZE,
-    ),
-    generateImageFromPrompt(
-      'highlight',
-      parsedPromptStorybook.imagePrompts.highlight,
       parsedPromptStorybook.imagePrompts,
       parsedPromptStorybook.characters,
       normalizedBody.title,
@@ -1195,16 +1160,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.title,
       normalizedBody.description,
       context.env,
-      THUMBNAIL_IMAGE_SIZE,
-    ),
-    generateImageFromPrompt(
-      'end',
-      parsedPromptStorybook.imagePrompts.end,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
       DEFAULT_IMAGE_SIZE,
     ),
     generateImageFromPrompt(
@@ -1215,7 +1170,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       normalizedBody.title,
       normalizedBody.description,
       context.env,
-      THUMBNAIL_IMAGE_SIZE,
+      DEFAULT_IMAGE_SIZE,
     ),
     ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
   ])
@@ -1228,12 +1183,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     coverImage ?? TRANSPARENT_PNG_DATA_URL,
     highlightImage ?? TRANSPARENT_PNG_DATA_URL,
     endImage ?? TRANSPARENT_PNG_DATA_URL,
-  ]
-
-  const thumbnailsForStorage = [
-    coverThumbnailImage ?? coverImage ?? TRANSPARENT_PNG_DATA_URL,
-    highlightThumbnailImage ?? highlightImage ?? TRANSPARENT_PNG_DATA_URL,
-    endThumbnailImage ?? endImage ?? TRANSPARENT_PNG_DATA_URL,
   ]
 
   const narrationStorageKeys = narrations.map((narration) =>
@@ -1250,13 +1199,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     ),
     uploadDataUrlToR2(
       assetsBucket,
-      imageStorageKeys.coverThumbnail,
-      thumbnailsForStorage[0],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
       imageStorageKeys.highlight,
       imagesForResponse[1],
       normalizedBody.userId,
@@ -1264,22 +1206,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     ),
     uploadDataUrlToR2(
       assetsBucket,
-      imageStorageKeys.highlightThumbnail,
-      thumbnailsForStorage[1],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
       imageStorageKeys.end,
       imagesForResponse[2],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
-      imageStorageKeys.endThumbnail,
-      thumbnailsForStorage[2],
       normalizedBody.userId,
       createdStoryBookId,
     ),

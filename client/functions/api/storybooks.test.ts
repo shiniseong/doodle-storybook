@@ -209,7 +209,7 @@ describe('storybooks function (v21 pipeline)', () => {
       if (url === 'https://api.openai.com/v1/images/generations') {
         const requestBody = JSON.parse(String(init?.body)) as { prompt?: string; n?: number; size?: string }
         expect(requestBody.n).toBeUndefined()
-        expect(requestBody.size === '1024x1024' || requestBody.size === '512x512').toBe(true)
+        expect(requestBody.size).toBe('1024x1024')
         expect(requestBody.prompt).toContain('Output one full-frame image only')
         expect(requestBody.prompt).toContain('Do not create a collage')
         expect(requestBody.prompt).toContain(
@@ -225,25 +225,16 @@ describe('storybooks function (v21 pipeline)', () => {
 
         if (requestBody.prompt?.includes('Scene role: cover.')) {
           expect(requestBody.prompt).toContain('Scene description: cover prompt')
-          if (requestBody.size === '512x512') {
-            return createJsonResponse({ data: [{ b64_json: 'Y292ZXItdGh1bWItYjY0' }] })
-          }
           return createJsonResponse({ data: [{ b64_json: 'Y292ZXItYjY0' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: highlight.')) {
           expect(requestBody.prompt).toContain('Scene description: highlight prompt')
-          if (requestBody.size === '512x512') {
-            return createJsonResponse({ data: [{ b64_json: 'aGlnaGxpZ2h0LXRodW1iLWI2NA==' }] })
-          }
           return createJsonResponse({ data: [{ b64_json: 'aGlnaGxpZ2h0LWI2NA==' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: end.')) {
           expect(requestBody.prompt).toContain('Scene description: end prompt')
-          if (requestBody.size === '512x512') {
-            return createJsonResponse({ data: [{ b64_json: 'ZW5kLXRodW1iLWI2NA==' }] })
-          }
           return createJsonResponse({ data: [{ b64_json: 'ZW5kLWI2NA==' }] })
         }
 
@@ -274,8 +265,8 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
-    expect(bucketPutMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
       storybookId: string
@@ -313,18 +304,9 @@ describe('storybooks function (v21 pipeline)', () => {
       `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-cover`,
     )
     expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-cover-thumbnail`,
-    )
-    expect(storedKeys).toContain(
       `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-highlight`,
     )
-    expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-highlight-thumbnail`,
-    )
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end`)
-    expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end-thumbnail`,
-    )
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p1`)
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p10`)
   })
@@ -343,27 +325,24 @@ describe('storybooks function (v21 pipeline)', () => {
 
       if (url === 'https://api.openai.com/v1/images/generations') {
         const requestBody = JSON.parse(String(init?.body ?? '')) as { prompt?: string; size?: string }
-        expect(requestBody.size === '1024x1024' || requestBody.size === '512x512').toBe(true)
+        expect(requestBody.size).toBe('1024x1024')
         if (requestBody.prompt?.includes('Scene role: cover.')) {
           return createJsonResponse({
-            data: [{ b64_json: requestBody.size === '512x512' ? 'bGVnYWN5LWNvdmVyLXRodW1i' : 'bGVnYWN5LWNvdmVy' }],
+            data: [{ b64_json: 'bGVnYWN5LWNvdmVy' }],
           })
         }
         if (requestBody.prompt?.includes('Scene role: highlight.')) {
           return createJsonResponse({
             data: [
               {
-                b64_json:
-                  requestBody.size === '512x512'
-                    ? 'bGVnYWN5LWhpZ2hsaWdodC10aHVtYg=='
-                    : 'bGVnYWN5LWhpZ2hsaWdodA==',
+                b64_json: 'bGVnYWN5LWhpZ2hsaWdodA==',
               },
             ],
           })
         }
         if (requestBody.prompt?.includes('Scene role: end.')) {
           return createJsonResponse({
-            data: [{ b64_json: requestBody.size === '512x512' ? 'bGVnYWN5LWVuZC10aHVtYg==' : 'bGVnYWN5LWVuZA==' }],
+            data: [{ b64_json: 'bGVnYWN5LWVuZA==' }],
           })
         }
         throw new Error(`Unexpected scene role prompt: ${requestBody.prompt ?? '<missing>'}`)
@@ -387,7 +366,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -450,8 +429,8 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
-    expect(bucketPutMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
       storybookId: string
@@ -464,17 +443,14 @@ describe('storybooks function (v21 pipeline)', () => {
     const imageCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/images/'))
     const ttsCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/tts/'))
 
-    expect(imageCalls).toHaveLength(7)
+    expect(imageCalls).toHaveLength(4)
     expect(ttsCalls).toHaveLength(10)
 
     const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
     expect(storedKeys).toContain(`${expectedImagePrefix}origin`)
     expect(storedKeys).toContain(`${expectedImagePrefix}cover`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}cover-thumbnail`)
     expect(storedKeys).toContain(`${expectedImagePrefix}highlight`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}highlight-thumbnail`)
     expect(storedKeys).toContain(`${expectedImagePrefix}end`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}end-thumbnail`)
     expect(storedKeys).toContain(`${expectedTtsPrefix}1`)
     expect(storedKeys).toContain(`${expectedTtsPrefix}10`)
 
@@ -546,8 +522,8 @@ describe('storybooks function (v21 pipeline)', () => {
       setTimeout(resolve, 0)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(17)
-    expect(deferredRequests).toHaveLength(16)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(deferredRequests).toHaveLength(13)
 
       deferredRequests.forEach((request, index) => {
         if (request.url === 'https://api.openai.com/v1/images/generations') {

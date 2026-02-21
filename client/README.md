@@ -99,11 +99,8 @@ Stored object naming convention:
 
 - `{userId}-{createdStoryBookId}-image-origin`
 - `{userId}-{createdStoryBookId}-image-cover`
-- `{userId}-{createdStoryBookId}-image-cover-thumbnail`
 - `{userId}-{createdStoryBookId}-image-highlight`
-- `{userId}-{createdStoryBookId}-image-highlight-thumbnail`
 - `{userId}-{createdStoryBookId}-image-end`
-- `{userId}-{createdStoryBookId}-image-end-thumbnail`
 - `{userId}-{createdStoryBookId}-tts-p1` ... `{userId}-{createdStoryBookId}-tts-p10`
 
 Stored path convention:
