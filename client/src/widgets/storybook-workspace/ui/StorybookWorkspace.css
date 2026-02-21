@@ -713,6 +713,95 @@
   resize: vertical;
 }
 
+.compose-form__style-toggle {
+  border: 1px solid rgba(132, 183, 214, 0.46);
+  border-radius: 0.95rem;
+  background: rgba(246, 252, 255, 0.88);
+  padding: 0.68rem 0.78rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.82rem;
+}
+
+.compose-form__style-toggle-copy {
+  min-width: 0;
+}
+
+.compose-form__style-toggle-label {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #224f6c;
+}
+
+.compose-form__style-toggle-description {
+  margin: 0.24rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #3a6885;
+}
+
+.compose-form__style-toggle-switch {
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.compose-form__style-toggle-track {
+  width: 2.8rem;
+  height: 1.56rem;
+  border-radius: 999px;
+  background: rgba(157, 190, 212, 0.76);
+  box-shadow: inset 0 0 0 1px rgba(109, 157, 188, 0.48);
+  padding: 0.14rem;
+  display: flex;
+  align-items: center;
+  transition: background-color 180ms ease;
+}
+
+.compose-form__style-toggle-thumb {
+  width: 1.28rem;
+  height: 1.28rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(25, 66, 91, 0.24);
+  transition: transform 180ms ease;
+}
+
+.compose-form__style-toggle-state {
+  width: 2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #325e79;
+  text-align: right;
+}
+
+.compose-form__style-toggle-switch--active .compose-form__style-toggle-track {
+  background: rgba(99, 178, 217, 0.92);
+}
+
+.compose-form__style-toggle-switch--active .compose-form__style-toggle-thumb {
+  transform: translateX(1.24rem);
+}
+
+.compose-form__style-toggle-switch:focus-visible .compose-form__style-toggle-track {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
+}
+
+.compose-form__style-toggle-switch:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
 .compose-form input[type='text']:focus-visible,
 .compose-form textarea:focus-visible {
   outline: 3px solid rgba(81, 183, 225, 0.3);

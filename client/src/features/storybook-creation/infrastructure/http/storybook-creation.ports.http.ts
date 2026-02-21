@@ -20,6 +20,7 @@ interface CreateStorybookApiRequest {
   title?: string
   description: string
   language: StoryLanguage
+  is_preserve_original_drawing_style: boolean
   imageDataUrl?: string
 }
 
@@ -253,6 +254,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
     title?: string
     description: string
     language: StoryLanguage
+    isPreserveOriginalDrawingStyle: boolean
   }): Promise<{
     storybookId: string
     openaiResponseId?: string | null
@@ -269,6 +271,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
       title: draft.title,
       description: draft.description,
       language: draft.language,
+      is_preserve_original_drawing_style: draft.isPreserveOriginalDrawingStyle === true,
       ...(imageDataUrl ? { imageDataUrl } : {}),
     }
 

@@ -16,6 +16,7 @@ describe('StorybookDescriptionForm', () => {
 
     expect(screen.getByLabelText('동화 제목')).toBeInTheDocument()
     expect(screen.getByLabelText('지은이')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: '원본 그림체 보존' })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByText('0 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
@@ -59,6 +60,7 @@ describe('StorybookDescriptionForm', () => {
       title: '달빛 등불',
       authorName: '',
       description: '작은 고양이가 등불을 들고 있어요',
+      isPreserveOriginalDrawingStyle: false,
     })
   })
 
@@ -81,6 +83,7 @@ describe('StorybookDescriptionForm', () => {
       title: '123456789012345678901234567890',
       authorName: '',
       description: '달빛 정원에서 고양이가 춤춰요',
+      isPreserveOriginalDrawingStyle: false,
     })
   })
 
@@ -99,6 +102,26 @@ describe('StorybookDescriptionForm', () => {
       title: '은하수 산책',
       authorName: '달빛 작가',
       description: '고양이가 별길을 걸어요',
+      isPreserveOriginalDrawingStyle: false,
+    })
+  })
+
+  it('원본 그림체 보존 스위치를 켜면 true로 제출한다', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn(async () => undefined)
+
+    render(<StorybookDescriptionForm onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('동화 제목'), '선 느낌 유지')
+    await user.type(screen.getByLabelText('그림 설명'), '손그림 느낌을 유지하며 정리해 주세요')
+    await user.click(screen.getByRole('switch', { name: '원본 그림체 보존' }))
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      title: '선 느낌 유지',
+      authorName: '',
+      description: '손그림 느낌을 유지하며 정리해 주세요',
+      isPreserveOriginalDrawingStyle: true,
     })
   })
 
@@ -140,5 +163,11 @@ describe('StorybookDescriptionForm', () => {
     await user.type(authorInput, '!')
 
     expect(onDraftChange).toHaveBeenCalled()
+    expect(onDraftChange).toHaveBeenLastCalledWith({
+      title: '복원된 제목',
+      authorName: '복원된 지은이!',
+      description: '복원된 설명',
+      isPreserveOriginalDrawingStyle: false,
+    })
   })
 })

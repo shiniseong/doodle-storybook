@@ -2953,7 +2953,13 @@ interface StoryComposerSectionProps {
   initialTitle: string
   initialAuthorName: string
   initialDescription: string
-  onDraftChange: (draft: { title: string; authorName: string; description: string }) => void
+  initialIsPreserveOriginalDrawingStyle: boolean
+  onDraftChange: (draft: {
+    title: string
+    authorName: string
+    description: string
+    isPreserveOriginalDrawingStyle: boolean
+  }) => void
   onRequestAuthentication?: () => void
 }
 
@@ -3030,6 +3036,7 @@ function StoryComposerSection({
   initialTitle,
   initialAuthorName,
   initialDescription,
+  initialIsPreserveOriginalDrawingStyle,
   onDraftChange,
   onRequestAuthentication,
 }: StoryComposerSectionProps) {
@@ -3079,8 +3086,9 @@ function StoryComposerSection({
         initialTitle={initialTitle}
         initialAuthorName={initialAuthorName}
         initialDescription={initialDescription}
+        initialIsPreserveOriginalDrawingStyle={initialIsPreserveOriginalDrawingStyle}
         onDraftChange={onDraftChange}
-        onSubmit={async ({ title, authorName, description }) => {
+        onSubmit={async ({ title, authorName, description, isPreserveOriginalDrawingStyle }) => {
           if (auth && !auth.userId) {
             requestAuthenticationForStoryCreation()
             return
@@ -3094,6 +3102,7 @@ function StoryComposerSection({
             title,
             description,
             language: resolveStoryLanguage(i18n.language),
+            isPreserveOriginalDrawingStyle,
           })
 
           if (result.ok) {
@@ -3205,24 +3214,34 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     setWorkspaceResetVersion((previous) => previous + 1)
   }, [])
 
-  const handleComposeDraftChange = useCallback((nextDraft: { title: string; authorName: string; description: string }) => {
-    setDraft((previous) => {
-      if (
-        previous.title === nextDraft.title &&
-        previous.authorName === nextDraft.authorName &&
-        previous.description === nextDraft.description
-      ) {
-        return previous
-      }
+  const handleComposeDraftChange = useCallback(
+    (nextDraft: {
+      title: string
+      authorName: string
+      description: string
+      isPreserveOriginalDrawingStyle: boolean
+    }) => {
+      setDraft((previous) => {
+        if (
+          previous.title === nextDraft.title &&
+          previous.authorName === nextDraft.authorName &&
+          previous.description === nextDraft.description &&
+          previous.isPreserveOriginalDrawingStyle === nextDraft.isPreserveOriginalDrawingStyle
+        ) {
+          return previous
+        }
 
-      return {
-        ...previous,
-        title: nextDraft.title,
-        authorName: nextDraft.authorName,
-        description: nextDraft.description,
-      }
-    })
-  }, [])
+        return {
+          ...previous,
+          title: nextDraft.title,
+          authorName: nextDraft.authorName,
+          description: nextDraft.description,
+          isPreserveOriginalDrawingStyle: nextDraft.isPreserveOriginalDrawingStyle,
+        }
+      })
+    },
+    [],
+  )
 
   const handleCanvasSnapshotChange = useCallback((nextCanvasDataUrl: string | null) => {
     setDraft((previous) => {
@@ -3258,6 +3277,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           initialTitle={draft.title}
           initialAuthorName={draft.authorName}
           initialDescription={draft.description}
+          initialIsPreserveOriginalDrawingStyle={draft.isPreserveOriginalDrawingStyle}
           onDraftChange={handleComposeDraftChange}
           onRequestAuthentication={onRequestAuthentication}
         />

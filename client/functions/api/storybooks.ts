@@ -14,6 +14,7 @@ interface StorybookCreateRequestBody {
   language: StoryLanguage
   title: string
   description: string
+  is_preserve_original_drawing_style: boolean
   imageDataUrl?: string
 }
 
@@ -153,8 +154,16 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
     return null
   }
 
+  if (
+    candidate.is_preserve_original_drawing_style !== undefined &&
+    typeof candidate.is_preserve_original_drawing_style !== 'boolean'
+  ) {
+    return null
+  }
+
   const normalizedTitle = candidate.title.trim()
   const normalizedDescription = candidate.description.trim()
+  const normalizedIsPreserveOriginalDrawingStyle = candidate.is_preserve_original_drawing_style === true
   const normalizedImageDataUrl =
     typeof candidate.imageDataUrl === 'string' && candidate.imageDataUrl.startsWith('data:image/')
       ? candidate.imageDataUrl
@@ -169,6 +178,7 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
     language: candidate.language,
     title: normalizedTitle,
     description: normalizedDescription,
+    is_preserve_original_drawing_style: normalizedIsPreserveOriginalDrawingStyle,
     ...(normalizedImageDataUrl ? { imageDataUrl: normalizedImageDataUrl } : {}),
   }
 }
@@ -958,6 +968,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             language: resolvePromptLanguage(normalizedBody.language),
             title: normalizedBody.title,
             description: normalizedBody.description,
+            is_preserve_original_drawing_style: normalizedBody.is_preserve_original_drawing_style,
           },
         },
         input: [

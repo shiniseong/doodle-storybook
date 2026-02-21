@@ -17,6 +17,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '',
       authorName: '',
       description: '',
+      isPreserveOriginalDrawingStyle: false,
       canvasDataUrl: null,
     })
   })
@@ -26,6 +27,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '달빛 캠핑',
       authorName: '별빛 작가',
       description: '캠핑장에 별빛이 내려요',
+      isPreserveOriginalDrawingStyle: true,
       canvasDataUrl: 'data:image/png;base64,mock',
     })
 
@@ -33,6 +35,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '달빛 캠핑',
       authorName: '별빛 작가',
       description: '캠핑장에 별빛이 내려요',
+      isPreserveOriginalDrawingStyle: true,
       canvasDataUrl: 'data:image/png;base64,mock',
     })
   })
@@ -44,6 +47,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '',
       authorName: '',
       description: '',
+      isPreserveOriginalDrawingStyle: false,
       canvasDataUrl: null,
     })
   })
@@ -55,6 +59,7 @@ describe('storybookWorkspaceDraftStorage', () => {
         title: '기존 제목',
         authorName: '기존 작가',
         description: '기존 설명',
+        isPreserveOriginalDrawingStyle: false,
         canvasDataUrl: 'data:image/png;base64,existing',
       }),
     )
@@ -63,6 +68,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '',
       authorName: '',
       description: '',
+      isPreserveOriginalDrawingStyle: false,
       canvasDataUrl: null,
     })
 
@@ -74,6 +80,7 @@ describe('storybookWorkspaceDraftStorage', () => {
       title: '제목',
       authorName: '작가',
       description: '설명',
+      isPreserveOriginalDrawingStyle: true,
       canvasDataUrl: null,
     })
 

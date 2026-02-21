@@ -30,6 +30,7 @@ describe('HttpStorybookCommandPort', () => {
       title: '달빛 숲',
       description: '토끼가 숲길을 달려요',
       language: 'ko',
+      isPreserveOriginalDrawingStyle: true,
     })
 
     expect(result.storybookId).toBe('storybook-1')
@@ -49,9 +50,13 @@ describe('HttpStorybookCommandPort', () => {
     }
 
     const fetchOptions = firstCall[1] as RequestInit
-    const requestBody = JSON.parse(fetchOptions.body as string) as { imageDataUrl?: string }
+    const requestBody = JSON.parse(fetchOptions.body as string) as {
+      imageDataUrl?: string
+      is_preserve_original_drawing_style: boolean
+    }
 
     expect(requestBody.imageDataUrl).toBe('data:image/png;base64,abc123')
+    expect(requestBody.is_preserve_original_drawing_style).toBe(true)
   })
 
   it('캔버스가 없으면 imageDataUrl 없이 전송한다', async () => {
@@ -69,6 +74,7 @@ describe('HttpStorybookCommandPort', () => {
       title: '별빛 바다',
       description: '고양이가 등대 옆을 걷고 있어요',
       language: 'ko',
+      isPreserveOriginalDrawingStyle: false,
     })
 
     const firstCall = fetchMock.mock.calls[0]
@@ -79,9 +85,13 @@ describe('HttpStorybookCommandPort', () => {
     }
 
     const fetchOptions = firstCall[1] as RequestInit
-    const requestBody = JSON.parse(fetchOptions.body as string) as { imageDataUrl?: string }
+    const requestBody = JSON.parse(fetchOptions.body as string) as {
+      imageDataUrl?: string
+      is_preserve_original_drawing_style: boolean
+    }
 
     expect(requestBody.imageDataUrl).toBeUndefined()
+    expect(requestBody.is_preserve_original_drawing_style).toBe(false)
   })
 
   it('API 실패 응답이면 예외를 던진다', async () => {
@@ -102,6 +112,7 @@ describe('HttpStorybookCommandPort', () => {
         title: '붉은 지붕집',
         description: '다람쥐가 우편함을 열어요',
         language: 'ko',
+        isPreserveOriginalDrawingStyle: false,
       }),
     ).rejects.toThrow('Failed to create storybook: 502')
   })
@@ -132,6 +143,7 @@ describe('HttpStorybookCommandPort', () => {
       title: '반짝 숲',
       description: '여우가 숲에서 춤춰요',
       language: 'ko',
+      isPreserveOriginalDrawingStyle: false,
     })
 
     expect(result.storybookId).toBe('storybook-5')

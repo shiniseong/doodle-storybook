@@ -161,6 +161,15 @@ describe('storybooks function (v15 pipeline)', () => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
       if (url === 'https://api.openai.com/v1/responses') {
+        const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
+          prompt?: {
+            variables?: {
+              is_preserve_original_drawing_style?: boolean
+            }
+          }
+        }
+        expect(requestBody.prompt?.variables?.is_preserve_original_drawing_style).toBe(false)
+
         return createJsonResponse({
           id: 'resp-v9-1',
           prompt: {
@@ -250,6 +259,48 @@ describe('storybooks function (v15 pipeline)', () => {
     expect(payload.narrations).toHaveLength(10)
     expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.content))
+  })
+
+  it('원본 그림체 보존 옵션 true를 최초 프롬프트 변수로 전달한다', async () => {
+    let capturedOptionValue: boolean | undefined
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url === 'https://api.openai.com/v1/responses') {
+        const requestBody = JSON.parse(String(init?.body ?? '{}')) as {
+          prompt?: {
+            variables?: {
+              is_preserve_original_drawing_style?: boolean
+            }
+          }
+        }
+        capturedOptionValue = requestBody.prompt?.variables?.is_preserve_original_drawing_style
+
+        return createJsonResponse({
+          id: 'resp-invalid-style-option',
+          output_text: JSON.stringify({
+            pages: [{ page: 1, content: 'invalid' }],
+          }),
+        })
+      }
+
+      throw new Error('No downstream call should happen.')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext({
+        userId: 'user-style-option',
+        language: 'ko',
+        title: '그림체 옵션 전달',
+        description: '옵션이 최초 프롬프트 변수로 전달되어야 해요',
+        is_preserve_original_drawing_style: true,
+      }),
+    )
+
+    expect(response.status).toBe(502)
+    expect(capturedOptionValue).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {

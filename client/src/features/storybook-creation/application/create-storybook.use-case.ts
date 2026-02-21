@@ -7,6 +7,7 @@ export interface CreateStorybookRequest {
   title?: string
   description: string
   language: StoryLanguage
+  isPreserveOriginalDrawingStyle?: boolean
 }
 
 export interface CreateStorybookResponse {
@@ -40,6 +41,7 @@ export interface StorybookCommandPort {
     title?: string
     description: string
     language: StoryLanguage
+    isPreserveOriginalDrawingStyle: boolean
   }): Promise<CreateStorybookResponse>
 }
 
@@ -70,6 +72,7 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
   ): Promise<Result<CreateStorybookResponse, CreateStorybookError>> {
     const draftResult = createStorybookDraft(request.description, request.language)
     const normalizedTitle = request.title?.trim()
+    const isPreserveOriginalDrawingStyle = request.isPreserveOriginalDrawingStyle === true
     if (!draftResult.ok) {
       return err(draftResult.error)
     }
@@ -88,6 +91,7 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
         ...(normalizedTitle ? { title: normalizedTitle } : {}),
         description: draftResult.value.description,
         language: draftResult.value.language,
+        isPreserveOriginalDrawingStyle,
       })
 
       return ok(created)
