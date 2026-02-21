@@ -8,7 +8,7 @@
   ],
   "vars": {
     "OPENAI_PROMPT_ID": "pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697",
-    "OPENAI_PROMPT_VERSION": "14",
+    "OPENAI_PROMPT_VERSION": "15",
     "OPENAI_IMAGE_MODEL": "gpt-image-1.5",
     "VITE_SUPABASE_URL": "https://spxxtcujyjzxinsfbonb.supabase.co",
     "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YXEjANbMxCbS0sjDX0MlBQ_kxp9w0rB"
