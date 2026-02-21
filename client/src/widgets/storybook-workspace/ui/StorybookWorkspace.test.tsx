@@ -144,7 +144,7 @@ describe('StorybookWorkspace', () => {
     })
   })
 
-  it('원본 그림체 보존 스위치를 켜면 생성 요청에 true로 전달한다', async () => {
+  it('아이 그림체 보존 스위치를 켜면 생성 요청에 true로 전달한다', async () => {
     const user = userEvent.setup()
     const execute = vi.fn(async () => ({
       ok: true as const,
@@ -161,7 +161,7 @@ describe('StorybookWorkspace', () => {
 
     await user.type(screen.getByLabelText('동화 제목'), '그림체 보존 테스트')
     await user.type(screen.getByLabelText('그림 설명'), '아이가 그린 느낌을 살려 주세요')
-    await user.click(screen.getByRole('switch', { name: '원본 그림체 보존' }))
+    await user.click(screen.getByRole('switch', { name: '아이 그림체 보존' }))
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(execute).toHaveBeenCalledWith({
@@ -254,7 +254,7 @@ describe('StorybookWorkspace', () => {
 
     await user.type(screen.getByLabelText('동화 제목'), '보관할 제목')
     await user.type(screen.getByLabelText('그림 설명'), '보관할 설명')
-    await user.click(screen.getByRole('switch', { name: '원본 그림체 보존' }))
+    await user.click(screen.getByRole('switch', { name: '아이 그림체 보존' }))
 
     unmount()
 
@@ -262,7 +262,7 @@ describe('StorybookWorkspace', () => {
 
     expect(screen.getByLabelText('동화 제목')).toHaveValue('보관할 제목')
     expect(screen.getByLabelText('그림 설명')).toHaveValue('보관할 설명')
-    expect(screen.getByRole('switch', { name: '원본 그림체 보존' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: '아이 그림체 보존' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('로그아웃 버튼 클릭 시 저장된 draft와 입력값을 초기화한다', async () => {

@@ -16,7 +16,7 @@ describe('StorybookDescriptionForm', () => {
 
     expect(screen.getByLabelText('동화 제목')).toBeInTheDocument()
     expect(screen.getByLabelText('지은이')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: '원본 그림체 보존' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: '아이 그림체 보존' })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByText('0 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
@@ -106,7 +106,7 @@ describe('StorybookDescriptionForm', () => {
     })
   })
 
-  it('원본 그림체 보존 스위치를 켜면 true로 제출한다', async () => {
+  it('아이 그림체 보존 스위치를 켜면 true로 제출한다', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)
 
@@ -114,7 +114,7 @@ describe('StorybookDescriptionForm', () => {
 
     await user.type(screen.getByLabelText('동화 제목'), '선 느낌 유지')
     await user.type(screen.getByLabelText('그림 설명'), '손그림 느낌을 유지하며 정리해 주세요')
-    await user.click(screen.getByRole('switch', { name: '원본 그림체 보존' }))
+    await user.click(screen.getByRole('switch', { name: '아이 그림체 보존' }))
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
