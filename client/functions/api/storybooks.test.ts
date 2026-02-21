@@ -401,6 +401,108 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(payload.narrations).toHaveLength(10)
   })
 
+  it('R2에 오리진/생성 이미지 및 TTS를 경로 규칙과 메타데이터로 저장한다', async () => {
+    const schema = createStoryPromptSchemaOutput()
+    const bucketPutMock = vi.fn(async () => null)
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url === 'https://api.openai.com/v1/responses') {
+        return createJsonResponse({
+          id: 'resp-r2-save-1',
+          prompt: {
+            id: 'pmpt_test',
+            version: '21',
+          },
+          output_text: JSON.stringify(schema),
+        })
+      }
+
+      if (url === 'https://api.openai.com/v1/images/generations') {
+        return createJsonResponse({ data: [{ b64_json: 'aW1hZ2U=' }] })
+      }
+
+      if (url === 'https://api.openai.com/v1/audio/speech') {
+        return createAudioResponse('narration')
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-r2',
+          language: 'ko',
+          title: 'R2 저장 테스트',
+          description: '저장 규칙을 검증한다',
+          imageDataUrl: 'data:image/png;base64,b3JpZ2lu',
+        },
+        {
+          STORYBOOK_ASSETS_BUCKET: {
+            put: bucketPutMock,
+          },
+        },
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(bucketPutMock).toHaveBeenCalledTimes(17)
+
+    const payload = (await response.json()) as {
+      storybookId: string
+      createdStoryBookId: string
+    }
+
+    const expectedImagePrefix = `user-r2/${payload.storybookId}/images/user-r2-${payload.createdStoryBookId}-image-`
+    const expectedTtsPrefix = `user-r2/${payload.storybookId}/tts/user-r2-${payload.createdStoryBookId}-tts-p`
+
+    const imageCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/images/'))
+    const ttsCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/tts/'))
+
+    expect(imageCalls).toHaveLength(7)
+    expect(ttsCalls).toHaveLength(10)
+
+    const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
+    expect(storedKeys).toContain(`${expectedImagePrefix}origin`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}cover`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}cover-thumbnail`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}highlight`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}highlight-thumbnail`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}end`)
+    expect(storedKeys).toContain(`${expectedImagePrefix}end-thumbnail`)
+    expect(storedKeys).toContain(`${expectedTtsPrefix}1`)
+    expect(storedKeys).toContain(`${expectedTtsPrefix}10`)
+
+    const originCall = bucketPutMock.mock.calls.find((call) => String(call[0]).endsWith('-image-origin'))
+    expect(originCall?.[2]).toEqual({
+      httpMetadata: {
+        contentType: 'image/png',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+      customMetadata: {
+        userId: 'user-r2',
+        createdStoryBookId: payload.createdStoryBookId,
+      },
+    })
+
+    const ttsCall = bucketPutMock.mock.calls.find((call) => String(call[0]).endsWith('-tts-p1'))
+    expect(ttsCall?.[2]).toEqual({
+      httpMetadata: {
+        contentType: 'audio/mpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+      customMetadata: {
+        userId: 'user-r2',
+        createdStoryBookId: payload.createdStoryBookId,
+      },
+    })
+  })
+
   it('이미지 3병렬 + TTS 10 요청을 한 번에 시작한다', async () => {
     const schema = createStoryPromptSchemaOutput()
     const deferredRequests: Array<{
