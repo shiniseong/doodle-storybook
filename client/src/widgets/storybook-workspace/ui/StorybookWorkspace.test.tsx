@@ -2363,6 +2363,7 @@ describe('StorybookWorkspace', () => {
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalled()
       expect(screen.getByRole('button', { name: 'user-1' })).toBeInTheDocument()
+      expect(screen.queryByText('무료 제작')).not.toBeInTheDocument()
     })
 
     await user.click(screen.getByRole('button', { name: 'user-1' }))

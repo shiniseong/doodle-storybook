@@ -469,6 +469,7 @@ function WorkspaceHeader({
   const currentPlanName = subscriptionAccess?.currentPlan.name ?? t('workspace.planNames.free')
   const isUnsubscribed = currentPlanCode === 'free'
   const shouldShowStatusList = auth ? isAuthenticated : true
+  const shouldShowFreeStatusCard = isUnsubscribed
   const shouldShowFreeQuotaTrialCta = isAuthenticated && isUnsubscribed && remainingFreeStories <= 0
   const shouldShowPlanTrialCta = isAuthenticated && isUnsubscribed
   const accountChipLabel = isAuthenticated && auth
@@ -579,25 +580,27 @@ function WorkspaceHeader({
           )}
         </div>
         {shouldShowStatusList ? (
-          <ul className="status-list" aria-label={t('workspace.status.aria')}>
-            <li className="status-item">
-              <span className="status-item__label">{t('workspace.status.freeLabel')}</span>
-              <strong className="status-item__value">
-                {t('workspace.status.freeValue', { count: remainingFreeStories })}
-              </strong>
-              {shouldShowFreeQuotaTrialCta ? (
-                <button
-                  type="button"
-                  className="status-item__cta"
-                  disabled={isBillingActionPending || !onRequestOpenPricingModal}
-                  onClick={() => {
-                    onRequestOpenPricingModal?.()
-                  }}
-                >
-                  {t('workspace.status.startTrialCta')}
-                </button>
-              ) : null}
-            </li>
+          <ul className={`status-list${shouldShowFreeStatusCard ? '' : ' status-list--single'}`} aria-label={t('workspace.status.aria')}>
+            {shouldShowFreeStatusCard ? (
+              <li className="status-item">
+                <span className="status-item__label">{t('workspace.status.freeLabel')}</span>
+                <strong className="status-item__value">
+                  {t('workspace.status.freeValue', { count: remainingFreeStories })}
+                </strong>
+                {shouldShowFreeQuotaTrialCta ? (
+                  <button
+                    type="button"
+                    className="status-item__cta"
+                    disabled={isBillingActionPending || !onRequestOpenPricingModal}
+                    onClick={() => {
+                      onRequestOpenPricingModal?.()
+                    }}
+                  >
+                    {t('workspace.status.startTrialCta')}
+                  </button>
+                ) : null}
+              </li>
+            ) : null}
             <li className="status-item">
               <span className="status-item__label">{t('workspace.status.planLabel')}</span>
               <strong className="status-item__value">{planStatusLabel}</strong>
