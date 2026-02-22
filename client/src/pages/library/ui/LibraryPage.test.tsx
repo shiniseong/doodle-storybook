@@ -44,6 +44,44 @@ describe('LibraryPage', () => {
     })
   })
 
+  it('카드 전체 클릭으로 상세 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const execute = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        items: [
+          {
+            storybookId: 'storybook-99',
+            title: '별빛 기차',
+            authorName: null,
+            originImageUrl: null,
+            createdAt: null,
+          },
+        ],
+      },
+    }))
+    const onOpenStorybookDetail = vi.fn()
+
+    render(
+      <LibraryPage
+        dependencies={{
+          listStorybooksUseCase: {
+            execute,
+          },
+        }}
+        userId="user-1"
+        onOpenStorybookDetail={onOpenStorybookDetail}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '별빛 기차' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '별빛 기차' }))
+    expect(onOpenStorybookDetail).toHaveBeenCalledWith('storybook-99')
+  })
+
   it('에러 상태에서 다시 불러오기 버튼을 누르면 재시도한다', async () => {
     const user = userEvent.setup()
     const execute = vi

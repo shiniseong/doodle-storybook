@@ -1,3 +1,5 @@
+import { buildStorybookDetailApiResponse, resolveR2AssetPublicUrl } from './storybooks/storybooks-response'
+
 type StoryLanguage = 'ko' | 'en' | 'ja' | 'zh'
 
 interface StorybookAssetsBucket {
@@ -192,7 +194,7 @@ type SupabaseMutationResult = SupabaseMutationSuccess | SupabaseMutationError
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 } as const
 
@@ -1117,29 +1119,6 @@ function resolveR2PublicBaseUrl(env: Env): string | null {
   return baseUrl.replace(/\/+$/, '')
 }
 
-function resolveR2AssetPublicUrl(assetKeyOrUrl: string, env: Env): string | null {
-  const normalized = assetKeyOrUrl.trim()
-  if (normalized.length === 0) {
-    return null
-  }
-
-  if (
-    normalized.startsWith('http://') ||
-    normalized.startsWith('https://') ||
-    normalized.startsWith('data:') ||
-    normalized.startsWith('//')
-  ) {
-    return normalized
-  }
-
-  const baseUrl = resolveR2PublicBaseUrl(env)
-  if (!baseUrl) {
-    return null
-  }
-
-  return `${baseUrl}/${normalized.replace(/^\/+/, '')}`
-}
-
 function createSupabaseHeaders(
   config: SupabasePersistenceConfig,
   includeJsonBody: boolean,
@@ -1692,7 +1671,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   let imagesForResponse: [string, string, string]
   let narrations: StoryPageNarration[]
   let narrationStorageKeyByPage: Map<number, string>
-  let narrationStorageKeys: string[]
 
   if (isMockMode) {
     const mockBaseUrl = resolveMockCloudflareR2BaseUrl(context.env)
@@ -1722,7 +1700,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }
     })
     narrationStorageKeyByPage = new Map(narrations.map((narration) => [narration.page, mockTtsUrl]))
-    narrationStorageKeys = narrations.map(() => mockTtsUrl)
   } else {
     const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
       generateImageFromPrompt(
@@ -1781,7 +1758,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
       ]),
     )
-    narrationStorageKeys = narrations.map((narration) => narrationStorageKeyByPage.get(narration.page) ?? '')
 
     const uploadResults = await Promise.all([
       uploadDataUrlToR2(
@@ -1916,19 +1892,24 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  return jsonResponse({
-    storybookId,
-    createdStoryBookId,
-    openaiResponseId: openAIResponseBody.id ?? null,
-    promptVersion,
-    upstreamPromptVersion,
-    pages: parsedPromptStorybook.pages,
-    images: imagesForResponse,
-    narrations,
-    storyText,
-    assetObjectKeys: {
-      images: imageStorageKeys,
-      narrations: narrationStorageKeys,
+  const persistedEntityResponse = buildStorybookDetailApiResponse({
+    storybook: {
+      ...storybookRow,
+      created_at: new Date().toISOString(),
     },
+    originDetails: originDetailRows,
+    outputDetails: outputDetailRows,
+    env: context.env,
   })
+
+  if (!persistedEntityResponse) {
+    return jsonResponse(
+      {
+        error: 'Failed to compose persisted storybook response.',
+      },
+      502,
+    )
+  }
+
+  return jsonResponse(persistedEntityResponse)
 }

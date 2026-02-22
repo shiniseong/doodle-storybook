@@ -4,6 +4,11 @@ import {
 } from '@features/storybook-creation/application/create-storybook.use-case'
 import { HttpStorybookCommandPort } from '@features/storybook-creation/infrastructure/http/storybook-creation.ports.http'
 import {
+  GetStorybookDetailUseCase,
+  type GetStorybookDetailUseCasePort,
+} from '@features/storybook-detail/application/get-storybook-detail.use-case'
+import { HttpStorybookDetailQueryPort } from '@features/storybook-detail/infrastructure/http/storybook-detail.ports.http'
+import {
   ListStorybooksUseCase,
   type ListStorybooksUseCasePort,
 } from '@features/storybook-library/application/list-storybooks.use-case'
@@ -16,6 +21,7 @@ export interface AppDependencies {
   readonly currentUserId: string
   readonly createStorybookUseCase: CreateStorybookUseCasePort
   readonly listStorybooksUseCase: ListStorybooksUseCasePort
+  readonly getStorybookDetailUseCase: GetStorybookDetailUseCasePort
 }
 
 interface CreateAppDependenciesOptions {
@@ -26,10 +32,12 @@ export const createAppDependencies = (options: CreateAppDependenciesOptions = {}
   const quotaPort = new InMemoryStorybookQuotaPort(true)
   const commandPort = new HttpStorybookCommandPort()
   const storybookLibraryQueryPort = new HttpStorybookLibraryQueryPort()
+  const storybookDetailQueryPort = new HttpStorybookDetailQueryPort()
 
   return {
     currentUserId: options.currentUserId ?? 'demo-user',
     createStorybookUseCase: new CreateStorybookUseCase(quotaPort, commandPort),
     listStorybooksUseCase: new ListStorybooksUseCase(storybookLibraryQueryPort),
+    getStorybookDetailUseCase: new GetStorybookDetailUseCase(storybookDetailQueryPort),
   }
 }

@@ -198,6 +198,38 @@ export const i18nResources = {
           createdAt: '생성일',
         },
       },
+      storybookDetail: {
+        eyebrow: '완성된 그림동화를 자세히 확인해요',
+        title: '동화 상세',
+        description: '원본 그림과 제작 정보를 읽기 전용으로 확인할 수 있어요.',
+        panels: {
+          drawing: {
+            title: '아이가 그린 그림',
+            description: '생성에 사용된 원본 그림입니다.',
+          },
+          director: {
+            title: '스토리 디렉터',
+            description: '제목, 지은이, 그림설명, 제작일 정보를 보여줍니다.',
+          },
+        },
+        meta: {
+          title: '제목',
+          author: '지은이',
+          description: '그림설명',
+          createdAt: '제작일',
+        },
+        actions: {
+          back: '내 그림동화로 돌아가기',
+          retry: '다시 불러오기',
+          openEbook: '동화 열람하기',
+        },
+        state: {
+          loading: '동화 상세를 불러오는 중이에요...',
+          error: '동화 상세를 불러오지 못했어요.',
+          noImage: '원본 이미지가 없어요.',
+          noDescription: '그림 설명이 없어요.',
+        },
+      },
       form: {
         titleLabel: '동화 제목',
         authorLabel: '지은이',
@@ -406,6 +438,38 @@ export const i18nResources = {
         card: {
           unknownAuthor: 'Author not set',
           createdAt: 'Created',
+        },
+      },
+      storybookDetail: {
+        eyebrow: 'Review your finished storybook',
+        title: 'Storybook Detail',
+        description: 'View the original drawing and production information in read-only mode.',
+        panels: {
+          drawing: {
+            title: 'Child Drawing',
+            description: 'The original drawing used for generation.',
+          },
+          director: {
+            title: 'Story Director',
+            description: 'Shows title, author, drawing description, and production date.',
+          },
+        },
+        meta: {
+          title: 'Title',
+          author: 'Author',
+          description: 'Drawing Description',
+          createdAt: 'Created At',
+        },
+        actions: {
+          back: 'Back to My Storybooks',
+          retry: 'Try Again',
+          openEbook: 'Open Storybook',
+        },
+        state: {
+          loading: 'Loading storybook detail...',
+          error: 'Could not load storybook detail.',
+          noImage: 'No original image available.',
+          noDescription: 'No drawing description available.',
         },
       },
       form: {
@@ -618,6 +682,38 @@ export const i18nResources = {
           createdAt: '作成日',
         },
       },
+      storybookDetail: {
+        eyebrow: '完成した絵本の詳細を確認',
+        title: '絵本詳細',
+        description: '原画と制作情報を読み取り専用で確認できます。',
+        panels: {
+          drawing: {
+            title: '子どもが描いた絵',
+            description: '生成に使われた原画です。',
+          },
+          director: {
+            title: 'ストーリーディレクター',
+            description: 'タイトル、著者、絵の説明、作成日を表示します。',
+          },
+        },
+        meta: {
+          title: 'タイトル',
+          author: '著者',
+          description: '絵の説明',
+          createdAt: '作成日',
+        },
+        actions: {
+          back: 'わたしの絵ものがたりへ戻る',
+          retry: '再読み込み',
+          openEbook: '絵本を読む',
+        },
+        state: {
+          loading: '絵本の詳細を読み込み中...',
+          error: '絵本の詳細を取得できませんでした。',
+          noImage: '原画がありません。',
+          noDescription: '絵の説明がありません。',
+        },
+      },
       form: {
         titleLabel: '絵本タイトル',
         authorLabel: '著者',
@@ -826,6 +922,38 @@ export const i18nResources = {
         card: {
           unknownAuthor: '未填写作者',
           createdAt: '创建于',
+        },
+      },
+      storybookDetail: {
+        eyebrow: '查看已完成绘本详情',
+        title: '绘本详情',
+        description: '以只读方式查看原图与制作信息。',
+        panels: {
+          drawing: {
+            title: '孩子画的图',
+            description: '用于生成的原始图片。',
+          },
+          director: {
+            title: '故事导演台',
+            description: '显示标题、作者、图片描述和制作日期。',
+          },
+        },
+        meta: {
+          title: '标题',
+          author: '作者',
+          description: '图片描述',
+          createdAt: '制作日期',
+        },
+        actions: {
+          back: '返回我的图画故事',
+          retry: '重新加载',
+          openEbook: '阅读绘本',
+        },
+        state: {
+          loading: '正在加载绘本详情...',
+          error: '无法加载绘本详情。',
+          noImage: '没有原图。',
+          noDescription: '没有图片描述。',
         },
       },
       form: {

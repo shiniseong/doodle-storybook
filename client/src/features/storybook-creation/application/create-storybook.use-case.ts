@@ -1,3 +1,4 @@
+import type { StorybookDetailResponse } from '@entities/storybook/model/storybook-detail'
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
 import { createStorybookDraft } from '@features/storybook-creation/domain/storybook-draft'
 import { err, ok, type Result } from '@shared/lib/result'
@@ -10,29 +11,10 @@ export interface CreateStorybookRequest {
   language: StoryLanguage
 }
 
-export interface CreateStorybookResponse {
-  storybookId: string
-  openaiResponseId?: string | null
-  pages?: StorybookGeneratedPage[]
-  images?: string[]
-  narrations?: StorybookGeneratedNarration[]
-  storyText?: string | null
-  promptVersion?: string | null
-}
+export type CreateStorybookResponse = StorybookDetailResponse
 
 export interface StorybookQuotaPort {
   canCreateStorybook(userId: string): Promise<boolean>
-}
-
-export interface StorybookGeneratedPage {
-  page: number
-  content: string
-  isHighlight: boolean
-}
-
-export interface StorybookGeneratedNarration {
-  page: number
-  audioDataUrl: string
 }
 
 export interface StorybookCommandPort {

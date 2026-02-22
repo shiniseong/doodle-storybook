@@ -56,20 +56,31 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
       expect(response.status).toBe(200)
 
       const payload = (await response.json()) as {
-        promptVersion: string
-        upstreamPromptVersion: string | null
-        pages: Array<{ page: number; content: string; isHighlight: boolean }>
-        images: string[]
-        narrations: Array<{ page: number; audioDataUrl: string }>
+        storybookId: string
+        details: {
+          output: Array<{
+            pageIndex: number
+            pageType: 'cover' | 'story'
+          }>
+        }
+        ebook: {
+          pages: Array<{ page: number; content: string; isHighlight: boolean }>
+          narrations: Array<{ page: number; audioDataUrl: string }>
+          coverImageUrl: string | null
+          highlightImageUrl: string | null
+          finalImageUrl: string | null
+        }
       }
 
-      expect(payload.promptVersion).toBe(openaiPromptVersion)
-      expect(payload.upstreamPromptVersion).toBe(openaiPromptVersion)
-      expect(payload.pages).toHaveLength(10)
-      expect(payload.images).toHaveLength(3)
-      expect(payload.images.every((image) => image.startsWith('data:image/'))).toBe(true)
-      expect(payload.narrations).toHaveLength(10)
-      expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
+      expect(payload.storybookId.length).toBeGreaterThan(0)
+      expect(payload.details.output).toHaveLength(11)
+      expect(payload.ebook.pages).toHaveLength(10)
+      expect(payload.ebook.pages.filter((page) => page.isHighlight)).toHaveLength(1)
+      expect(payload.ebook.coverImageUrl === null || payload.ebook.coverImageUrl.length > 0).toBe(true)
+      expect(payload.ebook.highlightImageUrl === null || payload.ebook.highlightImageUrl.length > 0).toBe(true)
+      expect(payload.ebook.finalImageUrl === null || payload.ebook.finalImageUrl.length > 0).toBe(true)
+      expect(payload.ebook.narrations.length <= 10).toBe(true)
+      expect(payload.ebook.narrations.every((narration) => narration.page >= 1 && narration.page <= 10)).toBe(true)
     },
     180000,
   )

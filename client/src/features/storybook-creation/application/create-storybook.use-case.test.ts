@@ -1,10 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  type CreateStorybookResponse,
   CreateStorybookUseCase,
   type StorybookCommandPort,
   type StorybookQuotaPort,
 } from '@features/storybook-creation/application/create-storybook.use-case'
+
+const mockCreateStorybookResponse: CreateStorybookResponse = {
+  storybookId: 'storybook-1',
+  storybook: {
+    storybookId: 'storybook-1',
+    title: '달빛 숲 모험',
+    authorName: null,
+    description: '토끼가 달빛 숲에서 길을 찾아요',
+    originImageUrl: null,
+    createdAt: null,
+  },
+  details: {
+    origin: [],
+    output: [],
+  },
+  ebook: {
+    title: '달빛 숲 모험',
+    authorName: null,
+    coverImageUrl: null,
+    highlightImageUrl: null,
+    finalImageUrl: null,
+    pages: [{ page: 1, content: '첫 장', isHighlight: false }],
+    narrations: [],
+  },
+}
 
 describe('CreateStorybookUseCase', () => {
   it('검증과 quota 통과 시 동화 생성 명령을 호출한다', async () => {
@@ -12,7 +38,7 @@ describe('CreateStorybookUseCase', () => {
       canCreateStorybook: vi.fn(async () => true),
     }
     const commandPort: StorybookCommandPort = {
-      createStorybook: vi.fn(async () => ({ storybookId: 'storybook-1' })),
+      createStorybook: vi.fn(async () => mockCreateStorybookResponse),
     }
 
     const useCase = new CreateStorybookUseCase(quotaPort, commandPort)
@@ -25,7 +51,7 @@ describe('CreateStorybookUseCase', () => {
 
     expect(result).toEqual({
       ok: true,
-      value: { storybookId: 'storybook-1' },
+      value: mockCreateStorybookResponse,
     })
     expect(quotaPort.canCreateStorybook).toHaveBeenCalledWith('user-1')
     expect(commandPort.createStorybook).toHaveBeenCalledWith({
@@ -41,7 +67,7 @@ describe('CreateStorybookUseCase', () => {
       canCreateStorybook: vi.fn(async () => false),
     }
     const commandPort: StorybookCommandPort = {
-      createStorybook: vi.fn(async () => ({ storybookId: 'storybook-ignored' })),
+      createStorybook: vi.fn(async () => mockCreateStorybookResponse),
     }
 
     const useCase = new CreateStorybookUseCase(quotaPort, commandPort)
@@ -65,7 +91,7 @@ describe('CreateStorybookUseCase', () => {
       canCreateStorybook: vi.fn(async () => true),
     }
     const commandPort: StorybookCommandPort = {
-      createStorybook: vi.fn(async () => ({ storybookId: 'storybook-ignored' })),
+      createStorybook: vi.fn(async () => mockCreateStorybookResponse),
     }
 
     const useCase = new CreateStorybookUseCase(quotaPort, commandPort)

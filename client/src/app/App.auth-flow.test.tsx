@@ -160,13 +160,45 @@ describe('App auth flow persistence', () => {
       createStorybookUseCase: {
         execute: vi.fn(async () => ({
           ok: true as const,
-          value: { storybookId: 'storybook-auth-flow' },
+          value: {
+            storybookId: 'storybook-auth-flow',
+            storybook: {
+              storybookId: 'storybook-auth-flow',
+              title: 'storybook-auth-flow',
+              authorName: null,
+              description: '',
+              originImageUrl: null,
+              createdAt: null,
+            },
+            details: {
+              origin: [],
+              output: [],
+            },
+            ebook: {
+              title: 'storybook-auth-flow',
+              authorName: null,
+              coverImageUrl: null,
+              highlightImageUrl: null,
+              finalImageUrl: null,
+              pages: [],
+              narrations: [],
+            },
+          },
         })),
       },
       listStorybooksUseCase: {
         execute: vi.fn(async () => ({
           ok: true as const,
           value: { items: [] },
+        })),
+      },
+      getStorybookDetailUseCase: {
+        execute: vi.fn(async () => ({
+          ok: false as const,
+          error: {
+            code: 'UNEXPECTED' as const,
+            message: 'not used in this test',
+          },
         })),
       },
     }))

@@ -53,7 +53,42 @@ vi.mock('@pages/auth/ui/LoginPage', () => ({
 }))
 
 vi.mock('@pages/library/ui/LibraryPage', () => ({
-  LibraryPage: ({ userId }: { userId: string }) => <div data-testid="library-page">{userId}</div>,
+  LibraryPage: ({
+    userId,
+    onOpenStorybookDetail,
+  }: {
+    userId: string
+    onOpenStorybookDetail?: (storybookId: string) => void
+  }) => (
+    <div data-testid="library-page">
+      {userId}
+      <button
+        type="button"
+        onClick={() => {
+          onOpenStorybookDetail?.('storybook-77')
+        }}
+      >
+        open-storybook-detail
+      </button>
+    </div>
+  ),
+}))
+
+vi.mock('@pages/storybook-detail/ui/StorybookDetailPage', () => ({
+  StorybookDetailPage: ({
+    storybookId,
+    onBack,
+  }: {
+    storybookId: string
+    onBack?: () => void
+  }) => (
+    <div data-testid="storybook-detail-page">
+      {storybookId}
+      <button type="button" onClick={onBack}>
+        detail-back
+      </button>
+    </div>
+  ),
 }))
 
 function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): SupabaseGoogleAuthResult {
@@ -164,5 +199,49 @@ describe('App', () => {
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
+  })
+
+  it('라이브러리 카드 클릭 시 상세 라우트로 이동한다', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+
+    renderAppAt('/library')
+
+    await user.click(screen.getByRole('button', { name: 'open-storybook-detail' }))
+
+    expect(screen.getByTestId('storybook-detail-page')).toHaveTextContent('storybook-77')
+  })
+
+  it('새로고침으로 /storybooks/:storybookId 경로 진입 시 상세 페이지를 렌더링한다', () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+
+    renderAppAt('/storybooks/storybook-88')
+
+    expect(screen.getByTestId('storybook-detail-page')).toHaveTextContent('storybook-88')
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
+
+  it('상세 라우트는 인증이 없으면 로그인 페이지로 이동한다', () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
+      createMockAuth({
+        userId: null,
+        userEmail: null,
+      }),
+    )
+
+    renderAppAt('/storybooks/storybook-99')
+
+    expect(screen.getByTestId('login-page')).toHaveTextContent('true')
+    expect(screen.queryByTestId('storybook-detail-page')).not.toBeInTheDocument()
+  })
+
+  it('상세 페이지 back 동작 시 라이브러리로 이동한다', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+
+    renderAppAt('/storybooks/storybook-55')
+    await user.click(screen.getByRole('button', { name: 'detail-back' }))
+
+    expect(screen.getByTestId('library-page')).toHaveTextContent('user-1')
   })
 })

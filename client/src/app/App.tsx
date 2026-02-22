@@ -1,12 +1,37 @@
 import { useMemo } from 'react'
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
 import { createAppDependencies } from '@app/providers/dependencies'
 import { LoginPage } from '@pages/auth/ui/LoginPage'
 import { HomePage } from '@pages/home/ui/HomePage'
 import { LandingPage } from '@pages/landing/ui/LandingPage'
 import { LibraryPage } from '@pages/library/ui/LibraryPage'
+import { StorybookDetailPage } from '@pages/storybook-detail/ui/StorybookDetailPage'
 import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
+
+interface StorybookDetailRouteProps {
+  dependencies: ReturnType<typeof createAppDependencies>
+  userId: string
+  onBack: () => void
+}
+
+function StorybookDetailRoute({ dependencies, userId, onBack }: StorybookDetailRouteProps) {
+  const params = useParams<{ storybookId: string }>()
+  const storybookId = params.storybookId?.trim() ?? ''
+
+  if (storybookId.length === 0) {
+    return <Navigate to="/library" replace />
+  }
+
+  return (
+    <StorybookDetailPage
+      dependencies={dependencies}
+      userId={userId}
+      storybookId={storybookId}
+      onBack={onBack}
+    />
+  )
+}
 
 export default function App() {
   const auth = useSupabaseGoogleAuth()
@@ -65,6 +90,25 @@ export default function App() {
               userId={auth.userId}
               onBackToCreate={() => {
                 navigate('/create')
+              }}
+              onOpenStorybookDetail={(storybookId) => {
+                navigate(`/storybooks/${storybookId}`)
+              }}
+            />
+          ) : (
+            <Navigate to="/auth" replace />
+          )
+        }
+      />
+      <Route
+        path="/storybooks/:storybookId"
+        element={
+          auth.userId ? (
+            <StorybookDetailRoute
+              dependencies={dependencies}
+              userId={auth.userId}
+              onBack={() => {
+                navigate('/library')
               }}
             />
           ) : (

@@ -11,7 +11,30 @@ describe('HttpStorybookCommandPort', () => {
   it('캔버스 이미지가 있으면 imageDataUrl을 함께 전송한다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: true,
-      json: async () => ({ storybookId: 'storybook-1' }),
+      json: async () => ({
+        storybookId: 'storybook-1',
+        storybook: {
+          storybookId: 'storybook-1',
+          title: '달빛 숲',
+          authorName: null,
+          description: '설명',
+          originImageUrl: null,
+          createdAt: null,
+        },
+        details: {
+          origin: [],
+          output: [],
+        },
+        ebook: {
+          title: '달빛 숲',
+          authorName: null,
+          coverImageUrl: null,
+          highlightImageUrl: null,
+          finalImageUrl: null,
+          pages: [{ page: 1, content: '본문', isHighlight: false }],
+          narrations: [],
+        },
+      }),
     }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
 
@@ -34,12 +57,6 @@ describe('HttpStorybookCommandPort', () => {
 
     expect(result.storybookId).toBe('storybook-1')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.test/api/storybooks',
-      expect.objectContaining({
-        method: 'POST',
-      }),
-    )
 
     const firstCall = fetchMock.mock.calls[0]
     expect(firstCall).toBeDefined()
@@ -57,7 +74,30 @@ describe('HttpStorybookCommandPort', () => {
   it('캔버스가 없으면 imageDataUrl 없이 전송한다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: true,
-      json: async () => ({ storybookId: 'storybook-2' }),
+      json: async () => ({
+        storybookId: 'storybook-2',
+        storybook: {
+          storybookId: 'storybook-2',
+          title: '별빛 바다',
+          authorName: null,
+          description: '설명',
+          originImageUrl: null,
+          createdAt: null,
+        },
+        details: {
+          origin: [],
+          output: [],
+        },
+        ebook: {
+          title: '별빛 바다',
+          authorName: null,
+          coverImageUrl: null,
+          highlightImageUrl: null,
+          finalImageUrl: null,
+          pages: [{ page: 1, content: '본문', isHighlight: false }],
+          narrations: [],
+        },
+      }),
     }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
 
@@ -84,11 +124,87 @@ describe('HttpStorybookCommandPort', () => {
     expect(requestBody.imageDataUrl).toBeUndefined()
   })
 
-  it('API 실패 응답이면 서버 에러 메시지를 포함해 예외를 던진다', async () => {
+  it('신규 storybook/details/ebook 응답을 파싱한다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
-      ok: false,
-      status: 502,
-      json: async () => ({ error: 'upstream failed' }),
+      ok: true,
+      json: async () => ({
+        storybookId: 'storybook-5',
+        storybook: {
+          storybookId: 'storybook-5',
+          title: '반짝 숲',
+          authorName: '도담',
+          description: '여우가 숲에서 춤춰요',
+          originImageUrl: 'https://cdn.example.com/origin.png',
+          createdAt: '2026-02-22T04:00:00.000Z',
+        },
+        details: {
+          origin: [
+            {
+              pageIndex: 0,
+              drawingImageUrl: 'https://cdn.example.com/origin.png',
+              description: '원본 설명',
+            },
+          ],
+          output: [
+            {
+              pageIndex: 0,
+              pageType: 'cover',
+              title: '반짝 숲',
+              content: 'cover-content',
+              imageUrl: 'https://cdn.example.com/cover.png',
+              audioUrl: null,
+              isHighlight: false,
+            },
+            {
+              pageIndex: 1,
+              pageType: 'story',
+              title: null,
+              content: '첫 번째 페이지',
+              imageUrl: 'https://cdn.example.com/highlight.png',
+              audioUrl: 'https://cdn.example.com/p1.mp3',
+              isHighlight: true,
+            },
+          ],
+        },
+        ebook: {
+          title: '반짝 숲',
+          authorName: '도담',
+          coverImageUrl: 'https://cdn.example.com/cover.png',
+          highlightImageUrl: 'https://cdn.example.com/highlight.png',
+          finalImageUrl: 'https://cdn.example.com/final.png',
+          pages: [{ page: 1, content: '첫 번째 페이지', isHighlight: true }],
+          narrations: [{ page: 1, audioDataUrl: 'https://cdn.example.com/p1.mp3' }],
+        },
+      }),
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const commandPort = new HttpStorybookCommandPort({
+      baseUrl: 'https://example.test',
+    })
+    const result = await commandPort.createStorybook({
+      userId: 'user-4',
+      title: '반짝 숲',
+      description: '여우가 숲에서 춤춰요',
+      language: 'ko',
+    })
+
+    expect(result.storybookId).toBe('storybook-5')
+    expect(result.ebook.pages).toEqual([{ page: 1, content: '첫 번째 페이지', isHighlight: true }])
+    expect(result.ebook.narrations).toEqual([{ page: 1, audioDataUrl: 'https://cdn.example.com/p1.mp3' }])
+    expect((result as unknown as Record<string, unknown>).pages).toBeUndefined()
+    expect((result as unknown as Record<string, unknown>).images).toBeUndefined()
+    expect((result as unknown as Record<string, unknown>).narrations).toBeUndefined()
+  })
+
+  it('legacy 필드만 있으면 응답 파싱 실패로 처리한다', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: true,
+      json: async () => ({
+        storybookId: 'storybook-legacy',
+        pages: [{ page: 1, content: 'legacy', isHighlight: false }],
+        images: ['data:image/png;base64,legacy'],
+      }),
     }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
 
@@ -98,21 +214,21 @@ describe('HttpStorybookCommandPort', () => {
 
     await expect(
       commandPort.createStorybook({
-        userId: 'user-3',
-        title: '붉은 지붕집',
-        description: '다람쥐가 우편함을 열어요',
+        userId: 'user-legacy',
+        title: 'legacy',
+        description: 'legacy',
         language: 'ko',
       }),
-    ).rejects.toThrow('Failed to create storybook (502): upstream failed')
+    ).rejects.toThrow('Invalid API response: storybook detail payload is missing.')
   })
 
-  it('API 실패 응답의 detail/hint를 포함해 예외를 던진다', async () => {
+  it('API 실패 응답이면 서버 에러 메시지를 포함해 예외를 던진다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: false,
       status: 502,
       json: async () => ({
         error: 'Failed to persist storybook entities.',
-        detail: 'Invalid schema: doodle_storybook_db | Only the following schemas are exposed: public, graphql_public',
+        detail: 'upstream timeout',
       }),
     }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
@@ -128,9 +244,7 @@ describe('HttpStorybookCommandPort', () => {
         description: '다람쥐가 우편함을 열어요',
         language: 'ko',
       }),
-    ).rejects.toThrow(
-      'Failed to create storybook (502): Failed to persist storybook entities. (Invalid schema: doodle_storybook_db | Only the following schemas are exposed: public, graphql_public)',
-    )
+    ).rejects.toThrow('Failed to create storybook (502): Failed to persist storybook entities. (upstream timeout)')
   })
 
   it('R2 저장 실패 응답이면 failedAssets 요약을 포함한 예외를 던진다', async () => {
@@ -161,74 +275,5 @@ describe('HttpStorybookCommandPort', () => {
     ).rejects.toThrow(
       'Failed to create storybook (502): Failed to store generated assets to R2. u/s/images/u-id-image-cover (network timeout), u/s/tts/u-id-tts-p1 (quota exceeded)',
     )
-  })
-
-  it('pages 문자열 JSON과 이미지/낭독 배열을 정규화해서 반환한다', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => ({
-      ok: true,
-      json: async () => ({
-        storybookId: 'storybook-5',
-        openaiResponseId: 'resp-55',
-        promptVersion: 5,
-        pages:
-          '[{"page":2,"content":"두 번째 페이지","isHighlight":true},{"page":1,"content":"첫 번째 페이지","isHighlight":false}]',
-        images: ['data: image/png;bas64,cover', 'highlightbase64'],
-        narrations: [
-          { page: 2, audioDataUrl: 'audio-page-2-base64' },
-          { page: 1, audioDataUrl: ' data:audio/mpeg;base64,audio-page-1-base64 ' },
-        ],
-      }),
-    }) as unknown as Response)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const commandPort = new HttpStorybookCommandPort({
-      baseUrl: 'https://example.test',
-    })
-    const result = await commandPort.createStorybook({
-      userId: 'user-4',
-      title: '반짝 숲',
-      description: '여우가 숲에서 춤춰요',
-      language: 'ko',
-    })
-
-    expect(result.storybookId).toBe('storybook-5')
-    expect(result.openaiResponseId).toBe('resp-55')
-    expect(result.promptVersion).toBe('5')
-    expect(result.pages).toEqual([
-      { page: 1, content: '첫 번째 페이지', isHighlight: false },
-      { page: 2, content: '두 번째 페이지', isHighlight: true },
-    ])
-    expect(result.images).toEqual(['data:image/png;base64,cover', 'data:image/png;base64,highlightbase64'])
-    expect(result.narrations).toEqual([
-      { page: 1, audioDataUrl: 'data:audio/mpeg;base64,audio-page-1-base64' },
-      { page: 2, audioDataUrl: 'data:audio/mpeg;base64,audio-page-2-base64' },
-    ])
-  })
-
-  it('mock 모드의 원격 이미지/TTS URL도 그대로 파싱한다', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => ({
-      ok: true,
-      json: async () => ({
-        storybookId: 'storybook-mock',
-        pages: [{ page: 1, content: '테스트1', isHighlight: false }],
-        images: ['https://cdn.example.com/test/mock_generated_image.png'],
-        narrations: [{ page: 1, audioDataUrl: 'https://cdn.example.com/test/mock_generated_tts.mp3' }],
-      }),
-    }) as unknown as Response)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const commandPort = new HttpStorybookCommandPort({
-      baseUrl: 'https://example.test',
-    })
-    const result = await commandPort.createStorybook({
-      userId: 'user-mock-url',
-      title: '@@!!TEST!!@@',
-      description: 'mock mode',
-      language: 'ko',
-    })
-
-    expect(result.storybookId).toBe('storybook-mock')
-    expect(result.images).toEqual(['https://cdn.example.com/test/mock_generated_image.png'])
-    expect(result.narrations).toEqual([{ page: 1, audioDataUrl: 'https://cdn.example.com/test/mock_generated_tts.mp3' }])
   })
 })

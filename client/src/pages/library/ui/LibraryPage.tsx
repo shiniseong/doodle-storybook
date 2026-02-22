@@ -21,6 +21,7 @@ interface LibraryPageProps {
   dependencies: LibraryPageDependencies
   userId: string
   onBackToCreate?: () => void
+  onOpenStorybookDetail?: (storybookId: string) => void
 }
 
 function formatCreatedAt(value: string | null, language: string): string | null {
@@ -45,36 +46,54 @@ function StorybookLibraryCard({
   locale,
   unknownAuthorLabel,
   createdAtLabel,
+  onOpenStorybookDetail,
 }: {
   item: StorybookLibraryItem
   locale: string
   unknownAuthorLabel: string
   createdAtLabel: string
+  onOpenStorybookDetail?: (storybookId: string) => void
 }) {
   const createdAt = formatCreatedAt(item.createdAt, locale)
+  const cardBody = (
+    <article>
+      <div className="library-card__cover">
+        {item.originImageUrl ? (
+          <img src={item.originImageUrl} alt={item.title} loading="lazy" />
+        ) : (
+          <div className="library-card__placeholder" aria-hidden="true">
+            <BookOpenText size={30} strokeWidth={2.1} />
+          </div>
+        )}
+      </div>
+      <div className="library-card__meta">
+        <h2>{item.title}</h2>
+        <p>{item.authorName ?? unknownAuthorLabel}</p>
+        {createdAt ? (
+          <time dateTime={item.createdAt ?? undefined}>
+            {createdAtLabel} {createdAt}
+          </time>
+        ) : null}
+      </div>
+    </article>
+  )
 
   return (
     <li className="library-card">
-      <article>
-        <div className="library-card__cover">
-          {item.originImageUrl ? (
-            <img src={item.originImageUrl} alt={item.title} loading="lazy" />
-          ) : (
-            <div className="library-card__placeholder" aria-hidden="true">
-              <BookOpenText size={30} strokeWidth={2.1} />
-            </div>
-          )}
-        </div>
-        <div className="library-card__meta">
-          <h2>{item.title}</h2>
-          <p>{item.authorName ?? unknownAuthorLabel}</p>
-          {createdAt ? (
-            <time dateTime={item.createdAt ?? undefined}>
-              {createdAtLabel} {createdAt}
-            </time>
-          ) : null}
-        </div>
-      </article>
+      {onOpenStorybookDetail ? (
+        <button
+          type="button"
+          className="library-card__button"
+          onClick={() => {
+            onOpenStorybookDetail(item.storybookId)
+          }}
+          aria-label={item.title}
+        >
+          {cardBody}
+        </button>
+      ) : (
+        cardBody
+      )}
     </li>
   )
 }
@@ -96,7 +115,7 @@ function LibraryCardSkeleton() {
   )
 }
 
-export function LibraryPage({ dependencies, userId, onBackToCreate }: LibraryPageProps) {
+export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStorybookDetail }: LibraryPageProps) {
   const { i18n, t } = useTranslation()
   const [loadState, setLoadState] = useState<LibraryLoadState>('loading')
   const [items, setItems] = useState<StorybookLibraryItem[]>([])
@@ -206,6 +225,7 @@ export function LibraryPage({ dependencies, userId, onBackToCreate }: LibraryPag
               locale={i18n.language}
               unknownAuthorLabel={t('library.card.unknownAuthor')}
               createdAtLabel={t('library.card.createdAt')}
+              onOpenStorybookDetail={onOpenStorybookDetail}
             />
           ))}
         </ul>

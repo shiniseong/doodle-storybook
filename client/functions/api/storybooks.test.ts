@@ -292,10 +292,12 @@ describe('storybooks function (v21 pipeline)', () => {
         title: '별빛 숲의 비밀',
         description: '작은 토끼가 별빛 숲에서 친구를 만나는 이야기',
       }, {
-        STORYBOOK_ASSETS_BUCKET: {
-          put: bucketPutMock,
+          STORYBOOK_ASSETS_BUCKET: {
+            put: bucketPutMock,
+          },
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
         },
-      }),
+      ),
     )
 
     expect(response.status).toBe(200)
@@ -304,45 +306,54 @@ describe('storybooks function (v21 pipeline)', () => {
 
     const payload = (await response.json()) as {
       storybookId: string
-      pages: Array<{ page: number; content: string; isHighlight: boolean }>
-      images: string[]
-      narrations: Array<{ page: number; audioDataUrl: string }>
-      promptVersion: string
-      upstreamPromptVersion: string | null
-      openaiResponseId: string
-      createdStoryBookId: string
+      storybook: {
+        title: string
+        authorName: string | null
+        originImageUrl: string | null
+      }
+      details: {
+        output: Array<{
+          pageIndex: number
+          pageType: 'cover' | 'story'
+          content: string | null
+          imageUrl: string | null
+          audioUrl: string | null
+          isHighlight: boolean
+        }>
+      }
+      ebook: {
+        title: string
+        coverImageUrl: string | null
+        highlightImageUrl: string | null
+        finalImageUrl: string | null
+        pages: Array<{ page: number; content: string; isHighlight: boolean }>
+        narrations: Array<{ page: number; audioDataUrl: string }>
+      }
     }
 
-    expect(payload.promptVersion).toBe('21')
-    expect(payload.upstreamPromptVersion).toBe('21')
-    expect(payload.openaiResponseId).toBe('resp-v9-1')
-    expect(payload.pages).toHaveLength(10)
-    expect(payload.pages.filter((page) => page.isHighlight)).toHaveLength(1)
-    expect(payload.pages.find((page) => page.page === schema.highlightPage)?.isHighlight).toBe(true)
-    expect(payload.images).toEqual([
-      'data:image/png;base64,Y292ZXItYjY0',
-      'data:image/png;base64,aGlnaGxpZ2h0LWI2NA==',
-      'data:image/png;base64,ZW5kLWI2NA==',
-    ])
-    expect(payload.narrations).toHaveLength(10)
-    expect(payload.narrations.every((narration) => narration.audioDataUrl.startsWith('data:audio/mpeg;base64,'))).toBe(true)
+    expect(payload.storybookId.length).toBeGreaterThan(0)
+    expect(payload.storybook.title).toBe('별빛 숲의 비밀')
+    expect(payload.storybook.authorName).toBeNull()
+    expect(payload.storybook.originImageUrl).toContain('https://cdn.example.com/user-1/storybook-')
+    expect(payload.ebook.title).toBe('별빛 숲의 비밀')
+    expect(payload.ebook.coverImageUrl).toContain('https://cdn.example.com/user-1/storybook-')
+    expect(payload.ebook.highlightImageUrl).toContain('https://cdn.example.com/user-1/storybook-')
+    expect(payload.ebook.finalImageUrl).toContain('https://cdn.example.com/user-1/storybook-')
+    expect(payload.ebook.pages).toHaveLength(10)
+    expect(payload.ebook.pages.filter((page) => page.isHighlight)).toHaveLength(1)
+    expect(payload.ebook.pages.find((page) => page.page === schema.highlightPage)?.isHighlight).toBe(true)
+    expect(payload.ebook.narrations).toHaveLength(10)
+    expect(payload.ebook.narrations.every((narration) => narration.audioDataUrl.startsWith('https://cdn.example.com/'))).toBe(true)
+    expect(payload.details.output).toHaveLength(11)
     expect(ttsInputs).toEqual(schema.pages.map((page) => page.content))
-    expect(typeof payload.createdStoryBookId).toBe('string')
-    expect(payload.createdStoryBookId.length).toBeGreaterThan(0)
 
     const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
-    expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-origin`,
-    )
-    expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-cover`,
-    )
-    expect(storedKeys).toContain(
-      `user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-highlight`,
-    )
-    expect(storedKeys).toContain(`user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end`)
-    expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p1`)
-    expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p10`)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/images\/user-1-[^/]+-image-origin$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/images\/user-1-[^/]+-image-cover$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/images\/user-1-[^/]+-image-highlight$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/images\/user-1-[^/]+-image-end$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/tts\/user-1-[^/]+-tts-p1$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-1\/storybook-[^/]+\/tts\/user-1-[^/]+-tts-p10$/.test(key))).toBe(true)
 
     const supabaseCalls = fetchMock.mock.calls.filter((call) => {
       const input = call[0] as RequestInfo | URL
@@ -407,25 +418,44 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(bucketPutMock).toHaveBeenCalledTimes(0)
 
     const payload = (await response.json()) as {
-      pages: Array<{ page: number; content: string; isHighlight: boolean }>
-      images: string[]
-      narrations: Array<{ page: number; audioDataUrl: string }>
+      storybookId: string
+      details: {
+        output: Array<{
+          pageIndex: number
+          pageType: 'cover' | 'story'
+          imageUrl: string | null
+          audioUrl: string | null
+        }>
+      }
+      ebook: {
+        pages: Array<{ page: number; content: string; isHighlight: boolean }>
+        coverImageUrl: string | null
+        highlightImageUrl: string | null
+        finalImageUrl: string | null
+        narrations: Array<{ page: number; audioDataUrl: string }>
+      }
     }
 
-    expect(payload.pages).toHaveLength(10)
-    expect(payload.pages[0]).toEqual({ page: 1, content: '테스트1', isHighlight: false })
-    expect(payload.pages[5]).toEqual({ page: 6, content: '테스트6', isHighlight: true })
-    expect(payload.pages[9]).toEqual({ page: 10, content: '테스트10', isHighlight: false })
+    expect(payload.storybookId.length).toBeGreaterThan(0)
+    expect(payload.ebook.pages).toHaveLength(10)
+    expect(payload.ebook.pages[0]).toEqual({ page: 1, content: '테스트1', isHighlight: false })
+    expect(payload.ebook.pages[5]).toEqual({ page: 6, content: '테스트6', isHighlight: true })
+    expect(payload.ebook.pages[9]).toEqual({ page: 10, content: '테스트10', isHighlight: false })
 
-    expect(payload.images).toEqual([
+    expect([
+      payload.ebook.coverImageUrl,
+      payload.ebook.highlightImageUrl,
+      payload.ebook.finalImageUrl,
+    ]).toEqual([
       'https://cdn.example.com/test/mock_generated_image.png',
       'https://cdn.example.com/test/mock_generated_image.png',
       'https://cdn.example.com/test/mock_generated_image.png',
     ])
-    expect(payload.narrations).toHaveLength(10)
-    expect(payload.narrations.every((narration) => narration.audioDataUrl === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(
+    expect(payload.ebook.narrations).toHaveLength(10)
+    expect(payload.ebook.narrations.every((narration) => narration.audioDataUrl === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(
       true,
     )
+    expect(payload.details.output).toHaveLength(11)
 
     const calledUrls = fetchMock.mock.calls.map((call) => {
       const input = call[0] as RequestInfo | URL
@@ -620,27 +650,38 @@ describe('storybooks function (v21 pipeline)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const response = await onRequestPost(
-      createContext({
-        userId: 'user-legacy',
-        language: 'ko',
-        title: '레거시 테스트',
-        description: '레거시 응답도 처리되어야 함',
-      }),
+      createContext(
+        {
+          userId: 'user-legacy',
+          language: 'ko',
+          title: '레거시 테스트',
+          description: '레거시 응답도 처리되어야 함',
+        },
+        {
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
     )
 
     expect(response.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledTimes(17)
 
     const payload = (await response.json()) as {
-      pages: Array<{ page: number; content: string; isHighlight: boolean }>
-      images: string[]
-      narrations: Array<{ page: number; audioDataUrl: string }>
+      ebook: {
+        pages: Array<{ page: number; content: string; isHighlight: boolean }>
+        coverImageUrl: string | null
+        highlightImageUrl: string | null
+        finalImageUrl: string | null
+        narrations: Array<{ page: number; audioDataUrl: string }>
+      }
     }
 
-    expect(payload.pages).toHaveLength(10)
-    expect(payload.pages.find((page) => page.page === 6)?.isHighlight).toBe(true)
-    expect(payload.images).toHaveLength(3)
-    expect(payload.narrations).toHaveLength(10)
+    expect(payload.ebook.pages).toHaveLength(10)
+    expect(payload.ebook.pages.find((page) => page.page === 6)?.isHighlight).toBe(true)
+    expect(payload.ebook.coverImageUrl).not.toBeNull()
+    expect(payload.ebook.highlightImageUrl).not.toBeNull()
+    expect(payload.ebook.finalImageUrl).not.toBeNull()
+    expect(payload.ebook.narrations).toHaveLength(10)
   })
 
   it('R2에 오리진/생성 이미지 및 TTS를 경로 규칙과 메타데이터로 저장한다', async () => {
@@ -699,14 +740,6 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(17)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
-    const payload = (await response.json()) as {
-      storybookId: string
-      createdStoryBookId: string
-    }
-
-    const expectedImagePrefix = `user-r2/${payload.storybookId}/images/user-r2-${payload.createdStoryBookId}-image-`
-    const expectedTtsPrefix = `user-r2/${payload.storybookId}/tts/user-r2-${payload.createdStoryBookId}-tts-p`
-
     const imageCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/images/'))
     const ttsCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/tts/'))
 
@@ -714,14 +747,16 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(ttsCalls).toHaveLength(10)
 
     const storedKeys = bucketPutMock.mock.calls.map((call) => call[0] as string)
-    expect(storedKeys).toContain(`${expectedImagePrefix}origin`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}cover`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}highlight`)
-    expect(storedKeys).toContain(`${expectedImagePrefix}end`)
-    expect(storedKeys).toContain(`${expectedTtsPrefix}1`)
-    expect(storedKeys).toContain(`${expectedTtsPrefix}10`)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/images\/user-r2-[^/]+-image-origin$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/images\/user-r2-[^/]+-image-cover$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/images\/user-r2-[^/]+-image-highlight$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/images\/user-r2-[^/]+-image-end$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/tts\/user-r2-[^/]+-tts-p1$/.test(key))).toBe(true)
+    expect(storedKeys.some((key) => /^user-r2\/storybook-[^/]+\/tts\/user-r2-[^/]+-tts-p10$/.test(key))).toBe(true)
 
     const originCall = bucketPutMock.mock.calls.find((call) => String(call[0]).endsWith('-image-origin'))
+    const createdStoryBookId = (originCall?.[2] as { customMetadata?: { createdStoryBookId?: unknown } } | undefined)
+      ?.customMetadata?.createdStoryBookId
     expect(originCall?.[2]).toEqual({
       httpMetadata: {
         contentType: 'image/png',
@@ -729,9 +764,11 @@ describe('storybooks function (v21 pipeline)', () => {
       },
       customMetadata: {
         userId: 'user-r2',
-        createdStoryBookId: payload.createdStoryBookId,
+        createdStoryBookId,
       },
     })
+    expect(typeof createdStoryBookId).toBe('string')
+    expect((createdStoryBookId as string).length).toBeGreaterThan(0)
 
     const ttsCall = bucketPutMock.mock.calls.find((call) => String(call[0]).endsWith('-tts-p1'))
     expect(ttsCall?.[2]).toEqual({
@@ -741,7 +778,7 @@ describe('storybooks function (v21 pipeline)', () => {
       },
       customMetadata: {
         userId: 'user-r2',
-        createdStoryBookId: payload.createdStoryBookId,
+        createdStoryBookId,
       },
     })
   })
