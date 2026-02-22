@@ -134,6 +134,16 @@ function normalizeGeneratedImageDataUrl(value: unknown): string | null {
   }
 
   const compact = value.trim().replace(/\s+/g, '')
+  if (
+    compact.startsWith('http://') ||
+    compact.startsWith('https://') ||
+    compact.startsWith('//') ||
+    compact.startsWith('/') ||
+    compact.startsWith('{cloud_flare_r2}')
+  ) {
+    return compact
+  }
+
   const normalized = compact
     .replace(/^data:\s*/i, 'data:')
     .replace(/^data:image\/([a-z0-9.+-]+);bas64,/i, 'data:image/$1;base64,')
@@ -161,6 +171,16 @@ function normalizeNarrationAudioDataUrl(value: unknown): string | null {
   }
 
   const compact = value.trim().replace(/\s+/g, '')
+  if (
+    compact.startsWith('http://') ||
+    compact.startsWith('https://') ||
+    compact.startsWith('//') ||
+    compact.startsWith('/') ||
+    compact.startsWith('{cloud_flare_r2}')
+  ) {
+    return compact
+  }
+
   if (compact.startsWith('data:audio/')) {
     return compact
   }

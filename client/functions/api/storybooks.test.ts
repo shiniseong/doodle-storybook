@@ -12,6 +12,8 @@ interface TestEnv {
   SUPABASE_URL?: string
   VITE_SUPABASE_URL?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
+  CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
+  R2_PUBLIC_BASE_URL?: string
   STORYBOOK_ASSETS_BUCKET?: {
     put: (
       key: string,
@@ -346,6 +348,83 @@ describe('storybooks function (v21 pipeline)', () => {
         ),
       ),
     ).toBe(true)
+  })
+
+  it('제목이 @@!!TEST!!@@ 이면 OpenAI를 우회하고 mock 이미지/TTS URL로 응답 및 DB 저장을 수행한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const bucketPutMock = vi.fn(async () => null)
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-mock',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: '테스트 모드 생성 요청',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(bucketPutMock).toHaveBeenCalledTimes(0)
+
+    const payload = (await response.json()) as {
+      pages: Array<{ page: number; content: string; isHighlight: boolean }>
+      images: string[]
+      narrations: Array<{ page: number; audioDataUrl: string }>
+    }
+
+    expect(payload.pages).toHaveLength(10)
+    expect(payload.pages[0]).toEqual({ page: 1, content: '테스트1', isHighlight: false })
+    expect(payload.pages[5]).toEqual({ page: 6, content: '테스트6', isHighlight: true })
+    expect(payload.pages[9]).toEqual({ page: 10, content: '테스트10', isHighlight: false })
+
+    expect(payload.images).toEqual([
+      'https://cdn.example.com/test/mock_generated_image.png',
+      'https://cdn.example.com/test/mock_generated_image.png',
+      'https://cdn.example.com/test/mock_generated_image.png',
+    ])
+    expect(payload.narrations).toHaveLength(10)
+    expect(payload.narrations.every((narration) => narration.audioDataUrl === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(
+      true,
+    )
+
+    const calledUrls = fetchMock.mock.calls.map((call) => {
+      const input = call[0] as RequestInfo | URL
+      return typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+    })
+
+    expect(calledUrls.some((url) => url === 'https://api.openai.com/v1/responses')).toBe(false)
+    expect(calledUrls.some((url) => url === 'https://api.openai.com/v1/images/generations')).toBe(false)
+    expect(calledUrls.some((url) => url === 'https://api.openai.com/v1/audio/speech')).toBe(false)
+
+    const outputInsertCall = fetchMock.mock.calls.find((call) => {
+      const input = call[0] as RequestInfo | URL
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      return url.includes('/storybook_output_details')
+    })
+    expect(outputInsertCall).toBeDefined()
+    const outputInsertBody = JSON.parse(String((outputInsertCall?.[1] as RequestInit)?.body ?? '[]')) as Array<{
+      image_r2_key?: string | null
+      audio_r2_key?: string | null
+    }>
+    expect(outputInsertBody.some((row) => row.image_r2_key === 'https://cdn.example.com/test/mock_generated_image.png')).toBe(true)
+    expect(outputInsertBody.some((row) => row.audio_r2_key === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(true)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {

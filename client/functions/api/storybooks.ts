@@ -25,6 +25,8 @@ interface Env {
   SUPABASE_URL?: string
   VITE_SUPABASE_URL?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
+  CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
+  R2_PUBLIC_BASE_URL?: string
 }
 
 interface StorybookCreateRequestBody {
@@ -184,6 +186,11 @@ const DEFAULT_TTS_VOICE = 'alloy'
 const DEFAULT_IMAGE_SIZE = '1024x1024'
 const MAX_NARRATION_COUNT = 10
 const STORYBOOK_DB_SCHEMA = 'doodle_storybook_db'
+const MOCK_TEST_REQUEST_TITLE = '@@!!TEST!!@@'
+const MOCK_CLOUDFLARE_R2_BASE_URL_PLACEHOLDER = '{cloud_flare_r2}'
+const MOCK_IMAGE_OBJECT_PATH = 'test/mock_generated_image.png'
+const MOCK_TTS_OBJECT_PATH = 'test/mock_generated_tts.mp3'
+const MOCK_HIGHLIGHT_PAGE = 6
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
 
@@ -1294,6 +1301,49 @@ function buildStorybookOutputDetailRowsForInsert(
   ]
 }
 
+function isMockStorybookGenerationRequest(title: string): boolean {
+  return title.trim() === MOCK_TEST_REQUEST_TITLE
+}
+
+function resolveMockCloudflareR2BaseUrl(env: Env): string {
+  const baseUrl = (env.CLOUDFLARE_R2_PUBLIC_BASE_URL || env.R2_PUBLIC_BASE_URL || '').trim()
+  if (baseUrl.length === 0) {
+    return MOCK_CLOUDFLARE_R2_BASE_URL_PLACEHOLDER
+  }
+
+  return baseUrl.replace(/\/+$/, '')
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  const normalizedPath = path.replace(/^\/+/, '')
+  return `${baseUrl}/${normalizedPath}`
+}
+
+function buildMockParsedPromptStorybookOutput(): ParsedPromptStorybookOutput {
+  const pages = Array.from({ length: MAX_NARRATION_COUNT }, (_, index) => {
+    const pageNumber = index + 1
+    return {
+      page: pageNumber,
+      content: `테스트${pageNumber}`,
+      isHighlight: pageNumber === MOCK_HIGHLIGHT_PAGE,
+    }
+  })
+
+  return {
+    pages,
+    ttsPages: pages.map((page) => ({
+      page: page.page,
+      tts: page.content,
+    })),
+    imagePrompts: {
+      cover: 'mock-cover',
+      highlight: 'mock-highlight',
+      end: 'mock-end',
+    },
+    characters: [],
+  }
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
@@ -1302,24 +1352,6 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  if (!context.env.OPENAI_API_KEY) {
-    return jsonResponse(
-      {
-        error: 'OPENAI_API_KEY is not configured.',
-      },
-      500,
-    )
-  }
-
-  if (!context.env.STORYBOOK_ASSETS_BUCKET) {
-    return jsonResponse(
-      {
-        error: 'STORYBOOK_ASSETS_BUCKET is not configured.',
-      },
-      500,
-    )
-  }
-
   let requestBody: unknown
 
   try {
@@ -1341,6 +1373,27 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: 'Invalid request body.',
       },
       400,
+    )
+  }
+
+  const isMockMode = isMockStorybookGenerationRequest(normalizedBody.title)
+  const assetsBucket = context.env.STORYBOOK_ASSETS_BUCKET
+
+  if (!isMockMode && !context.env.OPENAI_API_KEY) {
+    return jsonResponse(
+      {
+        error: 'OPENAI_API_KEY is not configured.',
+      },
+      500,
+    )
+  }
+
+  if (!isMockMode && !assetsBucket) {
+    return jsonResponse(
+      {
+        error: 'STORYBOOK_ASSETS_BUCKET is not configured.',
+      },
+      500,
     )
   }
 
@@ -1370,62 +1423,78 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const promptVersion = context.env.OPENAI_PROMPT_VERSION || DEFAULT_PROMPT_VERSION
 
-  let upstreamResponse: Response
+  let openAIResponseBody: OpenAIResponsesApiBody = {}
+  let upstreamPromptVersion: string | null = null
+  let storyText: string | null = null
+  let parsedPromptStorybook: ParsedPromptStorybookOutput | null = null
 
-  try {
-    upstreamResponse = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${context.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        prompt: {
-          id: context.env.OPENAI_PROMPT_ID || DEFAULT_PROMPT_ID,
-          version: promptVersion,
-          variables: {
-            language: resolvePromptLanguage(normalizedBody.language),
-            title: normalizedBody.title,
-            description: normalizedBody.description,
-          },
-        },
-        input: [
-          {
-            role: 'user',
-            content: inputContent,
-          },
-        ],
-        store: true,
-      }),
+  if (isMockMode) {
+    parsedPromptStorybook = buildMockParsedPromptStorybookOutput()
+    storyText = JSON.stringify({
+      highlightPage: MOCK_HIGHLIGHT_PAGE,
+      pages: parsedPromptStorybook.pages.map((page) => ({
+        page: page.page,
+        content: page.content,
+      })),
     })
-  } catch {
-    return jsonResponse(
-      {
-        error: 'Failed to reach OpenAI API.',
-      },
-      502,
-    )
+  } else {
+    let upstreamResponse: Response
+
+    try {
+      upstreamResponse = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${context.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          prompt: {
+            id: context.env.OPENAI_PROMPT_ID || DEFAULT_PROMPT_ID,
+            version: promptVersion,
+            variables: {
+              language: resolvePromptLanguage(normalizedBody.language),
+              title: normalizedBody.title,
+              description: normalizedBody.description,
+            },
+          },
+          input: [
+            {
+              role: 'user',
+              content: inputContent,
+            },
+          ],
+          store: true,
+        }),
+      })
+    } catch {
+      return jsonResponse(
+        {
+          error: 'Failed to reach OpenAI API.',
+        },
+        502,
+      )
+    }
+
+    const upstreamPayload = await readResponseBody(upstreamResponse)
+
+    if (!upstreamResponse.ok) {
+      return jsonResponse(
+        {
+          error: resolveUpstreamErrorMessage(upstreamPayload),
+        },
+        502,
+      )
+    }
+
+    openAIResponseBody = upstreamPayload as OpenAIResponsesApiBody
+    storyText = extractStorybookText(openAIResponseBody)
+    upstreamPromptVersion = normalizePromptVersion(openAIResponseBody.prompt?.version)
+    parsedPromptStorybook = parsePromptStorybookOutput(storyText, {
+      title: normalizedBody.title,
+      description: normalizedBody.description,
+      language: normalizedBody.language,
+    })
   }
-
-  const upstreamPayload = await readResponseBody(upstreamResponse)
-
-  if (!upstreamResponse.ok) {
-    return jsonResponse(
-      {
-        error: resolveUpstreamErrorMessage(upstreamPayload),
-      },
-      502,
-    )
-  }
-
-  const openAIResponseBody = upstreamPayload as OpenAIResponsesApiBody
-  const storyText = extractStorybookText(openAIResponseBody)
-  const upstreamPromptVersion = normalizePromptVersion(openAIResponseBody.prompt?.version)
-  const parsedPromptStorybook = parsePromptStorybookOutput(storyText, {
-    title: normalizedBody.title,
-    description: normalizedBody.description,
-    language: normalizedBody.language,
-  })
 
   if (!parsedPromptStorybook) {
     return jsonResponse(
@@ -1436,7 +1505,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const assetsBucket = context.env.STORYBOOK_ASSETS_BUCKET
   const createdStoryBookId = crypto.randomUUID()
   const storybookId = `storybook-${createdStoryBookId}`
   const imagesDirectory = `${normalizedBody.userId}/${storybookId}/images`
@@ -1445,127 +1513,154 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
-  const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
-    generateImageFromPrompt(
-      'cover',
-      parsedPromptStorybook.imagePrompts.cover,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
-      DEFAULT_IMAGE_SIZE,
-    ),
-    generateImageFromPrompt(
-      'highlight',
-      parsedPromptStorybook.imagePrompts.highlight,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
-      DEFAULT_IMAGE_SIZE,
-    ),
-    generateImageFromPrompt(
-      'end',
-      parsedPromptStorybook.imagePrompts.end,
-      parsedPromptStorybook.imagePrompts,
-      parsedPromptStorybook.characters,
-      normalizedBody.title,
-      normalizedBody.description,
-      context.env,
-      DEFAULT_IMAGE_SIZE,
-    ),
-    ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
-  ])
+  let imagesForResponse: [string, string, string]
+  let narrations: StoryPageNarration[]
+  let narrationStorageKeyByPage: Map<number, string>
+  let narrationStorageKeys: string[]
 
-  const narrations = narrationResults
-    .filter((narration): narration is StoryPageNarration => narration !== null)
-    .sort((left, right) => left.page - right.page)
+  if (isMockMode) {
+    const mockBaseUrl = resolveMockCloudflareR2BaseUrl(context.env)
+    const mockImageUrl = joinUrl(mockBaseUrl, MOCK_IMAGE_OBJECT_PATH)
+    const mockTtsUrl = joinUrl(mockBaseUrl, MOCK_TTS_OBJECT_PATH)
 
-  const hasAllNarrations = narrations.length === MAX_NARRATION_COUNT && hasExpectedPageSequence(narrations)
+    imageStorageKeys.origin = mockImageUrl
+    imageStorageKeys.cover = mockImageUrl
+    imageStorageKeys.highlight = mockImageUrl
+    imageStorageKeys.end = mockImageUrl
 
-  if (!coverImage || !highlightImage || !endImage || !hasAllNarrations) {
-    return jsonResponse(
-      {
-        error: 'Failed to generate complete media assets (requires 3 images and 10 TTS narrations).',
-      },
-      502,
+    imagesForResponse = [mockImageUrl, mockImageUrl, mockImageUrl]
+    narrations = Array.from({ length: MAX_NARRATION_COUNT }, (_, index) => {
+      const pageNumber = index + 1
+      return {
+        page: pageNumber,
+        audioDataUrl: mockTtsUrl,
+      }
+    })
+    narrationStorageKeyByPage = new Map(narrations.map((narration) => [narration.page, mockTtsUrl]))
+    narrationStorageKeys = narrations.map(() => mockTtsUrl)
+  } else {
+    const [coverImage, highlightImage, endImage, ...narrationResults] = await Promise.all([
+      generateImageFromPrompt(
+        'cover',
+        parsedPromptStorybook.imagePrompts.cover,
+        parsedPromptStorybook.imagePrompts,
+        parsedPromptStorybook.characters,
+        normalizedBody.title,
+        normalizedBody.description,
+        context.env,
+        DEFAULT_IMAGE_SIZE,
+      ),
+      generateImageFromPrompt(
+        'highlight',
+        parsedPromptStorybook.imagePrompts.highlight,
+        parsedPromptStorybook.imagePrompts,
+        parsedPromptStorybook.characters,
+        normalizedBody.title,
+        normalizedBody.description,
+        context.env,
+        DEFAULT_IMAGE_SIZE,
+      ),
+      generateImageFromPrompt(
+        'end',
+        parsedPromptStorybook.imagePrompts.end,
+        parsedPromptStorybook.imagePrompts,
+        parsedPromptStorybook.characters,
+        normalizedBody.title,
+        normalizedBody.description,
+        context.env,
+        DEFAULT_IMAGE_SIZE,
+      ),
+      ...narrationSources.map((source) => generatePageNarration(source, ttsInstructions, context.env)),
+    ])
+
+    narrations = narrationResults
+      .filter((narration): narration is StoryPageNarration => narration !== null)
+      .sort((left, right) => left.page - right.page)
+
+    const hasAllNarrations = narrations.length === MAX_NARRATION_COUNT && hasExpectedPageSequence(narrations)
+
+    if (!coverImage || !highlightImage || !endImage || !hasAllNarrations) {
+      return jsonResponse(
+        {
+          error: 'Failed to generate complete media assets (requires 3 images and 10 TTS narrations).',
+        },
+        502,
+      )
+    }
+
+    imagesForResponse = [coverImage, highlightImage, endImage]
+
+    narrationStorageKeyByPage = new Map<number, string>(
+      narrations.map((narration) => [
+        narration.page,
+        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
+      ]),
     )
-  }
+    narrationStorageKeys = narrations.map((narration) => narrationStorageKeyByPage.get(narration.page) ?? '')
 
-  const imagesForResponse = [coverImage, highlightImage, endImage]
-
-  const narrationStorageKeyByPage = new Map<number, string>(
-    narrations.map((narration) => [
-      narration.page,
-      buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
-    ]),
-  )
-  const narrationStorageKeys = narrations.map((narration) => narrationStorageKeyByPage.get(narration.page) ?? '')
-
-  const uploadResults = await Promise.all([
-    uploadDataUrlToR2(
-      assetsBucket,
-      imageStorageKeys.cover,
-      imagesForResponse[0],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
-      imageStorageKeys.highlight,
-      imagesForResponse[1],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
-      imageStorageKeys.end,
-      imagesForResponse[2],
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    uploadDataUrlToR2(
-      assetsBucket,
-      imageStorageKeys.origin,
-      normalizedBody.imageDataUrl ?? TRANSPARENT_PNG_DATA_URL,
-      normalizedBody.userId,
-      createdStoryBookId,
-    ),
-    ...narrations.map((narration) =>
+    const uploadResults = await Promise.all([
       uploadDataUrlToR2(
-        assetsBucket,
-        narrationStorageKeyByPage.get(narration.page) ?? '',
-        narration.audioDataUrl,
+        assetsBucket as StorybookAssetsBucket,
+        imageStorageKeys.cover,
+        imagesForResponse[0],
         normalizedBody.userId,
         createdStoryBookId,
       ),
-    ),
-  ])
+      uploadDataUrlToR2(
+        assetsBucket as StorybookAssetsBucket,
+        imageStorageKeys.highlight,
+        imagesForResponse[1],
+        normalizedBody.userId,
+        createdStoryBookId,
+      ),
+      uploadDataUrlToR2(
+        assetsBucket as StorybookAssetsBucket,
+        imageStorageKeys.end,
+        imagesForResponse[2],
+        normalizedBody.userId,
+        createdStoryBookId,
+      ),
+      uploadDataUrlToR2(
+        assetsBucket as StorybookAssetsBucket,
+        imageStorageKeys.origin,
+        normalizedBody.imageDataUrl ?? TRANSPARENT_PNG_DATA_URL,
+        normalizedBody.userId,
+        createdStoryBookId,
+      ),
+      ...narrations.map((narration) =>
+        uploadDataUrlToR2(
+          assetsBucket as StorybookAssetsBucket,
+          narrationStorageKeyByPage.get(narration.page) ?? '',
+          narration.audioDataUrl,
+          normalizedBody.userId,
+          createdStoryBookId,
+        ),
+      ),
+    ])
 
-  const failedUploads = uploadResults.filter((result) => !result.ok)
+    const failedUploads = uploadResults.filter((result) => !result.ok)
 
-  if (failedUploads.length > 0) {
-    console.error('Failed to store generated assets to R2.', {
-      storybookId,
-      createdStoryBookId,
-      failedAssets: failedUploads.map((upload) => ({
-        key: upload.key,
-        reason: upload.reason ?? 'Unknown error.',
-      })),
-    })
-
-    return jsonResponse(
-      {
-        error: 'Failed to store generated assets to R2.',
+    if (failedUploads.length > 0) {
+      console.error('Failed to store generated assets to R2.', {
+        storybookId,
+        createdStoryBookId,
         failedAssets: failedUploads.map((upload) => ({
           key: upload.key,
           reason: upload.reason ?? 'Unknown error.',
         })),
-      },
-      502,
-    )
+      })
+
+      return jsonResponse(
+        {
+          error: 'Failed to store generated assets to R2.',
+          failedAssets: failedUploads.map((upload) => ({
+            key: upload.key,
+            reason: upload.reason ?? 'Unknown error.',
+          })),
+        },
+        502,
+      )
+    }
   }
 
   const storybookRow: StorybookRowForInsert = {

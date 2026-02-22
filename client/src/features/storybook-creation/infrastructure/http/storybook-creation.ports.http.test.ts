@@ -177,4 +177,31 @@ describe('HttpStorybookCommandPort', () => {
       { page: 2, audioDataUrl: 'data:audio/mpeg;base64,audio-page-2-base64' },
     ])
   })
+
+  it('mock 모드의 원격 이미지/TTS URL도 그대로 파싱한다', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: true,
+      json: async () => ({
+        storybookId: 'storybook-mock',
+        pages: [{ page: 1, content: '테스트1', isHighlight: false }],
+        images: ['https://cdn.example.com/test/mock_generated_image.png'],
+        narrations: [{ page: 1, audioDataUrl: 'https://cdn.example.com/test/mock_generated_tts.mp3' }],
+      }),
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const commandPort = new HttpStorybookCommandPort({
+      baseUrl: 'https://example.test',
+    })
+    const result = await commandPort.createStorybook({
+      userId: 'user-mock-url',
+      title: '@@!!TEST!!@@',
+      description: 'mock mode',
+      language: 'ko',
+    })
+
+    expect(result.storybookId).toBe('storybook-mock')
+    expect(result.images).toEqual(['https://cdn.example.com/test/mock_generated_image.png'])
+    expect(result.narrations).toEqual([{ page: 1, audioDataUrl: 'https://cdn.example.com/test/mock_generated_tts.mp3' }])
+  })
 })

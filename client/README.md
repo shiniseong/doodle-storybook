@@ -89,6 +89,7 @@ Set in Cloudflare Pages project:
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1.5`)
 - `SUPABASE_URL` or `VITE_SUPABASE_URL` (var)
 - `SUPABASE_SERVICE_ROLE_KEY` (secret, required for server-side DB persistence)
+- `CLOUDFLARE_R2_PUBLIC_BASE_URL` (var, optional. Used for `@@!!TEST!!@@` mock mode asset URLs)
 
 The storybook API writes generated entities to `doodle_storybook_db` schema tables:
 
@@ -130,6 +131,7 @@ OPENAI_PROMPT_VERSION="21"
 OPENAI_IMAGE_MODEL="gpt-image-1.5"
 SUPABASE_URL="https://<project-ref>.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="sb_secret_..."
+CLOUDFLARE_R2_PUBLIC_BASE_URL="https://<your-r2-public-base-url>"
 ```
 
 If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
