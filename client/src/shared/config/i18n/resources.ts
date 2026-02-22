@@ -5,6 +5,10 @@ export const i18nResources = {
         appName: '뚝딱 그림책',
         appSubtitle: 'Doodle Storybook',
         language: '언어',
+        actions: {
+          cancel: '취소',
+          close: '닫기',
+        },
       },
       landing: {
         eyebrow: '아이의 상상이 동화가 되는 순간',
@@ -253,6 +257,10 @@ export const i18nResources = {
         appName: 'Doodle Storybook',
         appSubtitle: 'Draw. Imagine. Read.',
         language: 'Language',
+        actions: {
+          cancel: 'Cancel',
+          close: 'Close',
+        },
       },
       landing: {
         eyebrow: 'Where imagination becomes a story',
@@ -501,6 +509,10 @@ export const i18nResources = {
         appName: 'どんどんえほん',
         appSubtitle: 'Doodle Storybook',
         language: '言語',
+        actions: {
+          cancel: 'キャンセル',
+          close: '閉じる',
+        },
       },
       landing: {
         eyebrow: '想像が絵本になる瞬間',
@@ -749,6 +761,10 @@ export const i18nResources = {
         appName: '咚咚绘本',
         appSubtitle: 'Doodle Storybook',
         language: '语言',
+        actions: {
+          cancel: '取消',
+          close: '关闭',
+        },
       },
       landing: {
         eyebrow: '把想象变成绘本的瞬间',

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -161,7 +161,6 @@ describe('StorybookDetailPage', () => {
 
   it('상세 페이지에서 삭제하기 버튼 클릭 시 삭제 후 뒤로 이동 콜백을 호출한다', async () => {
     const user = userEvent.setup()
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const execute = vi.fn(async () => ({
       ok: true as const,
       value: {
@@ -222,20 +221,21 @@ describe('StorybookDetailPage', () => {
     })
 
     await user.click(screen.getByRole('button', { name: '삭제하기' }))
+    const dialog = screen.getByRole('dialog', { name: '삭제 테스트' })
 
-    expect(confirmSpy).toHaveBeenCalledWith('한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?')
+    expect(within(dialog).getByText('한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '삭제하기' }))
+
     expect(deleteExecute).toHaveBeenCalledWith({
       userId: 'user-1',
       storybookId: 'storybook-3',
     })
     expect(onBack).toHaveBeenCalledTimes(1)
-
-    confirmSpy.mockRestore()
   })
 
   it('상세 삭제 확인에서 취소하면 삭제를 수행하지 않는다', async () => {
     const user = userEvent.setup()
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const execute = vi.fn(async () => ({
       ok: true as const,
       value: {
@@ -296,10 +296,10 @@ describe('StorybookDetailPage', () => {
     })
 
     await user.click(screen.getByRole('button', { name: '삭제하기' }))
+    const dialog = screen.getByRole('dialog', { name: '삭제 취소 테스트' })
+    await user.click(within(dialog).getByRole('button', { name: '취소' }))
 
     expect(deleteExecute).not.toHaveBeenCalled()
     expect(onBack).not.toHaveBeenCalled()
-
-    confirmSpy.mockRestore()
   })
 })

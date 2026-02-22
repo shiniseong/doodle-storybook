@@ -7,6 +7,7 @@ import {
   type ListStorybooksUseCasePort,
   type StorybookLibraryItem,
 } from '@features/storybook-library/application/list-storybooks.use-case'
+import { ConfirmDialog } from '@shared/ui/confirm-dialog/ConfirmDialog'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
 
 import './LibraryPage.css'
@@ -51,6 +52,7 @@ function StorybookLibraryCard({
   onOpenStorybookDetail,
   onDeleteStorybook,
   isDeleting,
+  isDeleteDisabled,
   deleteLabel,
   deletingLabel,
 }: {
@@ -61,6 +63,7 @@ function StorybookLibraryCard({
   onOpenStorybookDetail?: (storybookId: string) => void
   onDeleteStorybook?: (storybookId: string) => void
   isDeleting?: boolean
+  isDeleteDisabled?: boolean
   deleteLabel: string
   deletingLabel: string
 }) {
@@ -113,7 +116,7 @@ function StorybookLibraryCard({
           onClick={() => {
             onDeleteStorybook(item.storybookId)
           }}
-          disabled={isDeleting}
+          disabled={isDeleteDisabled}
         >
           <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
           <span>{isDeleting ? deletingLabel : deleteLabel}</span>
@@ -147,26 +150,55 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [deletingStorybookIds, setDeletingStorybookIds] = useState<Set<string>>(new Set())
+  const [pendingDeleteStorybookId, setPendingDeleteStorybookId] = useState<string | null>(null)
   const [reloadVersion, setReloadVersion] = useState(0)
   const listStorybooksUseCase = useMemo(() => dependencies.listStorybooksUseCase, [dependencies])
   const deleteStorybookUseCase = useMemo(() => dependencies.deleteStorybookUseCase, [dependencies])
+  const pendingDeleteStorybook = useMemo(() => {
+    if (!pendingDeleteStorybookId) {
+      return null
+    }
+
+    return items.find((item) => item.storybookId === pendingDeleteStorybookId) ?? null
+  }, [items, pendingDeleteStorybookId])
+  const isDeleteDialogOpen = pendingDeleteStorybookId !== null
+  const isDeleteDialogSubmitting =
+    pendingDeleteStorybookId === null ? false : deletingStorybookIds.has(pendingDeleteStorybookId)
   const handleReload = () => {
     setLoadState('loading')
     setErrorMessage(null)
     setDeleteErrorMessage(null)
+    setPendingDeleteStorybookId(null)
     setReloadVersion((previous) => previous + 1)
   }
 
-  const handleDeleteStorybook = useCallback(
-    async (storybookId: string) => {
-      const isConfirmed =
-        typeof window === 'undefined'
-          ? true
-          : window.confirm(t('library.actions.deleteConfirm'))
-      if (!isConfirmed) {
+  const handleDeleteRequest = useCallback(
+    (storybookId: string) => {
+      if (deletingStorybookIds.size > 0) {
         return
       }
 
+      setDeleteErrorMessage(null)
+      setPendingDeleteStorybookId(storybookId)
+    },
+    [deletingStorybookIds],
+  )
+
+  const handleDeleteCancel = useCallback(() => {
+    if (isDeleteDialogSubmitting) {
+      return
+    }
+
+    setPendingDeleteStorybookId(null)
+  }, [isDeleteDialogSubmitting])
+
+  const handleDeleteConfirm = useCallback(
+    async () => {
+      if (!pendingDeleteStorybookId || isDeleteDialogSubmitting) {
+        return
+      }
+
+      const storybookId = pendingDeleteStorybookId
       setDeleteErrorMessage(null)
       setDeletingStorybookIds((previous) => {
         const next = new Set(previous)
@@ -190,8 +222,9 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
         next.delete(storybookId)
         return next
       })
+      setPendingDeleteStorybookId(null)
     },
-    [deleteStorybookUseCase, t, userId],
+    [deleteStorybookUseCase, isDeleteDialogSubmitting, pendingDeleteStorybookId, userId],
   )
 
   useEffect(() => {
@@ -215,6 +248,7 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
       setItems(result.value.items)
       setDeletingStorybookIds(new Set())
       setDeleteErrorMessage(null)
+      setPendingDeleteStorybookId(null)
       setLoadState('success')
     })
 
@@ -301,14 +335,30 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
               unknownAuthorLabel={t('library.card.unknownAuthor')}
               createdAtLabel={t('library.card.createdAt')}
               onOpenStorybookDetail={onOpenStorybookDetail}
-              onDeleteStorybook={handleDeleteStorybook}
+              onDeleteStorybook={handleDeleteRequest}
               isDeleting={deletingStorybookIds.has(item.storybookId)}
+              isDeleteDisabled={deletingStorybookIds.has(item.storybookId) || isDeleteDialogOpen}
               deleteLabel={t('library.actions.delete')}
               deletingLabel={t('library.actions.deleting')}
             />
           ))}
         </ul>
       ) : null}
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        title={pendingDeleteStorybook?.title ?? t('library.actions.delete')}
+        description={t('library.actions.deleteConfirm')}
+        confirmLabel={isDeleteDialogSubmitting ? t('library.actions.deleting') : t('library.actions.delete')}
+        cancelLabel={t('common.actions.cancel')}
+        closeLabel={t('common.actions.close')}
+        isConfirming={isDeleteDialogSubmitting}
+        tone="danger"
+        onConfirm={() => {
+          void handleDeleteConfirm()
+        }}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   )
 }

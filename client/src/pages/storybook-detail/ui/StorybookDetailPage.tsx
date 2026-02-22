@@ -8,6 +8,7 @@ import { type DeleteStorybookUseCasePort } from '@features/storybook-deletion/ap
 import {
   type GetStorybookDetailUseCasePort,
 } from '@features/storybook-detail/application/get-storybook-detail.use-case'
+import { ConfirmDialog } from '@shared/ui/confirm-dialog/ConfirmDialog'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
 import { StorybookReaderDialog, type StorybookReaderBook } from '@widgets/storybook-reader/ui/StorybookReaderDialog'
 
@@ -52,6 +53,7 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
   const [failedRequest, setFailedRequest] = useState<{ requestKey: string; message: string } | null>(null)
   const [readerRequestKey, setReaderRequestKey] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
 
   const getStorybookDetailUseCase = useMemo(() => dependencies.getStorybookDetailUseCase, [dependencies])
@@ -140,19 +142,29 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
   const handleReload = () => {
     setReaderRequestKey(null)
     setDeleteErrorMessage(null)
+    setIsDeleteDialogOpen(false)
     setReloadVersion((previous) => previous + 1)
   }
 
-  const handleDelete = async () => {
+  const handleDeleteDialogClose = () => {
+    if (isDeleting) {
+      return
+    }
+
+    setIsDeleteDialogOpen(false)
+  }
+
+  const handleDeleteDialogOpen = () => {
     if (isDeleting || loadState !== 'success') {
       return
     }
 
-    const isConfirmed =
-      typeof window === 'undefined'
-        ? true
-        : window.confirm(t('storybookDetail.actions.deleteConfirm'))
-    if (!isConfirmed) {
+    setDeleteErrorMessage(null)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (isDeleting || loadState !== 'success') {
       return
     }
 
@@ -168,15 +180,17 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
     if (!result.ok) {
       setDeleteErrorMessage(result.error.message)
       setIsDeleting(false)
+      setIsDeleteDialogOpen(false)
       return
     }
+
+    setIsDeleting(false)
+    setIsDeleteDialogOpen(false)
 
     if (onBack) {
       onBack()
       return
     }
-
-    setIsDeleting(false)
   }
 
   return (
@@ -195,8 +209,8 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
           <button
             type="button"
             className="storybook-detail-header__action storybook-detail-header__action--danger"
-            onClick={handleDelete}
-            disabled={loadState !== 'success' || isDeleting}
+            onClick={handleDeleteDialogOpen}
+            disabled={loadState !== 'success' || isDeleting || isDeleteDialogOpen}
           >
             <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
             {isDeleting ? t('storybookDetail.actions.deleting') : t('storybookDetail.actions.delete')}
@@ -281,6 +295,21 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
           </section>
         </main>
       ) : null}
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        title={activeDetail?.storybook.title ?? t('storybookDetail.actions.delete')}
+        description={t('storybookDetail.actions.deleteConfirm')}
+        confirmLabel={isDeleting ? t('storybookDetail.actions.deleting') : t('storybookDetail.actions.delete')}
+        cancelLabel={t('common.actions.cancel')}
+        closeLabel={t('common.actions.close')}
+        isConfirming={isDeleting}
+        tone="danger"
+        onConfirm={() => {
+          void handleDelete()
+        }}
+        onCancel={handleDeleteDialogClose}
+      />
 
       <AnimatePresence>
         {isReaderOpen && readerBook ? (
