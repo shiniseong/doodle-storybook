@@ -17,6 +17,10 @@ interface CreateStorybookApiResponse {
 
 interface CreateStorybookApiErrorResponse {
   error?: unknown
+  message?: unknown
+  detail?: unknown
+  details?: unknown
+  hint?: unknown
   failedAssets?: unknown
 }
 
@@ -243,30 +247,48 @@ function parseApiErrorMessage(payload: unknown): string | null {
   }
 
   const candidate = payload as CreateStorybookApiErrorResponse
+  const baseMessageCandidates = [candidate.error, candidate.message]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+  const baseMessage = baseMessageCandidates[0] ?? null
 
-  if (typeof candidate.error !== 'string' || candidate.error.trim().length === 0) {
-    return null
+  let message = baseMessage
+  if (message && Array.isArray(candidate.failedAssets) && candidate.failedAssets.length > 0) {
+    const failedAssetDetails = candidate.failedAssets
+      .filter((item): item is { key?: unknown; reason?: unknown } => typeof item === 'object' && item !== null)
+      .slice(0, 3)
+      .map((item) => {
+        const key = typeof item.key === 'string' ? item.key : 'unknown-key'
+        const reason = typeof item.reason === 'string' ? item.reason : 'unknown-reason'
+        return `${key} (${reason})`
+      })
+
+    if (failedAssetDetails.length > 0) {
+      message = `${message} ${failedAssetDetails.join(', ')}`
+    }
   }
 
-  const baseMessage = candidate.error.trim()
-  if (!Array.isArray(candidate.failedAssets) || candidate.failedAssets.length === 0) {
-    return baseMessage
+  const detailCandidates = [candidate.detail, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .filter((value) => value !== baseMessage)
+  const detail = detailCandidates[0] ?? null
+
+  if (message && detail) {
+    return `${message} (${detail})`
   }
 
-  const failedAssetDetails = candidate.failedAssets
-    .filter((item): item is { key?: unknown; reason?: unknown } => typeof item === 'object' && item !== null)
-    .slice(0, 3)
-    .map((item) => {
-      const key = typeof item.key === 'string' ? item.key : 'unknown-key'
-      const reason = typeof item.reason === 'string' ? item.reason : 'unknown-reason'
-      return `${key} (${reason})`
-    })
-
-  if (failedAssetDetails.length === 0) {
-    return baseMessage
+  if (message) {
+    return message
   }
 
-  return `${baseMessage} ${failedAssetDetails.join(', ')}`
+  if (detail) {
+    return detail
+  }
+
+  return null
 }
 
 function resolveCanvasImageDataUrl(): string | undefined {

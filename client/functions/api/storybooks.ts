@@ -1121,24 +1121,17 @@ function resolveSupabaseErrorMessage(payload: unknown, fallback: string): string
     details?: unknown
     hint?: unknown
   }
+  const parts = [candidate.message, candidate.error, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .filter((value, index, list) => list.indexOf(value) === index)
 
-  if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
-    return candidate.message.trim()
+  if (parts.length === 0) {
+    return fallback
   }
 
-  if (typeof candidate.error === 'string' && candidate.error.trim().length > 0) {
-    return candidate.error.trim()
-  }
-
-  if (typeof candidate.details === 'string' && candidate.details.trim().length > 0) {
-    return candidate.details.trim()
-  }
-
-  if (typeof candidate.hint === 'string' && candidate.hint.trim().length > 0) {
-    return candidate.hint.trim()
-  }
-
-  return fallback
+  return parts.join(' | ')
 }
 
 async function insertRowsToSupabase(

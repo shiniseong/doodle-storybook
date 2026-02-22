@@ -106,6 +106,33 @@ describe('HttpStorybookCommandPort', () => {
     ).rejects.toThrow('Failed to create storybook (502): upstream failed')
   })
 
+  it('API 실패 응답의 detail/hint를 포함해 예외를 던진다', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: false,
+      status: 502,
+      json: async () => ({
+        error: 'Failed to persist storybook entities.',
+        detail: 'Invalid schema: doodle_storybook_db | Only the following schemas are exposed: public, graphql_public',
+      }),
+    }) as unknown as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const commandPort = new HttpStorybookCommandPort({
+      baseUrl: 'https://example.test',
+    })
+
+    await expect(
+      commandPort.createStorybook({
+        userId: 'user-3',
+        title: '붉은 지붕집',
+        description: '다람쥐가 우편함을 열어요',
+        language: 'ko',
+      }),
+    ).rejects.toThrow(
+      'Failed to create storybook (502): Failed to persist storybook entities. (Invalid schema: doodle_storybook_db | Only the following schemas are exposed: public, graphql_public)',
+    )
+  })
+
   it('R2 저장 실패 응답이면 failedAssets 요약을 포함한 예외를 던진다', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => ({
       ok: false,
