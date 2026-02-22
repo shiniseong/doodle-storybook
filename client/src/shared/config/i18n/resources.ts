@@ -9,6 +9,12 @@ export const i18nResources = {
           cancel: '취소',
           close: '닫기',
         },
+        theme: {
+          dayLabel: '낮',
+          nightLabel: '밤',
+          switchToDay: '낮 모드로 전환',
+          switchToNight: '밤 모드로 전환',
+        },
       },
       landing: {
         eyebrow: '아이의 상상이 동화가 되는 순간',
@@ -260,6 +266,12 @@ export const i18nResources = {
         actions: {
           cancel: 'Cancel',
           close: 'Close',
+        },
+        theme: {
+          dayLabel: '낮',
+          nightLabel: '밤',
+          switchToDay: 'Switch to day mode',
+          switchToNight: 'Switch to night mode',
         },
       },
       landing: {
@@ -513,6 +525,12 @@ export const i18nResources = {
           cancel: 'キャンセル',
           close: '閉じる',
         },
+        theme: {
+          dayLabel: '낮',
+          nightLabel: '밤',
+          switchToDay: '昼モードに切り替え',
+          switchToNight: '夜モードに切り替え',
+        },
       },
       landing: {
         eyebrow: '想像が絵本になる瞬間',
@@ -764,6 +782,12 @@ export const i18nResources = {
         actions: {
           cancel: '取消',
           close: '关闭',
+        },
+        theme: {
+          dayLabel: '낮',
+          nightLabel: '밤',
+          switchToDay: '切换到白天模式',
+          switchToNight: '切换到夜晚模式',
         },
       },
       landing: {

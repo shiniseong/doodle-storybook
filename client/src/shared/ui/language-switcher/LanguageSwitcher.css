@@ -1,0 +1,42 @@
+.language-switcher {
+  justify-self: end;
+  border: 1px solid rgba(108, 150, 179, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.26rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  box-shadow: 0 0.35rem 0.8rem rgba(32, 105, 149, 0.08);
+}
+
+.language-switcher__icon {
+  color: #2f607e;
+}
+
+.language-switcher__select {
+  border: 0;
+  background: transparent;
+  color: #193e5b;
+  font-weight: 700;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.language-switcher__select:focus-visible {
+  outline: none;
+}
+
+html[data-theme='night'] .language-switcher {
+  border-color: rgba(125, 151, 177, 0.56);
+  background: rgba(30, 44, 61, 0.82);
+  box-shadow: 0 0.45rem 0.9rem rgba(5, 13, 25, 0.36);
+}
+
+html[data-theme='night'] .language-switcher__icon {
+  color: #c4d7ea;
+}
+
+html[data-theme='night'] .language-switcher__select {
+  color: #d8e8f5;
+}

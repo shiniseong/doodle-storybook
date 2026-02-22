@@ -33,7 +33,10 @@
 
 .auth-page__header {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.44rem;
+  flex-wrap: wrap;
 }
 
 .auth-page__card h1 {
@@ -201,6 +204,84 @@
 
 .auth-page__divider--tight {
   margin: 0.08rem 0;
+}
+
+html[data-theme='night'] .auth-page__backdrop {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(58, 96, 133, 0.44), transparent 36%),
+    radial-gradient(circle at 84% 78%, rgba(49, 84, 122, 0.42), transparent 40%),
+    linear-gradient(160deg, #0f1b2a 0%, #132234 58%, #111f30 100%);
+}
+
+html[data-theme='night'] .auth-page__card {
+  border-color: rgba(103, 141, 173, 0.42);
+  background: rgba(24, 38, 54, 0.9);
+  box-shadow:
+    0 1.3rem 2.5rem rgba(3, 10, 21, 0.42),
+    inset 0 1px 0 rgba(187, 214, 236, 0.12);
+}
+
+html[data-theme='night'] .auth-page__card h1 {
+  color: #d5e8fb;
+}
+
+html[data-theme='night'] .auth-page__description,
+html[data-theme='night'] .auth-page__status,
+html[data-theme='night'] .auth-page__email-feedback {
+  color: #abc3d8;
+}
+
+html[data-theme='night'] .auth-page__email-feedback--error {
+  color: #ffb8b8;
+}
+
+html[data-theme='night'] .auth-page__divider {
+  color: #93adc2;
+}
+
+html[data-theme='night'] .auth-page__divider::before,
+html[data-theme='night'] .auth-page__divider::after {
+  background: rgba(121, 155, 180, 0.4);
+}
+
+html[data-theme='night'] .auth-page__field span {
+  color: #bbd5ea;
+}
+
+html[data-theme='night'] .auth-page__field input,
+html[data-theme='night'] .auth-page__field-with-icon {
+  border-color: rgba(107, 146, 177, 0.52);
+  background: rgba(30, 48, 67, 0.9);
+  color: #e1eefb;
+}
+
+html[data-theme='night'] .auth-page__field-with-icon svg {
+  color: #a4c2dc;
+}
+
+html[data-theme='night'] .auth-page__field-hint {
+  color: #94aec4;
+}
+
+html[data-theme='night'] .auth-provider-button {
+  border-color: rgba(106, 147, 178, 0.52);
+  background: rgba(35, 54, 74, 0.92);
+  color: #d8e9f8;
+}
+
+html[data-theme='night'] .auth-provider-button--kakao {
+  border-color: rgba(193, 157, 50, 0.58);
+}
+
+html[data-theme='night'] .auth-provider-button--email-signin {
+  border-color: rgba(106, 168, 210, 0.65);
+}
+
+html[data-theme='night'] .auth-signup-dialog__sheet {
+  border-color: rgba(107, 145, 176, 0.58);
+  background:
+    radial-gradient(circle at 18% 15%, rgba(124, 166, 198, 0.18), transparent 34%),
+    linear-gradient(156deg, rgba(30, 47, 66, 0.97), rgba(25, 41, 58, 0.96));
 }
 
 .auth-signup-dialog {

@@ -2,11 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Chrome, Mail, MessageCircle, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  type SignInWithEmailResult,
-  type SignUpWithEmailResult,
-} from '@shared/lib/supabase/use-supabase-google-auth'
+import type { SignInWithEmailResult, SignUpWithEmailResult } from '@shared/lib/supabase/use-supabase-google-auth'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
+import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
 
 import './LoginPage.css'
 
@@ -140,6 +138,7 @@ export function LoginPage({
       <div className="auth-page__backdrop" aria-hidden="true" />
       <main className="auth-page__card" aria-labelledby="auth-page-title">
         <div className="auth-page__header">
+          <ThemeToggle />
           <LanguageSwitcher />
         </div>
         <h1 id="auth-page-title">{t('authPage.title')}</h1>

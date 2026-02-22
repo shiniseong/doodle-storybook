@@ -17,7 +17,7 @@
   inset: 0;
   z-index: -3;
   background-color: #e8f3ff;
-  background-image: url('/assets/background_light_mode_wide.png');
+  background-image: var(--background-image-wide);
   background-position: center center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -332,6 +332,88 @@
   outline-offset: 2px;
 }
 
+html[data-theme='night'] .landing-page__ambient {
+  background-color: #0f1827;
+  filter: brightness(0.86) saturate(0.95);
+}
+
+html[data-theme='night'] .landing-page__ambient-grid {
+  background-image:
+    linear-gradient(rgba(139, 180, 213, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 180, 213, 0.16) 1px, transparent 1px);
+  opacity: 0.12;
+}
+
+html[data-theme='night'] .landing-page__orb--sunrise {
+  background: radial-gradient(circle at 32% 30%, #6f86af, #425981 68%, #2b456d);
+}
+
+html[data-theme='night'] .landing-page__orb--mint {
+  background: radial-gradient(circle at 40% 40%, #8eb4cd, #5882a1 70%, #3f6887);
+}
+
+html[data-theme='night'] .landing-page__orb--sky {
+  background: radial-gradient(circle at 40% 40%, #9bb8dd, #6386b5 65%, #486e9b);
+}
+
+html[data-theme='night'] .landing-page__hero {
+  border-color: rgba(116, 151, 182, 0.45);
+  background: linear-gradient(142deg, rgba(26, 41, 58, 0.88), rgba(20, 33, 49, 0.8));
+  box-shadow:
+    0 1.1rem 1.9rem rgba(3, 10, 22, 0.46),
+    inset 0 1px 0 rgba(188, 214, 236, 0.14),
+    inset 0 -1px 0 rgba(188, 214, 236, 0.08);
+}
+
+html[data-theme='night'] .landing-page__hero::before {
+  background: linear-gradient(112deg, rgba(122, 160, 196, 0.2), rgba(67, 98, 131, 0.06) 36%, transparent 62%);
+  opacity: 0.24;
+}
+
+html[data-theme='night'] .landing-page__hero::after {
+  background: radial-gradient(
+    circle at var(--landing-pointer-x, 50%) var(--landing-pointer-y, 50%),
+    rgba(95, 139, 181, 0.2),
+    rgba(95, 139, 181, 0) 44%
+  );
+  opacity: 0.38;
+}
+
+html[data-theme='night'] .landing-page__brand {
+  color: #c8e4ff;
+}
+
+html[data-theme='night'] .landing-page__eyebrow {
+  color: #bfd7eb;
+  border-color: rgba(129, 167, 198, 0.48);
+  background: linear-gradient(145deg, rgba(38, 59, 80, 0.76), rgba(25, 43, 62, 0.58));
+}
+
+html[data-theme='night'] .landing-page__stack-card {
+  border-color: rgba(118, 156, 188, 0.44);
+  background:
+    linear-gradient(154deg, rgba(35, 56, 78, 0.86), rgba(29, 46, 66, 0.7)),
+    linear-gradient(176deg, rgba(28, 44, 62, 0.5), rgba(20, 35, 51, 0.4));
+  box-shadow:
+    0 0.88rem 1.45rem rgba(3, 12, 24, 0.42),
+    inset 0 1px 0 rgba(188, 214, 236, 0.12),
+    inset 0 -1px 0 rgba(188, 214, 236, 0.06);
+  color: #dbeaf8;
+}
+
+html[data-theme='night'] .landing-page__stack-index {
+  color: #9eb9d1;
+}
+
+html[data-theme='night'] .landing-page__cta {
+  border-color: rgba(104, 158, 196, 0.74);
+  color: #e8f5ff;
+  background: linear-gradient(142deg, #3f6c93, #335d82 40%, #2b4f6e 100%);
+  box-shadow:
+    0 0.9rem 1.3rem rgba(4, 15, 28, 0.44),
+    inset 0 1px 0 rgba(194, 218, 237, 0.24);
+}
+
 @keyframes landing-orb-float {
   0%,
   100% {
@@ -410,7 +492,7 @@
 
 @media (orientation: portrait) {
   .landing-page__ambient {
-    background-image: url('/assets/background_light_mode_mobile.png');
+    background-image: var(--background-image-mobile);
     background-position: center top;
   }
 }

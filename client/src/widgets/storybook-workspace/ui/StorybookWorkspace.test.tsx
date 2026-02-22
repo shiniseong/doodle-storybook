@@ -2063,6 +2063,23 @@ describe('StorybookWorkspace', () => {
     expect(screen.queryByRole('heading', { name: '라이브 북 미리보기' })).not.toBeInTheDocument()
   })
 
+  it('테마 토글이 언어 설정 왼쪽에 렌더링된다', () => {
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-334'))),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    expect(screen.getByRole('button', { name: '밤 모드로 전환' })).toBeInTheDocument()
+
+    const toolbar = document.querySelector('.workspace-header__toolbar')
+    expect(toolbar?.children[0]).toHaveClass('theme-toggle')
+    expect(toolbar?.children[1]).toHaveClass('language-switcher')
+  })
+
   it('지구본 언어 설정으로 전체 UI 문구가 바뀐다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {

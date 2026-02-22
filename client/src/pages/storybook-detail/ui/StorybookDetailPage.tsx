@@ -10,6 +10,7 @@ import {
 } from '@features/storybook-detail/application/get-storybook-detail.use-case'
 import { ConfirmDialog } from '@shared/ui/confirm-dialog/ConfirmDialog'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
+import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
 import { StorybookReaderDialog, type StorybookReaderBook } from '@widgets/storybook-reader/ui/StorybookReaderDialog'
 
 import './StorybookDetailPage.css'
@@ -202,6 +203,7 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
           <span>{t('storybookDetail.description')}</span>
         </div>
         <div className="storybook-detail-header__actions">
+          <ThemeToggle />
           <LanguageSwitcher />
           <button type="button" className="storybook-detail-header__action" onClick={onBack}>
             {t('storybookDetail.actions.back')}

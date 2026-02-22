@@ -8,6 +8,7 @@ import { LandingPage } from '@pages/landing/ui/LandingPage'
 import { LibraryPage } from '@pages/library/ui/LibraryPage'
 import { StorybookDetailPage } from '@pages/storybook-detail/ui/StorybookDetailPage'
 import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
+import { ThemeProvider } from '@shared/lib/theme/theme-context'
 
 interface StorybookDetailRouteProps {
   dependencies: ReturnType<typeof createAppDependencies>
@@ -55,86 +56,88 @@ export default function App() {
   )
 
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <LandingPage
-            onStart={() => {
-              navigate('/create')
-            }}
-          />
-        }
-      />
-      <Route
-        path="/create"
-        element={
-          <HomePage
-            dependencies={dependencies}
-            auth={workspaceAuth}
-            onRequestAuthentication={() => {
-              navigate('/auth')
-            }}
-            onNavigateToLibrary={() => {
-              navigate('/library')
-            }}
-          />
-        }
-      />
-      <Route
-        path="/library"
-        element={
-          auth.userId ? (
-            <LibraryPage
-              dependencies={dependencies}
-              userId={auth.userId}
-              onBackToCreate={() => {
+    <ThemeProvider>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <LandingPage
+              onStart={() => {
                 navigate('/create')
               }}
-              onOpenStorybookDetail={(storybookId) => {
-                navigate(`/storybooks/${storybookId}`)
-              }}
             />
-          ) : (
-            <Navigate to="/auth" replace />
-          )
-        }
-      />
-      <Route
-        path="/storybooks/:storybookId"
-        element={
-          auth.userId ? (
-            <StorybookDetailRoute
+          }
+        />
+        <Route
+          path="/create"
+          element={
+            <HomePage
               dependencies={dependencies}
-              userId={auth.userId}
-              onBack={() => {
+              auth={workspaceAuth}
+              onRequestAuthentication={() => {
+                navigate('/auth')
+              }}
+              onNavigateToLibrary={() => {
                 navigate('/library')
               }}
             />
-          ) : (
-            <Navigate to="/auth" replace />
-          )
-        }
-      />
-      <Route
-        path="/auth"
-        element={
-          auth.userId ? (
-            <Navigate to="/create" replace />
-          ) : (
-            <LoginPage
-              isConfigured={auth.isConfigured}
-              isLoading={auth.isLoading}
-              isSigningIn={auth.isSigningIn}
-              onSignInWithGoogle={auth.signInWithGoogle}
-              onSignInWithKakao={auth.signInWithKakao}
-              onSignInWithEmail={auth.signInWithEmail}
-              onSignUpWithEmail={auth.signUpWithEmail}
-            />
-          )
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+          }
+        />
+        <Route
+          path="/library"
+          element={
+            auth.userId ? (
+              <LibraryPage
+                dependencies={dependencies}
+                userId={auth.userId}
+                onBackToCreate={() => {
+                  navigate('/create')
+                }}
+                onOpenStorybookDetail={(storybookId) => {
+                  navigate(`/storybooks/${storybookId}`)
+                }}
+              />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
+          }
+        />
+        <Route
+          path="/storybooks/:storybookId"
+          element={
+            auth.userId ? (
+              <StorybookDetailRoute
+                dependencies={dependencies}
+                userId={auth.userId}
+                onBack={() => {
+                  navigate('/library')
+                }}
+              />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
+          }
+        />
+        <Route
+          path="/auth"
+          element={
+            auth.userId ? (
+              <Navigate to="/create" replace />
+            ) : (
+              <LoginPage
+                isConfigured={auth.isConfigured}
+                isLoading={auth.isLoading}
+                isSigningIn={auth.isSigningIn}
+                onSignInWithGoogle={auth.signInWithGoogle}
+                onSignInWithKakao={auth.signInWithKakao}
+                onSignInWithEmail={auth.signInWithEmail}
+                onSignUpWithEmail={auth.signUpWithEmail}
+              />
+            )
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ThemeProvider>
   )
 }

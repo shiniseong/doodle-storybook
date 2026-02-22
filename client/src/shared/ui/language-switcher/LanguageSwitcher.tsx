@@ -7,6 +7,8 @@ import {
   resolveAppLanguage,
 } from '@shared/config/i18n/constants'
 
+import './LanguageSwitcher.css'
+
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
   const currentLanguage = resolveAppLanguage(i18n.language)

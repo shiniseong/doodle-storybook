@@ -47,6 +47,7 @@ import { StorybookDescriptionForm } from '@features/storybook-creation/ui/Storyb
 import { resolveAppLanguage } from '@shared/config/i18n/constants'
 import { useBodyScrollLock } from '@shared/lib/dom/body-scroll-lock'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
+import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
 import { StorybookReaderDialog, type StorybookReaderBook } from '@widgets/storybook-reader/ui/StorybookReaderDialog'
 
 import './StorybookWorkspace.css'
@@ -378,6 +379,7 @@ function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceRese
       </div>
       <div className="workspace-header__side">
         <div className="workspace-header__toolbar">
+          <ThemeToggle />
           <LanguageSwitcher />
           {!auth ? null : (
             <div className="workspace-auth" aria-live="polite">

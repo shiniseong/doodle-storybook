@@ -9,6 +9,7 @@ import {
 } from '@features/storybook-library/application/list-storybooks.use-case'
 import { ConfirmDialog } from '@shared/ui/confirm-dialog/ConfirmDialog'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
+import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
 
 import './LibraryPage.css'
 
@@ -260,6 +261,7 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
           <span>{t('library.description')}</span>
         </div>
         <div className="library-header__actions">
+          <ThemeToggle />
           <LanguageSwitcher />
           <button type="button" className="library-header__action library-header__action--back" onClick={onBackToCreate}>
             {t('library.actions.backToCreate')}

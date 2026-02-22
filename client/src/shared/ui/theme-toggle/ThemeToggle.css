@@ -1,0 +1,48 @@
+.theme-toggle {
+  justify-self: end;
+  border-radius: 999px;
+  border: 1px solid rgba(108, 150, 179, 0.45);
+  background: rgba(255, 255, 255, 0.85);
+  color: #1b4a68;
+  box-shadow: 0 0.35rem 0.8rem rgba(32, 105, 149, 0.08);
+  padding: 0.26rem 0.62rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.theme-toggle__icon {
+  flex-shrink: 0;
+}
+
+.theme-toggle__label {
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.theme-toggle--day .theme-toggle__icon {
+  color: #cf8d11;
+}
+
+.theme-toggle--night {
+  border-color: rgba(129, 159, 184, 0.55);
+  background: rgba(31, 47, 66, 0.78);
+  color: #deecf8;
+  box-shadow: 0 0.45rem 0.9rem rgba(8, 16, 30, 0.24);
+}
+
+.theme-toggle--night .theme-toggle__icon {
+  color: #c4d6ff;
+}
+
+.theme-toggle:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.3);
+  outline-offset: 2px;
+}
+
+html[data-theme='night'] .theme-toggle {
+  border-color: rgba(125, 151, 177, 0.55);
+  box-shadow: 0 0.45rem 0.9rem rgba(5, 13, 25, 0.38);
+}

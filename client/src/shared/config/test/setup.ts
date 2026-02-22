@@ -4,6 +4,7 @@ import { afterEach, beforeEach } from 'vitest'
 
 import i18n from '@shared/config/i18n/i18n'
 import { LANGUAGE_STORAGE_KEY } from '@shared/config/i18n/constants'
+import { THEME_STORAGE_KEY } from '@shared/config/theme/constants'
 
 const STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY = 'doodle-storybook.workspace-draft.v1'
 
@@ -62,6 +63,7 @@ beforeEach(async () => {
 
   if (isStorageLike(storageCandidate)) {
     storageCandidate.removeItem(LANGUAGE_STORAGE_KEY)
+    storageCandidate.removeItem(THEME_STORAGE_KEY)
     storageCandidate.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
   }
   await i18n.changeLanguage('ko')
