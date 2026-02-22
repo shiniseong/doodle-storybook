@@ -3,7 +3,9 @@ import { createPolarCustomerPortalUrl, resolvePolarClient, resolvePortalReturnUr
 import { getBillingAccessSnapshot } from '../_shared/subscription-access'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../_shared/supabase'
 
-interface Env extends SupabaseEnv, PolarEnv {}
+interface Env extends SupabaseEnv, PolarEnv {
+  POLAR_MOCK_ALWAYS_SUCCESS?: string
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +32,18 @@ function jsonResponse(payload: unknown, status: number = 200): Response {
   })
 }
 
+function isMockPortalEnabled(env: Env): boolean {
+  return env.POLAR_MOCK_ALWAYS_SUCCESS === '1'
+}
+
+function resolveMockPortalUrl(request: Request): string {
+  const url = new URL('/create', request.url)
+  url.searchParams.set('checkout', 'success')
+  url.searchParams.set('mock_polar', '1')
+  url.searchParams.set('portal', '1')
+  return url.toString()
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
@@ -45,16 +59,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: authResult.failure.message,
       },
       authResult.failure.status,
-    )
-  }
-
-  const polarClient = resolvePolarClient(context.env)
-  if (!polarClient) {
-    return jsonResponse(
-      {
-        error: 'POLAR_ACCESS_TOKEN must be configured.',
-      },
-      500,
     )
   }
 
@@ -85,6 +89,22 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: 'No active billing profile found for this account.',
       },
       409,
+    )
+  }
+
+  if (isMockPortalEnabled(context.env)) {
+    return jsonResponse({
+      portalUrl: resolveMockPortalUrl(context.request),
+    })
+  }
+
+  const polarClient = resolvePolarClient(context.env)
+  if (!polarClient) {
+    return jsonResponse(
+      {
+        error: 'POLAR_ACCESS_TOKEN must be configured.',
+      },
+      500,
     )
   }
 

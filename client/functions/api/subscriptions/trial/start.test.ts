@@ -25,6 +25,7 @@ interface TestEnv {
   SUPABASE_SERVICE_ROLE_KEY?: string
   ALLOW_INSECURE_TEST_TOKENS?: string
   POLAR_ACCESS_TOKEN?: string
+  POLAR_MOCK_ALWAYS_SUCCESS?: string
   POLAR_PRODUCT_ID?: string
   POLAR_PRODUCT_ID_STANDARD?: string
   POLAR_PRODUCT_ID_PRO?: string
@@ -193,5 +194,50 @@ describe('POST /api/subscriptions/trial/start', () => {
       'pro',
     )
     expect(mockedCreatePolarCustomerPortalUrl).not.toHaveBeenCalled()
+  })
+
+  it('목업 모드면 Polar 호출 없이 항상 checkout=success URL을 반환한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+        return createJsonResponse([])
+      }
+
+      if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+        return createJsonResponse([])
+      }
+
+      if (url.endsWith('/rest/v1/usage_quotas') && method === 'POST') {
+        return createJsonResponse({}, 201)
+      }
+
+      if (url.includes('/rest/v1/subscriptions?on_conflict=user_id') && method === 'POST') {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext({
+        userId: 'user-mock-checkout',
+        planCode: 'pro',
+        envOverrides: {
+          POLAR_MOCK_ALWAYS_SUCCESS: '1',
+          POLAR_ACCESS_TOKEN: undefined,
+        },
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { action?: string; checkoutUrl?: string }
+    expect(payload.action).toBe('checkout')
+    expect(payload.checkoutUrl).toContain('/create?checkout=success')
+    expect(payload.checkoutUrl).toContain('mock_polar=1')
+    expect(payload.checkoutUrl).toContain('plan=pro')
+    expect(mockedCreatePolarCheckoutUrl).not.toHaveBeenCalled()
   })
 })

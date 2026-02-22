@@ -9,10 +9,12 @@ import {
   type PolarPaidPlanCode,
   type PolarEnv,
 } from '../../_shared/polar'
-import { getBillingAccessSnapshot } from '../../_shared/subscription-access'
+import { getBillingAccessSnapshot, upsertSubscriptionFromPolar } from '../../_shared/subscription-access'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../../_shared/supabase'
 
-interface Env extends SupabaseEnv, PolarEnv {}
+interface Env extends SupabaseEnv, PolarEnv {
+  POLAR_MOCK_ALWAYS_SUCCESS?: string
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +39,18 @@ function jsonResponse(payload: unknown, status: number = 200): Response {
       'Content-Type': 'application/json; charset=utf-8',
     }),
   })
+}
+
+function isMockCheckoutEnabled(env: Env): boolean {
+  return env.POLAR_MOCK_ALWAYS_SUCCESS === '1'
+}
+
+function resolveMockCheckoutUrl(request: Request, planCode: PolarPaidPlanCode): string {
+  const url = new URL('/create', request.url)
+  url.searchParams.set('checkout', 'success')
+  url.searchParams.set('mock_polar', '1')
+  url.searchParams.set('plan', planCode)
+  return url.toString()
 }
 
 function resolveRequestedPlanCode(value: unknown): PolarPaidPlanCode | null {
@@ -106,8 +120,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
+  const isMockMode = isMockCheckoutEnabled(context.env)
   const polarClient = resolvePolarClient(context.env)
-  if (!polarClient) {
+  if (!polarClient && !isMockMode) {
     return jsonResponse(
       {
         error: 'POLAR_ACCESS_TOKEN must be configured.',
@@ -130,9 +145,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const currentStatus = accessResult.value.subscription?.status
 
   if (currentStatus === 'active') {
+    if (isMockMode) {
+      return jsonResponse({
+        action: 'portal',
+        portalUrl: resolveMockCheckoutUrl(context.request, accessResult.value.currentPlan.code === 'pro' ? 'pro' : 'standard'),
+      })
+    }
+
     try {
       const portalUrl = await createPolarCustomerPortalUrl({
-        client: polarClient,
+        client: polarClient as NonNullable<typeof polarClient>,
         externalCustomerId: authResult.value.userId,
         returnUrl: resolvePortalReturnUrl(context.request, context.env),
       })
@@ -171,6 +193,38 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     })
   }
 
+  if (isMockMode) {
+    const now = new Date()
+    const trialEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const upsertResult = await upsertSubscriptionFromPolar(supabaseConfig, {
+      userId: authResult.value.userId,
+      eventId: `mock_checkout_${crypto.randomUUID()}`,
+      status: 'trialing',
+      planCode: requestedPlanCode,
+      providerCustomerId: `mock_customer_${authResult.value.userId}`,
+      providerSubscriptionId: `mock_subscription_${crypto.randomUUID()}`,
+      trialStartAt: now,
+      trialEndAt: trialEnd,
+      currentPeriodStart: now,
+      currentPeriodEnd: trialEnd,
+    })
+
+    if (!upsertResult.ok) {
+      return jsonResponse(
+        {
+          error: 'Failed to persist mock subscription state.',
+          detail: upsertResult.failure.message,
+        },
+        502,
+      )
+    }
+
+    return jsonResponse({
+      action: 'checkout',
+      checkoutUrl: resolveMockCheckoutUrl(context.request, requestedPlanCode),
+    })
+  }
+
   const productConfig = resolveCheckoutPlanConfig(context.env, requestedPlanCode)
   if (!productConfig) {
     return jsonResponse(
@@ -185,7 +239,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   try {
     const checkoutUrl = await createPolarCheckoutUrl({
-      client: polarClient,
+      client: polarClient as NonNullable<typeof polarClient>,
       productId: productConfig.productId,
       externalCustomerId: authResult.value.userId,
       successUrl: checkoutUrls.successUrl,

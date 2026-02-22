@@ -16,6 +16,7 @@ interface TestEnv {
   SUPABASE_SERVICE_ROLE_KEY?: string
   ALLOW_INSECURE_TEST_TOKENS?: string
   POLAR_ACCESS_TOKEN?: string
+  POLAR_MOCK_ALWAYS_SUCCESS?: string
 }
 
 function createJsonResponse(payload: unknown, status = 200): Response {
@@ -62,6 +63,8 @@ describe('POST /api/subscriptions/portal', () => {
   const mockedCreatePolarCustomerPortalUrl = vi.mocked(polarShared.createPolarCustomerPortalUrl)
 
   beforeEach(() => {
+    mockedResolvePolarClient.mockReset()
+    mockedCreatePolarCustomerPortalUrl.mockReset()
     mockedResolvePolarClient.mockReturnValue({} as never)
     mockedCreatePolarCustomerPortalUrl.mockResolvedValue('https://polar.test/portal/session')
   })
@@ -145,5 +148,50 @@ describe('POST /api/subscriptions/portal', () => {
     const payload = (await response.json()) as { portalUrl?: string }
     expect(payload.portalUrl).toBe('https://polar.test/portal/session')
     expect(mockedCreatePolarCustomerPortalUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('목업 모드면 Polar 호출 없이 portal 테스트 URL을 반환한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            status: 'active',
+            plan_code: 'standard',
+          },
+        ])
+      }
+
+      if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            free_story_quota_total: 2,
+            free_story_quota_used: 0,
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext({
+        userId: 'user-mock-portal',
+        envOverrides: {
+          POLAR_MOCK_ALWAYS_SUCCESS: '1',
+          POLAR_ACCESS_TOKEN: undefined,
+        },
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { portalUrl?: string }
+    expect(payload.portalUrl).toContain('/create?checkout=success')
+    expect(payload.portalUrl).toContain('mock_polar=1')
+    expect(payload.portalUrl).toContain('portal=1')
+    expect(mockedCreatePolarCustomerPortalUrl).not.toHaveBeenCalled()
   })
 })
