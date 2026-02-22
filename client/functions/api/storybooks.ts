@@ -22,6 +22,9 @@ interface Env {
   OPENAI_TTS_MODEL?: string
   OPENAI_TTS_VOICE?: string
   STORYBOOK_ASSETS_BUCKET?: StorybookAssetsBucket
+  SUPABASE_URL?: string
+  VITE_SUPABASE_URL?: string
+  SUPABASE_SERVICE_ROLE_KEY?: string
 }
 
 interface StorybookCreateRequestBody {
@@ -107,6 +110,66 @@ interface OpenAIResponsesApiBody {
   }
 }
 
+interface StorybookRowForInsert {
+  id: string
+  user_id: string
+  title: string
+  author_name: string | null
+  description: string
+  language_code: StoryLanguage
+  status: 'draft' | 'generating' | 'completed' | 'failed'
+  origin_image_r2_key: string
+  cover_image_r2_key: string
+  highlight_image_r2_key: string
+  end_image_r2_key: string
+  page_count: number
+  metadata: Record<string, unknown>
+}
+
+interface StorybookOriginDetailRowForInsert {
+  id: string
+  storybook_id: string
+  page_index: number
+  drawing_image_r2_key: string
+  description: string
+  metadata: Record<string, unknown>
+}
+
+interface StorybookOutputDetailRowForInsert {
+  id: string
+  storybook_id: string
+  page_index: number
+  page_type: 'cover' | 'story'
+  title: string | null
+  content: string | null
+  image_r2_key: string | null
+  audio_r2_key: string | null
+  is_highlight: boolean
+  metadata: Record<string, unknown>
+}
+
+interface SupabasePersistenceConfig {
+  baseUrl: string
+  serviceRoleKey: string
+  schema: string
+}
+
+interface SupabaseMutationFailure {
+  status: number
+  message: string
+}
+
+interface SupabaseMutationSuccess {
+  ok: true
+}
+
+interface SupabaseMutationError {
+  ok: false
+  failure: SupabaseMutationFailure
+}
+
+type SupabaseMutationResult = SupabaseMutationSuccess | SupabaseMutationError
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -120,6 +183,7 @@ const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_TTS_VOICE = 'alloy'
 const DEFAULT_IMAGE_SIZE = '1024x1024'
 const MAX_NARRATION_COUNT = 10
+const STORYBOOK_DB_SCHEMA = 'doodle_storybook_db'
 const TRANSPARENT_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAgMBAp9nqwAAAABJRU5ErkJggg=='
 
@@ -1000,6 +1064,236 @@ function normalizePromptVersion(value: unknown): string | null {
   return null
 }
 
+function resolveSupabasePersistenceConfig(env: Env): SupabasePersistenceConfig | null {
+  const rawBaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim()
+  const serviceRoleKey = (env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+  if (rawBaseUrl.length === 0 || serviceRoleKey.length === 0) {
+    return null
+  }
+
+  return {
+    baseUrl: rawBaseUrl.replace(/\/+$/, ''),
+    serviceRoleKey,
+    schema: STORYBOOK_DB_SCHEMA,
+  }
+}
+
+function createSupabaseHeaders(
+  config: SupabasePersistenceConfig,
+  includeJsonBody: boolean,
+  preferMinimal: boolean,
+): Headers {
+  const headers = new Headers({
+    apikey: config.serviceRoleKey,
+    Authorization: `Bearer ${config.serviceRoleKey}`,
+    'Content-Profile': config.schema,
+    'Accept-Profile': config.schema,
+  })
+
+  if (includeJsonBody) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  if (preferMinimal) {
+    headers.set('Prefer', 'return=minimal')
+  }
+
+  return headers
+}
+
+function resolveSupabaseErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== 'object') {
+    return fallback
+  }
+
+  const candidate = payload as {
+    message?: unknown
+    error?: unknown
+    details?: unknown
+    hint?: unknown
+  }
+
+  if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
+    return candidate.message.trim()
+  }
+
+  if (typeof candidate.error === 'string' && candidate.error.trim().length > 0) {
+    return candidate.error.trim()
+  }
+
+  if (typeof candidate.details === 'string' && candidate.details.trim().length > 0) {
+    return candidate.details.trim()
+  }
+
+  if (typeof candidate.hint === 'string' && candidate.hint.trim().length > 0) {
+    return candidate.hint.trim()
+  }
+
+  return fallback
+}
+
+async function insertRowsToSupabase(
+  config: SupabasePersistenceConfig,
+  table: 'storybooks' | 'storybook_origin_details' | 'storybook_output_details',
+  rows: Record<string, unknown> | Array<Record<string, unknown>>,
+): Promise<SupabaseMutationResult> {
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl}/rest/v1/${table}`, {
+      method: 'POST',
+      headers: createSupabaseHeaders(config, true, true),
+      body: JSON.stringify(rows),
+    })
+  } catch {
+    return {
+      ok: false,
+      failure: {
+        status: 502,
+        message: `Failed to reach Supabase REST API for table "${table}".`,
+      },
+    }
+  }
+
+  if (response.ok) {
+    return { ok: true }
+  }
+
+  const payload = await readResponseBody(response)
+  return {
+    ok: false,
+    failure: {
+      status: response.status,
+      message: resolveSupabaseErrorMessage(payload, `Failed to insert rows into "${table}".`),
+    },
+  }
+}
+
+async function deleteRowsByFilterFromSupabase(
+  config: SupabasePersistenceConfig,
+  table: 'storybooks' | 'storybook_origin_details' | 'storybook_output_details',
+  filterQuery: string,
+): Promise<void> {
+  try {
+    await fetch(`${config.baseUrl}/rest/v1/${table}?${filterQuery}`, {
+      method: 'DELETE',
+      headers: createSupabaseHeaders(config, false, true),
+    })
+  } catch {
+    // best-effort rollback
+  }
+}
+
+async function rollbackStorybookPersistence(
+  config: SupabasePersistenceConfig,
+  storybookId: string,
+): Promise<void> {
+  await Promise.allSettled([
+    deleteRowsByFilterFromSupabase(
+      config,
+      'storybook_output_details',
+      `storybook_id=eq.${encodeURIComponent(storybookId)}`,
+    ),
+    deleteRowsByFilterFromSupabase(
+      config,
+      'storybook_origin_details',
+      `storybook_id=eq.${encodeURIComponent(storybookId)}`,
+    ),
+    deleteRowsByFilterFromSupabase(
+      config,
+      'storybooks',
+      `id=eq.${encodeURIComponent(storybookId)}`,
+    ),
+  ])
+}
+
+async function persistStorybookEntities(
+  config: SupabasePersistenceConfig,
+  storybook: StorybookRowForInsert,
+  originDetails: StorybookOriginDetailRowForInsert[],
+  outputDetails: StorybookOutputDetailRowForInsert[],
+): Promise<SupabaseMutationResult> {
+  const storybookInsert = await insertRowsToSupabase(config, 'storybooks', storybook)
+  if (!storybookInsert.ok) {
+    return storybookInsert
+  }
+
+  const originInsert = await insertRowsToSupabase(config, 'storybook_origin_details', originDetails)
+  if (!originInsert.ok) {
+    await rollbackStorybookPersistence(config, storybook.id)
+    return originInsert
+  }
+
+  const outputInsert = await insertRowsToSupabase(config, 'storybook_output_details', outputDetails)
+  if (!outputInsert.ok) {
+    await rollbackStorybookPersistence(config, storybook.id)
+    return outputInsert
+  }
+
+  return { ok: true }
+}
+
+function buildStorybookOutputDetailRowsForInsert(
+  storybookId: string,
+  title: string,
+  description: string,
+  pages: StoryPage[],
+  imageStorageKeys: StoryImageStorageKeys,
+  narrationStorageKeyByPage: Map<number, string>,
+): StorybookOutputDetailRowForInsert[] {
+  const highlightPage = pages.find((page) => page.isHighlight)?.page ?? null
+  const endPage = pages[pages.length - 1]?.page ?? null
+
+  const storyPageRows = pages.map((page) => {
+    const isEndPage = endPage !== null && page.page === endPage
+    const isHighlightPage = highlightPage !== null && page.page === highlightPage
+
+    let imageKey: string | null = null
+    const metadata: Record<string, unknown> = {}
+
+    if (isEndPage) {
+      imageKey = imageStorageKeys.end
+    }
+
+    if (isHighlightPage) {
+      if (imageKey) {
+        metadata.highlight_image_r2_key = imageStorageKeys.highlight
+      } else {
+        imageKey = imageStorageKeys.highlight
+      }
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      storybook_id: storybookId,
+      page_index: page.page,
+      page_type: 'story' as const,
+      title: null,
+      content: page.content,
+      image_r2_key: imageKey,
+      audio_r2_key: narrationStorageKeyByPage.get(page.page) ?? null,
+      is_highlight: page.isHighlight,
+      metadata,
+    }
+  })
+
+  return [
+    {
+      id: crypto.randomUUID(),
+      storybook_id: storybookId,
+      page_index: 0,
+      page_type: 'cover',
+      title,
+      content: description,
+      image_r2_key: imageStorageKeys.cover,
+      audio_r2_key: null,
+      is_highlight: false,
+      metadata: {},
+    },
+    ...storyPageRows,
+  ]
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
@@ -1047,6 +1341,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: 'Invalid request body.',
       },
       400,
+    )
+  }
+
+  const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
+  if (!supabasePersistenceConfig) {
+    return jsonResponse(
+      {
+        error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY must be configured.',
+      },
+      500,
     )
   }
 
@@ -1179,15 +1483,26 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     .filter((narration): narration is StoryPageNarration => narration !== null)
     .sort((left, right) => left.page - right.page)
 
-  const imagesForResponse = [
-    coverImage ?? TRANSPARENT_PNG_DATA_URL,
-    highlightImage ?? TRANSPARENT_PNG_DATA_URL,
-    endImage ?? TRANSPARENT_PNG_DATA_URL,
-  ]
+  const hasAllNarrations = narrations.length === MAX_NARRATION_COUNT && hasExpectedPageSequence(narrations)
 
-  const narrationStorageKeys = narrations.map((narration) =>
-    buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
+  if (!coverImage || !highlightImage || !endImage || !hasAllNarrations) {
+    return jsonResponse(
+      {
+        error: 'Failed to generate complete media assets (requires 3 images and 10 TTS narrations).',
+      },
+      502,
+    )
+  }
+
+  const imagesForResponse = [coverImage, highlightImage, endImage]
+
+  const narrationStorageKeyByPage = new Map<number, string>(
+    narrations.map((narration) => [
+      narration.page,
+      buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
+    ]),
   )
+  const narrationStorageKeys = narrations.map((narration) => narrationStorageKeyByPage.get(narration.page) ?? '')
 
   const uploadResults = await Promise.all([
     uploadDataUrlToR2(
@@ -1221,7 +1536,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     ...narrations.map((narration) =>
       uploadDataUrlToR2(
         assetsBucket,
-        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
+        narrationStorageKeyByPage.get(narration.page) ?? '',
         narration.audioDataUrl,
         normalizedBody.userId,
         createdStoryBookId,
@@ -1248,6 +1563,74 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           key: upload.key,
           reason: upload.reason ?? 'Unknown error.',
         })),
+      },
+      502,
+    )
+  }
+
+  const storybookRow: StorybookRowForInsert = {
+    id: createdStoryBookId,
+    user_id: normalizedBody.userId,
+    title: normalizedBody.title,
+    author_name: null,
+    description: normalizedBody.description,
+    language_code: normalizedBody.language,
+    status: 'completed',
+    origin_image_r2_key: imageStorageKeys.origin,
+    cover_image_r2_key: imageStorageKeys.cover,
+    highlight_image_r2_key: imageStorageKeys.highlight,
+    end_image_r2_key: imageStorageKeys.end,
+    page_count: parsedPromptStorybook.pages.length,
+    metadata: {
+      openaiResponseId: openAIResponseBody.id ?? null,
+      promptVersion,
+      upstreamPromptVersion,
+      storybookId,
+      createdStoryBookId,
+    },
+  }
+
+  const originDetailRows: StorybookOriginDetailRowForInsert[] = [
+    {
+      id: crypto.randomUUID(),
+      storybook_id: createdStoryBookId,
+      page_index: 0,
+      drawing_image_r2_key: imageStorageKeys.origin,
+      description: normalizedBody.description,
+      metadata: {
+        title: normalizedBody.title,
+      },
+    },
+  ]
+
+  const outputDetailRows = buildStorybookOutputDetailRowsForInsert(
+    createdStoryBookId,
+    normalizedBody.title,
+    normalizedBody.description,
+    parsedPromptStorybook.pages,
+    imageStorageKeys,
+    narrationStorageKeyByPage,
+  )
+
+  const persistenceResult = await persistStorybookEntities(
+    supabasePersistenceConfig,
+    storybookRow,
+    originDetailRows,
+    outputDetailRows,
+  )
+
+  if (!persistenceResult.ok) {
+    console.error('Failed to persist storybook entities to Supabase.', {
+      storybookId,
+      createdStoryBookId,
+      status: persistenceResult.failure.status,
+      message: persistenceResult.failure.message,
+    })
+
+    return jsonResponse(
+      {
+        error: 'Failed to persist storybook entities.',
+        detail: persistenceResult.failure.message,
       },
       502,
     )

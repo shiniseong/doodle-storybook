@@ -9,6 +9,9 @@ interface TestEnv {
   OPENAI_IMAGE_MODEL?: string
   OPENAI_TTS_MODEL?: string
   OPENAI_TTS_VOICE?: string
+  SUPABASE_URL?: string
+  VITE_SUPABASE_URL?: string
+  SUPABASE_SERVICE_ROLE_KEY?: string
   STORYBOOK_ASSETS_BUCKET?: {
     put: (
       key: string,
@@ -100,6 +103,8 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
       OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
       OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
       OPENAI_TTS_VOICE: 'alloy',
+      SUPABASE_URL: 'https://supabase.test',
+      SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
       STORYBOOK_ASSETS_BUCKET: {
         put: async () => null,
       },
@@ -247,6 +252,10 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse(`audio:${requestBody.input ?? ''}`)
       }
 
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
       throw new Error(`Unexpected URL: ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -265,7 +274,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
@@ -309,6 +318,34 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/images/user-1-${payload.createdStoryBookId}-image-end`)
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p1`)
     expect(storedKeys).toContain(`user-1/${payload.storybookId}/tts/user-1-${payload.createdStoryBookId}-tts-p10`)
+
+    const supabaseCalls = fetchMock.mock.calls.filter((call) => {
+      const input = call[0] as RequestInfo | URL
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      return url.startsWith('https://supabase.test/rest/v1/')
+    })
+    expect(supabaseCalls).toHaveLength(3)
+    expect(
+      supabaseCalls.some((call) =>
+        String(typeof call[0] === 'string' ? call[0] : call[0] instanceof URL ? call[0].toString() : call[0].url).includes(
+          '/storybooks',
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      supabaseCalls.some((call) =>
+        String(typeof call[0] === 'string' ? call[0] : call[0] instanceof URL ? call[0].toString() : call[0].url).includes(
+          '/storybook_origin_details',
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      supabaseCalls.some((call) =>
+        String(typeof call[0] === 'string' ? call[0] : call[0] instanceof URL ? call[0].toString() : call[0].url).includes(
+          '/storybook_output_details',
+        ),
+      ),
+    ).toBe(true)
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {
@@ -352,6 +389,10 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse('legacy-audio')
       }
 
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
       throw new Error(`Unexpected URL: ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -366,7 +407,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
 
     const payload = (await response.json()) as {
       pages: Array<{ page: number; content: string; isHighlight: boolean }>
@@ -406,6 +447,10 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse('narration')
       }
 
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
       throw new Error(`Unexpected URL: ${url}`)
     })
 
@@ -429,7 +474,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
@@ -497,6 +542,10 @@ describe('storybooks function (v21 pipeline)', () => {
             output_text: JSON.stringify(schema),
           }),
         )
+      }
+
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return Promise.resolve(createJsonResponse({}, 201))
       }
 
       return new Promise<Response>((resolve) => {
@@ -573,6 +622,62 @@ describe('storybooks function (v21 pipeline)', () => {
 
     const payload = (await response.json()) as { error?: string }
     expect(payload.error).toBe('Invalid storybook prompt output schema.')
+  })
+
+  it('이미지 3장 + TTS 10개가 완전 생성되지 않으면 502를 반환하고 DB 저장을 시도하지 않는다', async () => {
+    const schema = createStoryPromptSchemaOutput()
+    let ttsRequestCount = 0
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url === 'https://api.openai.com/v1/responses') {
+        return createJsonResponse({
+          id: 'resp-incomplete-media',
+          output_text: JSON.stringify(schema),
+        })
+      }
+
+      if (url === 'https://api.openai.com/v1/images/generations') {
+        return createJsonResponse({ data: [{ b64_json: 'aW1hZ2U=' }] })
+      }
+
+      if (url === 'https://api.openai.com/v1/audio/speech') {
+        ttsRequestCount += 1
+        if (ttsRequestCount === 10) {
+          return createJsonResponse({ error: { message: 'simulated tts failure' } }, 500)
+        }
+        return createAudioResponse(`audio-${ttsRequestCount}`)
+      }
+
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext({
+        userId: 'user-incomplete-media',
+        language: 'ko',
+        title: '불완전 생성 테스트',
+        description: 'TTS 일부 실패 시 저장 방지',
+      }),
+    )
+
+    expect(response.status).toBe(502)
+    const payload = (await response.json()) as { error?: string }
+    expect(payload.error).toBe('Failed to generate complete media assets (requires 3 images and 10 TTS narrations).')
+
+    const supabaseCalls = fetchMock.mock.calls.filter((call) => {
+      const request = call[0] as RequestInfo | URL
+      const url = typeof request === 'string' ? request : request instanceof URL ? request.toString() : request.url
+      return url.startsWith('https://supabase.test/rest/v1/')
+    })
+
+    expect(supabaseCalls).toHaveLength(0)
   })
 
   it('R2 버킷 바인딩이 없으면 500 에러를 반환한다', async () => {

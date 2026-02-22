@@ -9,6 +9,8 @@ const openaiPromptVersion = import.meta.env.VITE_OPENAI_PROMPT_VERSION ?? '21'
 const openaiImageModel = import.meta.env.VITE_OPENAI_IMAGE_MODEL
 const openaiTtsModel = import.meta.env.VITE_OPENAI_TTS_MODEL
 const openaiTtsVoice = import.meta.env.VITE_OPENAI_TTS_VOICE
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 const describeLive = shouldRunLiveCheck ? describe : describe.skip
 
@@ -17,7 +19,9 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
     '프롬프트 응답 기반으로 이미지 3장 + TTS 10개를 생성해 ebook payload를 반환한다',
     async () => {
       expect(openaiApiKey).toBeTruthy()
-      if (!openaiApiKey) {
+      expect(supabaseUrl).toBeTruthy()
+      expect(supabaseServiceRoleKey).toBeTruthy()
+      if (!openaiApiKey || !supabaseUrl || !supabaseServiceRoleKey) {
         return
       }
 
@@ -37,6 +41,8 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
         env: {
           OPENAI_API_KEY: openaiApiKey,
           OPENAI_PROMPT_VERSION: openaiPromptVersion,
+          SUPABASE_URL: supabaseUrl,
+          SUPABASE_SERVICE_ROLE_KEY: supabaseServiceRoleKey,
           STORYBOOK_ASSETS_BUCKET: {
             put: async () => null,
           },

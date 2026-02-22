@@ -87,6 +87,14 @@ Set in Cloudflare Pages project:
 - `OPENAI_PROMPT_ID` (var, default configured in `wrangler.jsonc`)
 - `OPENAI_PROMPT_VERSION` (var, default `21`)
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1.5`)
+- `SUPABASE_URL` or `VITE_SUPABASE_URL` (var)
+- `SUPABASE_SERVICE_ROLE_KEY` (secret, required for server-side DB persistence)
+
+The storybook API writes generated entities to `doodle_storybook_db` schema tables:
+
+- `storybooks`
+- `storybook_origin_details`
+- `storybook_output_details`
 
 ### Required Cloudflare binding
 
@@ -120,6 +128,8 @@ OPENAI_API_KEY="sk-..."
 OPENAI_PROMPT_ID="pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697"
 OPENAI_PROMPT_VERSION="21"
 OPENAI_IMAGE_MODEL="gpt-image-1.5"
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="sb_secret_..."
 ```
 
 If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
