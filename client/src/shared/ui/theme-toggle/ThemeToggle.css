@@ -5,7 +5,8 @@
   background: rgba(255, 255, 255, 0.85);
   color: #1b4a68;
   box-shadow: 0 0.35rem 0.8rem rgba(32, 105, 149, 0.08);
-  padding: 0.26rem 0.62rem;
+  min-height: 2.05rem;
+  padding: 0.3rem 0.68rem;
   display: inline-flex;
   align-items: center;
   gap: 0.38rem;
@@ -18,7 +19,7 @@
 }
 
 .theme-toggle__label {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 760;
 }
 

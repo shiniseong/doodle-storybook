@@ -126,6 +126,11 @@ export const i18nResources = {
           cancel: '계속 작업할게요',
           close: '로그인 안내 닫기',
         },
+        quotaExceededModal: {
+          title: '무료 제작 횟수를 모두 사용했습니다.',
+          startTrial: '1일 체험하기',
+          close: '무료 제작 소진 안내 닫기',
+        },
         reader: {
           byAuthor: '지은이: {{author}}',
           playNarration: '낭독 재생',
@@ -427,6 +432,11 @@ export const i18nResources = {
           confirm: 'Go to sign in / sign up',
           cancel: 'Keep editing',
           close: 'Close sign-in prompt',
+        },
+        quotaExceededModal: {
+          title: 'You have used all free story creations.',
+          startTrial: 'Start 1-day trial',
+          close: 'Close quota limit dialog',
         },
         reader: {
           byAuthor: 'By {{author}}',
@@ -730,6 +740,11 @@ export const i18nResources = {
           cancel: 'このまま編集する',
           close: 'ログイン案内を閉じる',
         },
+        quotaExceededModal: {
+          title: '無料制作回数をすべて使い切りました。',
+          startTrial: '1日体験を始める',
+          close: '無料制作上限案内を閉じる',
+        },
         reader: {
           byAuthor: '作：{{author}}',
           playNarration: '読み上げ再生',
@@ -1031,6 +1046,11 @@ export const i18nResources = {
           confirm: '前往登录/注册页面',
           cancel: '继续编辑',
           close: '关闭登录提示',
+        },
+        quotaExceededModal: {
+          title: '免费创作次数已全部用完。',
+          startTrial: '开始 1 天体验',
+          close: '关闭免费额度提示',
         },
         reader: {
           byAuthor: '作者：{{author}}',

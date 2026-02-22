@@ -2094,6 +2094,7 @@ interface StoryComposerSectionProps {
   onDraftChange: (draft: { title: string; authorName: string; description: string }) => void
   onRequestAuthentication?: () => void
   onNavigateToLibrary?: () => void
+  onRequestOpenPricingModal?: () => void
 }
 
 interface AuthGateDialogProps {
@@ -2163,6 +2164,72 @@ function AuthGateDialog({ onConfirm, onCancel }: AuthGateDialogProps) {
   )
 }
 
+interface QuotaExceededDialogProps {
+  onStartTrial: () => void
+  onClose: () => void
+}
+
+function QuotaExceededDialog({ onStartTrial, onClose }: QuotaExceededDialogProps) {
+  const { t } = useTranslation()
+
+  useBodyScrollLock()
+
+  useEffect(() => {
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      onClose()
+    }
+
+    window.addEventListener('keydown', handleWindowKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
+    }
+  }, [onClose])
+
+  return (
+    <motion.div
+      className="quota-exceeded-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quota-exceeded-title"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+    >
+      <button
+        type="button"
+        className="quota-exceeded-dialog__backdrop"
+        aria-label={t('workspace.quotaExceededModal.close')}
+        onClick={onClose}
+      />
+      <motion.article
+        className="quota-exceeded-dialog__sheet"
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.98 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
+        <h3 id="quota-exceeded-title">{t('workspace.quotaExceededModal.title')}</h3>
+        <div className="quota-exceeded-dialog__actions">
+          <button
+            type="button"
+            className="quota-exceeded-dialog__action quota-exceeded-dialog__action--primary"
+            onClick={onStartTrial}
+          >
+            {t('workspace.quotaExceededModal.startTrial')}
+          </button>
+        </div>
+      </motion.article>
+    </motion.div>
+  )
+}
+
 function StoryComposerSection({
   dependencies,
   auth,
@@ -2172,6 +2239,7 @@ function StoryComposerSection({
   onDraftChange,
   onRequestAuthentication,
   onNavigateToLibrary,
+  onRequestOpenPricingModal,
 }: StoryComposerSectionProps) {
   const { i18n, t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
@@ -2181,9 +2249,16 @@ function StoryComposerSection({
   const markError = useStorybookCreationStore((state) => state.markError)
   const [readerBook, setReaderBook] = useState<StorybookReaderBook | null>(null)
   const [isAuthGateDialogOpen, setIsAuthGateDialogOpen] = useState(false)
+  const [isQuotaExceededDialogOpen, setIsQuotaExceededDialogOpen] = useState(false)
 
   const useCase = useMemo(() => dependencies.createStorybookUseCase, [dependencies])
-  const feedbackText = useMemo(() => resolveErrorFeedbackText(feedback, t), [feedback, t])
+  const feedbackText = useMemo(() => {
+    if (feedback?.kind === 'error' && feedback.code === 'QUOTA_EXCEEDED') {
+      return null
+    }
+
+    return resolveErrorFeedbackText(feedback, t)
+  }, [feedback, t])
   const isSubmitting = createStatus === 'submitting'
   const closeReaderBook = useCallback(() => {
     setReaderBook(null)
@@ -2210,6 +2285,19 @@ function StoryComposerSection({
     onRequestAuthentication?.()
   }, [auth?.userId, onNavigateToLibrary, onRequestAuthentication])
 
+  const openQuotaExceededDialog = useCallback(() => {
+    setIsQuotaExceededDialogOpen(true)
+  }, [])
+
+  const closeQuotaExceededDialog = useCallback(() => {
+    setIsQuotaExceededDialogOpen(false)
+  }, [])
+
+  const handleStartTrialFromQuotaDialog = useCallback(() => {
+    setIsQuotaExceededDialogOpen(false)
+    onRequestOpenPricingModal?.()
+  }, [onRequestOpenPricingModal])
+
   return (
     <motion.section
       className="panel panel--compose"
@@ -2234,6 +2322,7 @@ function StoryComposerSection({
             return
           }
 
+          setIsQuotaExceededDialogOpen(false)
           setReaderBook(null)
           startSubmitting()
 
@@ -2252,6 +2341,16 @@ function StoryComposerSection({
               setReaderBook(readerBookFromResponse)
             }
           } else {
+            const normalizedMessage = result.error.message?.toUpperCase() ?? ''
+            const isQuotaExceededError =
+              result.error.code === 'QUOTA_EXCEEDED' || normalizedMessage.includes('QUOTA_EXCEEDED')
+
+            if (isQuotaExceededError) {
+              markError('QUOTA_EXCEEDED', result.error.message)
+              openQuotaExceededDialog()
+              return
+            }
+
             markError(result.error.code, result.error.message)
           }
         }}
@@ -2305,6 +2404,9 @@ function StoryComposerSection({
           <AuthGateDialog onCancel={closeAuthGateDialog} onConfirm={confirmAuthenticationRequest} />
         ) : null}
       </AnimatePresence>
+      {isQuotaExceededDialogOpen ? (
+        <QuotaExceededDialog onClose={closeQuotaExceededDialog} onStartTrial={handleStartTrialFromQuotaDialog} />
+      ) : null}
       <AnimatePresence>
         {readerBook ? <StorybookReaderDialog book={readerBook} onClose={closeReaderBook} /> : null}
       </AnimatePresence>
@@ -2593,6 +2695,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           onDraftChange={handleComposeDraftChange}
           onRequestAuthentication={onRequestAuthentication}
           onNavigateToLibrary={onNavigateToLibrary}
+          onRequestOpenPricingModal={handleOpenPricingModal}
         />
       </main>
       <SubscriptionPlansModal

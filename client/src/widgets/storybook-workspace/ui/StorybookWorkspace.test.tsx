@@ -573,7 +573,7 @@ describe('StorybookWorkspace', () => {
     }
   })
 
-  it('생성 실패 시 다국어 오류 피드백을 보여준다', async () => {
+  it('QUOTA_EXCEEDED 응답이면 무료 제작 소진 모달을 띄우고 1일 체험하기로 요금제 모달을 연다', async () => {
     const user = userEvent.setup()
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
@@ -581,22 +581,35 @@ describe('StorybookWorkspace', () => {
         execute: vi.fn(async () => ({
           ok: false as const,
           error: {
-            code: 'QUOTA_EXCEEDED' as const,
-            message: '무료 생성 한도를 초과했습니다. 구독 후 이용해 주세요.',
+            code: 'UNEXPECTED' as const,
+            message: 'Failed to create storybook (403): QUOTA_EXCEEDED',
           },
         })),
       },
     }
 
-    render(<StorybookWorkspace dependencies={dependencies} />)
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'user-1',
+          userEmail: 'user-1@example.com',
+        })}
+      />,
+    )
 
     await user.type(screen.getByLabelText('동화 제목'), '마법 지팡이')
     await user.type(screen.getByLabelText('그림 설명'), '숲속에서 마법 지팡이를 찾았어요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
-    expect(
-      screen.getByText('무료 제작 횟수를 모두 사용했어요. 구독 후 계속 만들 수 있어요.'),
-    ).toBeInTheDocument()
+    expect(screen.queryByText('잠시 후 다시 시도해 주세요.')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '무료 제작 횟수를 모두 사용했습니다.' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '1일 체험하기' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '무료 제작 횟수를 모두 사용했습니다.' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('dialog', { name: '요금제 선택' })).toBeInTheDocument()
   })
 
   it('그리드 토글 버튼으로 캔버스 격자 표시를 전환한다', async () => {

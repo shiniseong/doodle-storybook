@@ -3,7 +3,8 @@
   border: 1px solid rgba(108, 150, 179, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
-  padding: 0.26rem 0.6rem;
+  min-height: 2.05rem;
+  padding: 0.3rem 0.68rem;
   display: inline-flex;
   align-items: center;
   gap: 0.42rem;
@@ -18,8 +19,10 @@
   border: 0;
   background: transparent;
   color: #193e5b;
-  font-weight: 700;
-  font-size: 0.86rem;
+  font-weight: 760;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0;
   cursor: pointer;
 }
 

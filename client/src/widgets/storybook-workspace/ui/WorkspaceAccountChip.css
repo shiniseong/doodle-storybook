@@ -3,10 +3,11 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: #1f445f;
-  font-weight: 700;
+  font-weight: 760;
   font-size: 0.78rem;
-  line-height: 1.1;
-  padding: 0.36rem 0.68rem;
+  line-height: 1;
+  min-height: 2.05rem;
+  padding: 0.3rem 0.68rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
