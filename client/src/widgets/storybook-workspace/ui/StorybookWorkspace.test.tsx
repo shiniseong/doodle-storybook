@@ -479,18 +479,11 @@ describe('StorybookWorkspace', () => {
     const surface = container.querySelector('.canvas-stage__surface')
 
     expect(surface).not.toBeNull()
-    expect(surface).not.toHaveClass('canvas-stage__surface--plain')
-
-    const toggleButton = screen.getByRole('button', { name: '그리드 끄기' })
-    expect(toggleButton).toHaveAttribute('aria-pressed', 'true')
-    expect(toggleButton).toHaveAttribute('title', '그리드 끄기')
-
-    await user.click(toggleButton)
-
-    expect(toggleButton).toHaveAttribute('aria-label', '그리드 켜기')
-    expect(toggleButton).toHaveAttribute('title', '그리드 켜기')
-    expect(toggleButton).toHaveAttribute('aria-pressed', 'false')
     expect(surface).toHaveClass('canvas-stage__surface--plain')
+
+    const toggleButton = screen.getByRole('button', { name: '그리드 켜기' })
+    expect(toggleButton).toHaveAttribute('aria-pressed', 'false')
+    expect(toggleButton).toHaveAttribute('title', '그리드 켜기')
 
     await user.click(toggleButton)
 
@@ -498,6 +491,13 @@ describe('StorybookWorkspace', () => {
     expect(toggleButton).toHaveAttribute('title', '그리드 끄기')
     expect(toggleButton).toHaveAttribute('aria-pressed', 'true')
     expect(surface).not.toHaveClass('canvas-stage__surface--plain')
+
+    await user.click(toggleButton)
+
+    expect(toggleButton).toHaveAttribute('aria-label', '그리드 켜기')
+    expect(toggleButton).toHaveAttribute('title', '그리드 켜기')
+    expect(toggleButton).toHaveAttribute('aria-pressed', 'false')
+    expect(surface).toHaveClass('canvas-stage__surface--plain')
   })
 
   it('캔버스 전체 지우기 버튼을 누르면 현재 캔버스를 비운다', async () => {

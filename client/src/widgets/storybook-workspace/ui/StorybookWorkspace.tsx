@@ -499,7 +499,7 @@ interface DrawingBoardSectionProps {
 function DrawingBoardSection({ initialCanvasDataUrl, onCanvasSnapshotChange }: DrawingBoardSectionProps) {
   const { t } = useTranslation()
   const [activeToolMode, setActiveToolMode] = useState<DrawingToolMode>('pen')
-  const [isGridVisible, setIsGridVisible] = useState(true)
+  const [isGridVisible, setIsGridVisible] = useState(false)
   const [penColor, setPenColor] = useState(DEFAULT_PEN_COLOR)
   const [penWidth, setPenWidth] = useState(DEFAULT_PEN_WIDTH)
   const [penOpacity, setPenOpacity] = useState(DEFAULT_PEN_OPACITY)
