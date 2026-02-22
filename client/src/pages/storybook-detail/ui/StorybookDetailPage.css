@@ -88,6 +88,13 @@
   cursor: default;
 }
 
+.storybook-detail-header__action--icon-only {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  justify-content: center;
+}
+
 .storybook-detail-header__action--danger {
   border-color: rgba(208, 118, 108, 0.58);
   color: #8b3a34;

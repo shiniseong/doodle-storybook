@@ -51,10 +51,8 @@ function StorybookLibraryCard({
   createdAtLabel,
   onOpenStorybookDetail,
   onDeleteStorybook,
-  isDeleting,
   isDeleteDisabled,
   deleteLabel,
-  deletingLabel,
 }: {
   item: StorybookLibraryItem
   locale: string
@@ -62,10 +60,8 @@ function StorybookLibraryCard({
   createdAtLabel: string
   onOpenStorybookDetail?: (storybookId: string) => void
   onDeleteStorybook?: (storybookId: string) => void
-  isDeleting?: boolean
   isDeleteDisabled?: boolean
   deleteLabel: string
-  deletingLabel: string
 }) {
   const createdAt = formatCreatedAt(item.createdAt, locale)
   const cardBody = (
@@ -111,15 +107,13 @@ function StorybookLibraryCard({
         <button
           type="button"
           className="library-card__delete"
-          aria-label={`${isDeleting ? deletingLabel : deleteLabel}: ${item.title}`}
-          title={isDeleting ? deletingLabel : deleteLabel}
+          aria-label={`${deleteLabel}: ${item.title}`}
           onClick={() => {
             onDeleteStorybook(item.storybookId)
           }}
           disabled={isDeleteDisabled}
         >
           <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
-          <span>{isDeleting ? deletingLabel : deleteLabel}</span>
         </button>
       ) : null}
     </li>
@@ -336,10 +330,8 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
               createdAtLabel={t('library.card.createdAt')}
               onOpenStorybookDetail={onOpenStorybookDetail}
               onDeleteStorybook={handleDeleteRequest}
-              isDeleting={deletingStorybookIds.has(item.storybookId)}
               isDeleteDisabled={deletingStorybookIds.has(item.storybookId) || isDeleteDialogOpen}
               deleteLabel={t('library.actions.delete')}
-              deletingLabel={t('library.actions.deleting')}
             />
           ))}
         </ul>

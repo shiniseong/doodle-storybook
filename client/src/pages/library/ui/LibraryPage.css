@@ -196,14 +196,12 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   color: #a7342a;
-  font-weight: 700;
-  font-size: 0.72rem;
-  line-height: 1.1;
-  padding: 0.28rem 0.48rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
+  display: grid;
+  place-items: center;
 }
 
 .library-card__delete:disabled {

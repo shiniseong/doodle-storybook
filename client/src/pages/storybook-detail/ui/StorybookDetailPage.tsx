@@ -208,12 +208,12 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
           </button>
           <button
             type="button"
-            className="storybook-detail-header__action storybook-detail-header__action--danger"
+            className="storybook-detail-header__action storybook-detail-header__action--danger storybook-detail-header__action--icon-only"
+            aria-label={isDeleting ? t('storybookDetail.actions.deleting') : t('storybookDetail.actions.delete')}
             onClick={handleDeleteDialogOpen}
             disabled={loadState !== 'success' || isDeleting || isDeleteDialogOpen}
           >
             <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
-            {isDeleting ? t('storybookDetail.actions.deleting') : t('storybookDetail.actions.delete')}
           </button>
         </div>
       </header>
