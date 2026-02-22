@@ -48,7 +48,34 @@ export function StorybookDescriptionForm({
   const isDescriptionEmpty = trimmedDescription.length === 0
   const isTitleTooLong = title.length > titleMaxLength
   const isTooLong = description.length > maxLength
-  const canSubmit = !isTitleEmpty && !isAuthorNameEmpty && !isDescriptionEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
+  const submitDisabledReason = (() => {
+    if (isTitleEmpty) {
+      return t('form.validation.titleRequired')
+    }
+
+    if (isAuthorNameEmpty) {
+      return t('form.validation.authorRequired')
+    }
+
+    if (isDescriptionEmpty) {
+      return t('form.validation.descriptionRequired')
+    }
+
+    if (isTitleTooLong) {
+      return t('form.validation.titleTooLong', { max: titleMaxLength })
+    }
+
+    if (isTooLong) {
+      return t('form.validation.descriptionTooLong', { max: maxLength })
+    }
+
+    if (isSubmitting) {
+      return t('form.validation.submitting')
+    }
+
+    return null
+  })()
+  const canSubmit = submitDisabledReason === null
 
   useEffect(() => {
     onDraftChange?.({
@@ -111,8 +138,11 @@ export function StorybookDescriptionForm({
         }}
       />
       <div className="compose-form__footer">
-        <span aria-live="polite">
-          {t('form.counter', { current: description.length, max: maxLength })}
+        <span
+          className={`compose-form__status${submitDisabledReason ? ' compose-form__status--reason' : ''}`}
+          aria-live="polite"
+        >
+          {submitDisabledReason ?? t('form.counter', { current: description.length, max: maxLength })}
         </span>
         <button type="submit" disabled={!canSubmit}>
           {isSubmitting ? t('form.submitting') : t('form.submit')}

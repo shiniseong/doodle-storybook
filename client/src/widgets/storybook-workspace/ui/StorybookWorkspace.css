@@ -144,6 +144,8 @@
 .workspace-header__side {
   display: grid;
   gap: 0.7rem;
+  align-self: start;
+  align-content: start;
 }
 
 .workspace-header__toolbar {
@@ -703,9 +705,14 @@
   gap: 0.75rem;
 }
 
-.compose-form__footer span {
+.compose-form__status {
   font-size: 0.84rem;
   color: var(--ink-soft);
+}
+
+.compose-form__status--reason {
+  color: #b45309;
+  font-weight: 700;
 }
 
 .compose-form__footer button {
@@ -1930,6 +1937,10 @@ html[data-theme='night'] .range-control-panel {
 
 html[data-theme='night'] .range-control-panel__value {
   color: #d4e9fa;
+}
+
+html[data-theme='night'] .compose-form__status--reason {
+  color: #f4c17a;
 }
 
 html[data-theme='night'] .compose-form input[type='text'],

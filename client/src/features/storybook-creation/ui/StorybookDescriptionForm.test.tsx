@@ -16,11 +16,11 @@ describe('StorybookDescriptionForm', () => {
 
     expect(screen.getByLabelText('동화 제목')).toBeInTheDocument()
     expect(screen.getByLabelText('지은이')).toBeInTheDocument()
-    expect(screen.getByText('0 / 500')).toBeInTheDocument()
+    expect(screen.getByText("'동화 제목'을 입력해주세요.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
 
-  it('제목/지은이/설명을 모두 입력해야 제출 가능 상태로 바뀐다', async () => {
+  it('비활성화 사유는 위 입력칸부터 우선순위대로 표시된다', async () => {
     const user = userEvent.setup()
 
     render(
@@ -34,15 +34,18 @@ describe('StorybookDescriptionForm', () => {
     const textarea = screen.getByLabelText('그림 설명')
     const titleInput = screen.getByLabelText('동화 제목')
     const authorInput = screen.getByLabelText('지은이')
-    await user.type(textarea, '달님이 구름 위를 산책해요')
+    expect(screen.getByText("'동화 제목'을 입력해주세요.")).toBeInTheDocument()
 
-    expect(screen.getByText('14 / 500')).toBeInTheDocument()
+    await user.type(textarea, '달님이 구름 위를 산책해요')
+    expect(screen.getByText("'동화 제목'을 입력해주세요.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
 
     await user.type(titleInput, '달님 산책')
+    expect(screen.getByText("'지은이'를 입력해주세요.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
 
     await user.type(authorInput, '달빛 작가')
+    expect(screen.getByText('14 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeEnabled()
   })
 
