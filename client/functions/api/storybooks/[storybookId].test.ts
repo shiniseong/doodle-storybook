@@ -7,6 +7,7 @@ interface TestEnv {
   VITE_SUPABASE_URL?: string
   SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
+  ALLOW_INSECURE_TEST_TOKENS?: string
   CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
   R2_PUBLIC_BASE_URL?: string
 }
@@ -23,20 +24,26 @@ function createJsonResponse(payload: unknown, status = 200): Response {
 function createGetContext({
   requestUrl,
   storybookId,
+  userId = 'user-1',
   envOverrides = {},
 }: {
   requestUrl: string
   storybookId?: string
+  userId?: string
   envOverrides?: Partial<TestEnv>
 }) {
   return {
     request: new Request(requestUrl, {
       method: 'GET',
+      headers: {
+        Authorization: `Bearer test-user:${userId}`,
+      },
     }),
     params: storybookId ? { storybookId } : {},
     env: {
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
+      ALLOW_INSECURE_TEST_TOKENS: '1',
       CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
       ...envOverrides,
     },
@@ -46,20 +53,26 @@ function createGetContext({
 function createDeleteContext({
   requestUrl,
   storybookId,
+  userId = 'user-1',
   envOverrides = {},
 }: {
   requestUrl: string
   storybookId?: string
+  userId?: string
   envOverrides?: Partial<TestEnv>
 }) {
   return {
     request: new Request(requestUrl, {
       method: 'DELETE',
+      headers: {
+        Authorization: `Bearer test-user:${userId}`,
+      },
     }),
     params: storybookId ? { storybookId } : {},
     env: {
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
+      ALLOW_INSECURE_TEST_TOKENS: '1',
       CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
       ...envOverrides,
     },
@@ -209,17 +222,21 @@ describe('storybook detail function', () => {
     ])
   })
 
-  it('userId가 없으면 400을 반환한다', async () => {
-    const response = await onRequestGet(
-      createGetContext({
-        requestUrl: 'https://example.test/api/storybooks/storybook-1',
-        storybookId: 'storybook-1',
+  it('Authorization 헤더가 없으면 401을 반환한다', async () => {
+    const response = await onRequestGet({
+      request: new Request('https://example.test/api/storybooks/storybook-1', {
+        method: 'GET',
       }),
-    )
+      params: { storybookId: 'storybook-1' },
+      env: {
+        SUPABASE_URL: 'https://supabase.test',
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
+      },
+    } as unknown as Parameters<typeof onRequestGet>[0])
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
     const payload = (await response.json()) as { error?: string }
-    expect(payload.error).toBe('userId query parameter is required.')
+    expect(payload.error).toBe('Authorization Bearer token is required.')
   })
 
   it('스토리북이 없으면 404를 반환한다', async () => {
@@ -309,16 +326,20 @@ describe('storybook detail function', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
-  it('삭제 요청에서 userId가 없으면 400을 반환한다', async () => {
-    const response = await onRequestDelete(
-      createDeleteContext({
-        requestUrl: 'https://example.test/api/storybooks/storybook-1',
-        storybookId: 'storybook-1',
+  it('삭제 요청에서 Authorization 헤더가 없으면 401을 반환한다', async () => {
+    const response = await onRequestDelete({
+      request: new Request('https://example.test/api/storybooks/storybook-1', {
+        method: 'DELETE',
       }),
-    )
+      params: { storybookId: 'storybook-1' },
+      env: {
+        SUPABASE_URL: 'https://supabase.test',
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
+      },
+    } as unknown as Parameters<typeof onRequestDelete>[0])
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
     const payload = (await response.json()) as { error?: string }
-    expect(payload.error).toBe('userId query parameter is required.')
+    expect(payload.error).toBe('Authorization Bearer token is required.')
   })
 })

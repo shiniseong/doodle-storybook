@@ -1,4 +1,6 @@
 import { buildStorybookDetailApiResponse, resolveR2AssetPublicUrl } from './storybooks/storybooks-response'
+import { authenticateRequest } from './_shared/auth'
+import { getBillingAccessSnapshot, incrementFreeQuotaUsage } from './_shared/subscription-access'
 
 type StoryLanguage = 'ko' | 'en' | 'ja' | 'zh'
 
@@ -33,7 +35,7 @@ interface Env {
 }
 
 interface StorybookCreateRequestBody {
-  userId: string
+  userId?: string
   language: StoryLanguage
   title: string
   authorName?: string
@@ -260,7 +262,6 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
   const candidate = payload as Partial<StorybookCreateRequestBody>
 
   if (
-    typeof candidate.userId !== 'string' ||
     typeof candidate.language !== 'string' ||
     typeof candidate.title !== 'string' ||
     typeof candidate.description !== 'string'
@@ -288,7 +289,6 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
   }
 
   return {
-    userId: candidate.userId,
     language: candidate.language,
     title: normalizedTitle,
     ...(normalizedAuthorName ? { authorName: normalizedAuthorName } : {}),
@@ -1461,18 +1461,19 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const requestUrl = new URL(context.request.url)
-  const userId = (requestUrl.searchParams.get('userId') || '').trim()
   const requestedLimit = parsePositiveInteger(requestUrl.searchParams.get('limit'))
   const limit = requestedLimit ? Math.min(requestedLimit, 100) : 30
 
-  if (userId.length === 0) {
+  const authResult = await authenticateRequest(context.request, context.env)
+  if (!authResult.ok) {
     return jsonResponse(
       {
-        error: 'userId query parameter is required.',
+        error: authResult.failure.message,
       },
-      400,
+      authResult.failure.status,
     )
   }
+  const authenticatedUserId = authResult.value.userId
 
   const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
   if (!supabasePersistenceConfig) {
@@ -1484,10 +1485,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const listResult = await fetchStorybookListFromSupabase(supabasePersistenceConfig, userId, limit, context.env)
+  const listResult = await fetchStorybookListFromSupabase(
+    supabasePersistenceConfig,
+    authenticatedUserId,
+    limit,
+    context.env,
+  )
   if (!listResult.ok) {
     console.error('Failed to fetch storybook list from Supabase.', {
-      userId,
+      userId: authenticatedUserId,
       status: listResult.failure.status,
       message: listResult.failure.message,
     })
@@ -1507,6 +1513,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
+  const authResult = await authenticateRequest(context.request, context.env)
+  if (!authResult.ok) {
+    return jsonResponse(
+      {
+        error: authResult.failure.message,
+      },
+      authResult.failure.status,
+    )
+  }
+  const authenticatedUserId = authResult.value.userId
+
   let requestBody: unknown
 
   try {
@@ -1561,6 +1578,31 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       500,
     )
   }
+
+  const accessResult = await getBillingAccessSnapshot(supabasePersistenceConfig, authenticatedUserId)
+  if (!accessResult.ok) {
+    return jsonResponse(
+      {
+        error: 'Failed to resolve subscription access.',
+        detail: accessResult.failure.message,
+      },
+      502,
+    )
+  }
+
+  if (!accessResult.value.canCreate) {
+    return jsonResponse(
+      {
+        code: 'QUOTA_EXCEEDED',
+        error: 'QUOTA_EXCEEDED',
+        message: '무료 제작 횟수를 모두 사용했어요. 구독 후 계속 만들 수 있어요.',
+      },
+      403,
+    )
+  }
+  const shouldConsumeFreeQuota =
+    accessResult.value.subscription?.status !== 'trialing' &&
+    accessResult.value.subscription?.status !== 'active'
 
   const inputContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }> = [
     {
@@ -1662,9 +1704,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const createdStoryBookId = crypto.randomUUID()
   const storybookId = `storybook-${createdStoryBookId}`
-  const imagesDirectory = `${normalizedBody.userId}/${storybookId}/images`
-  const ttsDirectory = `${normalizedBody.userId}/${storybookId}/tts`
-  const imageStorageKeys = buildStoryImageStorageKeys(normalizedBody.userId, createdStoryBookId, imagesDirectory)
+  const imagesDirectory = `${authenticatedUserId}/${storybookId}/images`
+  const ttsDirectory = `${authenticatedUserId}/${storybookId}/tts`
+  const imageStorageKeys = buildStoryImageStorageKeys(authenticatedUserId, createdStoryBookId, imagesDirectory)
   const ttsInstructions = resolveTtsInstructions(normalizedBody.language)
   const narrationSources = parsedPromptStorybook.ttsPages.slice(0, MAX_NARRATION_COUNT)
 
@@ -1755,7 +1797,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     narrationStorageKeyByPage = new Map<number, string>(
       narrations.map((narration) => [
         narration.page,
-        buildTtsStorageKey(normalizedBody.userId, createdStoryBookId, narration.page, ttsDirectory),
+        buildTtsStorageKey(authenticatedUserId, createdStoryBookId, narration.page, ttsDirectory),
       ]),
     )
 
@@ -1764,28 +1806,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         assetsBucket as StorybookAssetsBucket,
         imageStorageKeys.cover,
         imagesForResponse[0],
-        normalizedBody.userId,
+        authenticatedUserId,
         createdStoryBookId,
       ),
       uploadDataUrlToR2(
         assetsBucket as StorybookAssetsBucket,
         imageStorageKeys.highlight,
         imagesForResponse[1],
-        normalizedBody.userId,
+        authenticatedUserId,
         createdStoryBookId,
       ),
       uploadDataUrlToR2(
         assetsBucket as StorybookAssetsBucket,
         imageStorageKeys.end,
         imagesForResponse[2],
-        normalizedBody.userId,
+        authenticatedUserId,
         createdStoryBookId,
       ),
       uploadDataUrlToR2(
         assetsBucket as StorybookAssetsBucket,
         imageStorageKeys.origin,
         normalizedBody.imageDataUrl ?? TRANSPARENT_PNG_DATA_URL,
-        normalizedBody.userId,
+        authenticatedUserId,
         createdStoryBookId,
       ),
       ...narrations.map((narration) =>
@@ -1793,7 +1835,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           assetsBucket as StorybookAssetsBucket,
           narrationStorageKeyByPage.get(narration.page) ?? '',
           narration.audioDataUrl,
-          normalizedBody.userId,
+          authenticatedUserId,
           createdStoryBookId,
         ),
       ),
@@ -1826,7 +1868,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const storybookRow: StorybookRowForInsert = {
     id: createdStoryBookId,
-    user_id: normalizedBody.userId,
+    user_id: authenticatedUserId,
     title: normalizedBody.title,
     author_name: normalizedBody.authorName ?? null,
     description: normalizedBody.description,
@@ -1890,6 +1932,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       },
       502,
     )
+  }
+
+  if (shouldConsumeFreeQuota) {
+    const quotaUsageResult = await incrementFreeQuotaUsage(supabasePersistenceConfig, authenticatedUserId)
+    if (!quotaUsageResult.ok) {
+      console.error('Failed to increment free story quota after successful creation.', {
+        userId: authenticatedUserId,
+        storybookId,
+        status: quotaUsageResult.failure.status,
+        message: quotaUsageResult.failure.message,
+      })
+    }
   }
 
   const persistedEntityResponse = buildStorybookDetailApiResponse({

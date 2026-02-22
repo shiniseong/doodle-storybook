@@ -34,6 +34,7 @@ export interface SupabaseGoogleAuthResult {
   readonly isSigningIn: boolean
   readonly userId: string | null
   readonly userEmail: string | null
+  readonly accessToken: string | null
   readonly signInWithEmail: (input: SignInWithEmailInput) => Promise<SignInWithEmailResult>
   readonly signUpWithEmail: (input: SignUpWithEmailInput) => Promise<SignUpWithEmailResult>
   readonly signInWithProvider: (provider: SupportedSupabaseOAuthProvider) => Promise<void>
@@ -58,6 +59,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
   const supabaseClient = useMemo(() => resolveSupabaseClient(), [])
   const isConfigured = supabaseClient !== null
   const [user, setUser] = useState<User | null>(null)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(isConfigured)
   const [isSigningIn, setIsSigningIn] = useState(false)
 
@@ -68,17 +70,19 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
 
     let isSubscribed = true
 
-    void supabaseClient.auth.getUser().then(({ data }) => {
+    void Promise.all([supabaseClient.auth.getUser(), supabaseClient.auth.getSession()]).then(([userResult, sessionResult]) => {
       if (!isSubscribed) {
         return
       }
 
-      setUser(data.user ?? null)
+      setUser(userResult.data.user ?? null)
+      setAccessToken(sessionResult.data.session?.access_token ?? null)
       setIsLoading(false)
     })
 
     const authSubscription = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
       setUser(nextSession?.user ?? null)
+      setAccessToken(nextSession?.access_token ?? null)
       setIsLoading(false)
       setIsSigningIn(false)
     })
@@ -218,6 +222,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     } finally {
       clearAllBrowserStorage()
       setUser(null)
+      setAccessToken(null)
       setIsSigningIn(false)
       setIsLoading(false)
     }
@@ -229,6 +234,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
     isSigningIn,
     userId: user?.id ?? null,
     userEmail: resolveUserEmail(user),
+    accessToken,
     signInWithEmail,
     signUpWithEmail,
     signInWithProvider,

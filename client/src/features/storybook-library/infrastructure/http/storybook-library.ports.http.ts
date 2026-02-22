@@ -20,6 +20,7 @@ interface StorybookListApiErrorResponse {
 interface HttpStorybookLibraryQueryPortOptions {
   baseUrl?: string
   endpointPath?: string
+  accessToken?: string | null
 }
 
 function resolveApiBaseUrl(explicitBaseUrl?: string): string {
@@ -100,10 +101,12 @@ function parseApiErrorMessage(payload: unknown): string | null {
 export class HttpStorybookLibraryQueryPort implements StorybookLibraryQueryPort {
   private readonly baseUrl: string
   private readonly endpointPath: string
+  private readonly accessToken: string | null
 
   constructor(options: HttpStorybookLibraryQueryPortOptions = {}) {
     this.baseUrl = resolveApiBaseUrl(options.baseUrl)
     this.endpointPath = options.endpointPath ?? '/api/storybooks'
+    this.accessToken = options.accessToken ?? null
   }
 
   async listStorybooks(request: ListStorybooksRequest): Promise<ListStorybooksResponse> {
@@ -119,6 +122,7 @@ export class HttpStorybookLibraryQueryPort implements StorybookLibraryQueryPort 
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       },
     })
 

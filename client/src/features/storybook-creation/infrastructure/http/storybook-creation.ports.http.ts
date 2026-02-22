@@ -26,6 +26,7 @@ interface CreateStorybookApiRequest {
 interface HttpStorybookCommandPortOptions {
   baseUrl?: string
   endpointPath?: string
+  accessToken?: string | null
 }
 
 function parseApiErrorMessage(payload: unknown): string | null {
@@ -108,10 +109,12 @@ function resolveApiBaseUrl(explicitBaseUrl?: string): string {
 export class HttpStorybookCommandPort implements StorybookCommandPort {
   private readonly baseUrl: string
   private readonly endpointPath: string
+  private readonly accessToken: string | null
 
   constructor(options: HttpStorybookCommandPortOptions = {}) {
     this.baseUrl = resolveApiBaseUrl(options.baseUrl)
     this.endpointPath = options.endpointPath ?? '/api/storybooks'
+    this.accessToken = options.accessToken ?? null
   }
 
   async createStorybook(draft: {
@@ -136,6 +139,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       },
       body: JSON.stringify(payload),
     })

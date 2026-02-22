@@ -13,6 +13,7 @@ interface TestEnv {
   VITE_SUPABASE_URL?: string
   SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
+  ALLOW_INSECURE_TEST_TOKENS?: string
   CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
   R2_PUBLIC_BASE_URL?: string
   STORYBOOK_ASSETS_BUCKET?: {
@@ -90,12 +91,43 @@ function createLegacyStoryPagesOutput() {
   })
 }
 
+function resolveBillingSupabaseResponse(url: string, init?: RequestInit): Response | null {
+  const method = String(init?.method ?? 'GET').toUpperCase()
+
+  if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+    return createJsonResponse([], 200)
+  }
+
+  if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+    return createJsonResponse([], 200)
+  }
+
+  if (url.endsWith('/rest/v1/usage_quotas') && method === 'POST') {
+    return createJsonResponse({}, 201)
+  }
+
+  return null
+}
+
+function resolveTestUserId(payload: unknown): string {
+  if (payload && typeof payload === 'object') {
+    const candidate = payload as { userId?: unknown }
+    if (typeof candidate.userId === 'string' && candidate.userId.trim().length > 0) {
+      return candidate.userId.trim()
+    }
+  }
+
+  return 'user-1'
+}
+
 function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> = {}) {
+  const userId = resolveTestUserId(requestPayload)
   return {
     request: new Request('https://example.test/api/storybooks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer test-user:${userId}`,
       },
       body: JSON.stringify(requestPayload),
     }),
@@ -108,6 +140,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
       OPENAI_TTS_VOICE: 'alloy',
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
+      ALLOW_INSECURE_TEST_TOKENS: '1',
       STORYBOOK_ASSETS_BUCKET: {
         put: async () => null,
       },
@@ -117,9 +150,15 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
 }
 
 function createGetContext(requestUrl: string, envOverrides: Partial<TestEnv> = {}) {
+  const parsedUrl = new URL(requestUrl)
+  const userId = (parsedUrl.searchParams.get('userId') || '').trim() || 'user-1'
+
   return {
     request: new Request(requestUrl, {
       method: 'GET',
+      headers: {
+        Authorization: `Bearer test-user:${userId}`,
+      },
     }),
     env: {
       OPENAI_API_KEY: 'test-api-key',
@@ -130,6 +169,7 @@ function createGetContext(requestUrl: string, envOverrides: Partial<TestEnv> = {
       OPENAI_TTS_VOICE: 'alloy',
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
+      ALLOW_INSECURE_TEST_TOKENS: '1',
       STORYBOOK_ASSETS_BUCKET: {
         put: async () => null,
       },
@@ -301,7 +341,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(23)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
@@ -360,7 +400,7 @@ describe('storybooks function (v21 pipeline)', () => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       return url.startsWith('https://supabase.test/rest/v1/')
     })
-    expect(supabaseCalls).toHaveLength(3)
+    expect(supabaseCalls.length).toBeGreaterThanOrEqual(6)
     expect(
       supabaseCalls.some((call) =>
         String(typeof call[0] === 'string' ? call[0] : call[0] instanceof URL ? call[0].toString() : call[0].url).includes(
@@ -414,7 +454,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(9)
     expect(bucketPutMock).toHaveBeenCalledTimes(0)
 
     const payload = (await response.json()) as {
@@ -523,7 +563,15 @@ describe('storybooks function (v21 pipeline)', () => {
   })
 
   it('제목이 @@!!TEST!!@@ 이고 mock base URL이 없으면 500 에러를 반환한다', async () => {
-    const fetchMock = vi.fn(async () => createJsonResponse({}, 201))
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const billingResponse = resolveBillingSupabaseResponse(url, init)
+      if (billingResponse) {
+        return billingResponse
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     const response = await onRequestPost(
@@ -548,7 +596,14 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(payload.error).toBe(
       'CLOUDFLARE_R2_PUBLIC_BASE_URL (or R2_PUBLIC_BASE_URL) must be configured for @@!!TEST!!@@ mode.',
     )
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(
+      fetchMock.mock.calls.every((call) => {
+        const input = call[0] as RequestInfo | URL
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+        return url.includes('/rest/v1/subscriptions?') || url.includes('/rest/v1/usage_quotas')
+      }),
+    ).toBe(true)
   })
 
   it('GET /api/storybooks는 userId 기준 목록을 반환한다', async () => {
@@ -593,11 +648,21 @@ describe('storybooks function (v21 pipeline)', () => {
     ])
   })
 
-  it('GET /api/storybooks는 userId가 없으면 400을 반환한다', async () => {
-    const response = await onRequestGet(createGetContext('https://example.test/api/storybooks'))
-    expect(response.status).toBe(400)
+  it('GET /api/storybooks는 Authorization 헤더가 없으면 401을 반환한다', async () => {
+    const response = await onRequestGet({
+      request: new Request('https://example.test/api/storybooks', {
+        method: 'GET',
+      }),
+      env: {
+        OPENAI_API_KEY: 'test-api-key',
+        SUPABASE_URL: 'https://supabase.test',
+        SUPABASE_SECRET_KEY: 'sb_secret_test',
+      },
+    } as unknown as Parameters<typeof onRequestGet>[0])
+
+    expect(response.status).toBe(401)
     const payload = (await response.json()) as { error?: string }
-    expect(payload.error).toBe('userId query parameter is required.')
+    expect(payload.error).toBe('Authorization Bearer token is required.')
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {
@@ -664,7 +729,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(23)
 
     const payload = (await response.json()) as {
       ebook: {
@@ -737,7 +802,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(23)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const imageCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/images/'))
@@ -830,7 +895,7 @@ describe('storybooks function (v21 pipeline)', () => {
       setTimeout(resolve, 0)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(14)
+    expect(fetchMock).toHaveBeenCalledTimes(17)
     expect(deferredRequests).toHaveLength(13)
 
       deferredRequests.forEach((request, index) => {
@@ -852,8 +917,13 @@ describe('storybooks function (v21 pipeline)', () => {
   })
 
   it('v21 스키마가 아니면 502 에러를 반환한다', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const billingResponse = resolveBillingSupabaseResponse(url, init)
+      if (billingResponse) {
+        return billingResponse
+      }
+
       if (url === 'https://api.openai.com/v1/responses') {
         return createJsonResponse({
           id: 'resp-invalid',
@@ -877,7 +947,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(502)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
 
     const payload = (await response.json()) as { error?: string }
     expect(payload.error).toBe('Invalid storybook prompt output schema.')
@@ -936,7 +1006,128 @@ describe('storybooks function (v21 pipeline)', () => {
       return url.startsWith('https://supabase.test/rest/v1/')
     })
 
-    expect(supabaseCalls).toHaveLength(0)
+    expect(supabaseCalls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('비구독 + 무료 쿼터 소진 상태면 동화 생성을 403으로 차단한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+        return createJsonResponse([])
+      }
+
+      if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            free_story_quota_total: 2,
+            free_story_quota_used: 2,
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-quota-exhausted',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: '쿼터 소진 생성 차단 테스트',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(403)
+    const payload = (await response.json()) as { code?: string; error?: string; message?: string }
+    expect(payload.code).toBe('QUOTA_EXCEEDED')
+    expect(payload.error).toBe('QUOTA_EXCEEDED')
+    expect(payload.message).toContain('무료 제작 횟수를 모두 사용했어요')
+
+    const calledUrls = fetchMock.mock.calls.map((call) => {
+      const request = call[0] as RequestInfo | URL
+      return typeof request === 'string' ? request : request instanceof URL ? request.toString() : request.url
+    })
+    expect(calledUrls.some((url) => url === 'https://api.openai.com/v1/responses')).toBe(false)
+    expect(calledUrls.some((url) => url.includes('/rest/v1/storybooks'))).toBe(false)
+  })
+
+  it('active 구독 상태면 무료 쿼터가 소진되어도 동화 생성을 허용한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            status: 'active',
+            plan_code: 'monthly_unlimited_6900_krw',
+          },
+        ])
+      }
+
+      if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            free_story_quota_total: 2,
+            free_story_quota_used: 2,
+          },
+        ])
+      }
+
+      if (url.startsWith('https://supabase.test/rest/v1/storybooks')) {
+        return createJsonResponse({}, 201)
+      }
+
+      if (url.startsWith('https://supabase.test/rest/v1/storybook_origin_details')) {
+        return createJsonResponse({}, 201)
+      }
+
+      if (url.startsWith('https://supabase.test/rest/v1/storybook_output_details')) {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-active-quota-exhausted',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: '구독 활성화 시 생성 허용 테스트',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { storybookId?: string }
+    expect(typeof payload.storybookId).toBe('string')
+    expect((payload.storybookId ?? '').length).toBeGreaterThan(0)
+    expect(
+      fetchMock.mock.calls.some((call) => {
+        const request = call[0] as RequestInfo | URL
+        const url = typeof request === 'string' ? request : request instanceof URL ? request.toString() : request.url
+        const method = String((call[1] as RequestInit | undefined)?.method ?? 'GET').toUpperCase()
+        return url.includes('/rest/v1/usage_quotas?user_id=eq.') && method === 'PATCH'
+      }),
+    ).toBe(false)
   })
 
   it('R2 버킷 바인딩이 없으면 500 에러를 반환한다', async () => {
@@ -961,8 +1152,12 @@ describe('storybooks function (v21 pipeline)', () => {
 
   it('R2 저장 실패 시 실패 키와 사유를 포함한 502 에러를 반환한다', async () => {
     const schema = createStoryPromptSchemaOutput()
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const billingResponse = resolveBillingSupabaseResponse(url, init)
+      if (billingResponse) {
+        return billingResponse
+      }
 
       if (url === 'https://api.openai.com/v1/responses') {
         return createJsonResponse({

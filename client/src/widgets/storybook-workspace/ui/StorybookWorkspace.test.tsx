@@ -2063,6 +2063,237 @@ describe('StorybookWorkspace', () => {
     expect(screen.queryByRole('heading', { name: '라이브 북 미리보기' })).not.toBeInTheDocument()
   })
 
+  it('하단 CTA 클릭 시 비로그인 상태면 인증 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const requestAuthentication = vi.fn()
+    const startTrial = vi.fn(async () => ({
+      action: 'checkout' as const,
+      checkoutUrl: 'https://checkout.example.com/session',
+    }))
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'guest-user',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-cta-auth-gate'))),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot: vi.fn(async () => ({
+          subscription: null,
+          quota: {
+            freeStoryQuotaTotal: 2,
+            freeStoryQuotaUsed: 0,
+            remainingFreeStories: 2,
+          },
+          canCreate: true,
+        })),
+        startTrial,
+        openPortal: vi.fn(async () => ({
+          portalUrl: 'https://portal.example.com',
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: null,
+          userEmail: null,
+        })}
+        onRequestAuthentication={requestAuthentication}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '1일 무료 사용 시작' }))
+
+    expect(requestAuthentication).toHaveBeenCalledTimes(1)
+    expect(startTrial).not.toHaveBeenCalled()
+  })
+
+  it('미구독 로그인 상태에서 CTA 클릭 시 checkout URL로 이동한다', async () => {
+    const user = userEvent.setup()
+    const getSnapshot = vi.fn(async () => ({
+      subscription: null,
+      quota: {
+        freeStoryQuotaTotal: 2,
+        freeStoryQuotaUsed: 1,
+        remainingFreeStories: 1,
+      },
+      canCreate: true,
+    }))
+    const startTrial = vi.fn(async () => ({
+      action: 'checkout' as const,
+      checkoutUrl: 'https://checkout.example.com/session',
+    }))
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-cta-checkout'))),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot,
+        startTrial,
+        openPortal: vi.fn(async () => ({
+          portalUrl: 'https://portal.example.com',
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'user-1',
+          userEmail: 'user-1@example.com',
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalled()
+      expect(screen.getByText('1편 남음')).toBeInTheDocument()
+      expect(screen.getByText('미사용')).toBeInTheDocument()
+      expect(screen.getByText('미구독')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '1일 무료 사용 시작' }))
+
+    expect(startTrial).toHaveBeenCalledTimes(1)
+  })
+
+  it('active 상태에서 CTA 클릭 시 portal URL로 이동한다', async () => {
+    const user = userEvent.setup()
+    const openPortal = vi.fn(async () => ({
+      portalUrl: 'https://portal.example.com/session',
+    }))
+    const getSnapshot = vi.fn(async () => ({
+      subscription: {
+        status: 'active' as const,
+        planCode: 'monthly_unlimited_6900_krw',
+        trialStartAt: null,
+        trialEndAt: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        providerCustomerId: 'cus_1',
+        providerSubscriptionId: 'sub_1',
+      },
+      quota: {
+        freeStoryQuotaTotal: 2,
+        freeStoryQuotaUsed: 2,
+        remainingFreeStories: 0,
+      },
+      canCreate: true,
+    }))
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-cta-portal'))),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot,
+        startTrial: vi.fn(async () => ({
+          action: 'checkout' as const,
+          checkoutUrl: 'https://checkout.example.com/session',
+        })),
+        openPortal,
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'user-1',
+          userEmail: 'user-1@example.com',
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalled()
+      expect(screen.getByText('이용 중')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '구독 관리' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '구독 관리' }))
+
+    expect(openPortal).toHaveBeenCalledTimes(1)
+  })
+
+  it('/create?checkout=success 복귀 시 상태를 재조회해 UI를 갱신한다', async () => {
+    window.history.replaceState({}, '', '/create?checkout=success')
+
+    const getSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce({
+        subscription: {
+          status: 'incomplete' as const,
+          planCode: 'monthly_unlimited_6900_krw',
+          trialStartAt: null,
+          trialEndAt: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          providerCustomerId: 'cus_1',
+          providerSubscriptionId: 'sub_1',
+        },
+        quota: {
+          freeStoryQuotaTotal: 2,
+          freeStoryQuotaUsed: 2,
+          remainingFreeStories: 0,
+        },
+        canCreate: false,
+      })
+      .mockResolvedValueOnce({
+        subscription: {
+          status: 'active' as const,
+          planCode: 'monthly_unlimited_6900_krw',
+          trialStartAt: null,
+          trialEndAt: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          providerCustomerId: 'cus_1',
+          providerSubscriptionId: 'sub_1',
+        },
+        quota: {
+          freeStoryQuotaTotal: 2,
+          freeStoryQuotaUsed: 2,
+          remainingFreeStories: 0,
+        },
+        canCreate: true,
+      })
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-checkout-return'))),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot,
+        startTrial: vi.fn(async () => ({
+          action: 'checkout' as const,
+          checkoutUrl: 'https://checkout.example.com/session',
+        })),
+        openPortal: vi.fn(async () => ({
+          portalUrl: 'https://portal.example.com/session',
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'user-1',
+          userEmail: 'user-1@example.com',
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalledTimes(2)
+      expect(screen.getByText('이용 중')).toBeInTheDocument()
+    })
+    expect(window.location.search).toBe('')
+  })
+
   it('테마 토글이 언어 설정 왼쪽에 렌더링된다', () => {
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',

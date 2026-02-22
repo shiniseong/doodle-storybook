@@ -14,6 +14,7 @@ interface StorybookDeleteApiErrorResponse {
 interface HttpStorybookDeletionCommandPortOptions {
   baseUrl?: string
   endpointPath?: string
+  accessToken?: string | null
 }
 
 function resolveApiBaseUrl(explicitBaseUrl?: string): string {
@@ -61,10 +62,12 @@ function parseApiErrorMessage(payload: unknown): string | null {
 export class HttpStorybookDeletionCommandPort implements StorybookDeletionCommandPort {
   private readonly baseUrl: string
   private readonly endpointPath: string
+  private readonly accessToken: string | null
 
   constructor(options: HttpStorybookDeletionCommandPortOptions = {}) {
     this.baseUrl = resolveApiBaseUrl(options.baseUrl)
     this.endpointPath = options.endpointPath ?? '/api/storybooks'
+    this.accessToken = options.accessToken ?? null
   }
 
   async deleteStorybook(request: DeleteStorybookRequest): Promise<void> {
@@ -77,6 +80,7 @@ export class HttpStorybookDeletionCommandPort implements StorybookDeletionComman
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       },
     })
 

@@ -21,6 +21,7 @@
     "cf:pages:deploy": "npx wrangler pages deploy dist"
   },
   "dependencies": {
+    "@polar-sh/sdk": "^0.43.1",
     "@supabase/supabase-js": "^2.97.0",
     "framer-motion": "^12.34.2",
     "i18next": "^25.8.11",

@@ -19,6 +19,11 @@ import {
 } from '@features/storybook-library/application/list-storybooks.use-case'
 import { HttpStorybookLibraryQueryPort } from '@features/storybook-library/infrastructure/http/storybook-library.ports.http'
 import {
+  SubscriptionAccessUseCase,
+  type SubscriptionAccessUseCasePort,
+} from '@features/subscription-access/application/subscription-access.use-case'
+import { HttpSubscriptionAccessPort } from '@features/subscription-access/infrastructure/http/subscription-access.ports.http'
+import {
   InMemoryStorybookQuotaPort,
 } from '@features/storybook-creation/infrastructure/in-memory/storybook-creation.ports.in-memory'
 
@@ -28,18 +33,31 @@ export interface AppDependencies {
   readonly listStorybooksUseCase: ListStorybooksUseCasePort
   readonly getStorybookDetailUseCase: GetStorybookDetailUseCasePort
   readonly deleteStorybookUseCase: DeleteStorybookUseCasePort
+  readonly subscriptionAccessUseCase?: SubscriptionAccessUseCasePort
 }
 
 interface CreateAppDependenciesOptions {
   currentUserId?: string
+  accessToken?: string | null
 }
 
 export const createAppDependencies = (options: CreateAppDependenciesOptions = {}): AppDependencies => {
   const quotaPort = new InMemoryStorybookQuotaPort(true)
-  const commandPort = new HttpStorybookCommandPort()
-  const storybookDeletionCommandPort = new HttpStorybookDeletionCommandPort()
-  const storybookLibraryQueryPort = new HttpStorybookLibraryQueryPort()
-  const storybookDetailQueryPort = new HttpStorybookDetailQueryPort()
+  const commandPort = new HttpStorybookCommandPort({
+    accessToken: options.accessToken ?? null,
+  })
+  const storybookDeletionCommandPort = new HttpStorybookDeletionCommandPort({
+    accessToken: options.accessToken ?? null,
+  })
+  const storybookLibraryQueryPort = new HttpStorybookLibraryQueryPort({
+    accessToken: options.accessToken ?? null,
+  })
+  const storybookDetailQueryPort = new HttpStorybookDetailQueryPort({
+    accessToken: options.accessToken ?? null,
+  })
+  const subscriptionAccessPort = new HttpSubscriptionAccessPort({
+    accessToken: options.accessToken ?? null,
+  })
 
   return {
     currentUserId: options.currentUserId ?? 'demo-user',
@@ -47,5 +65,6 @@ export const createAppDependencies = (options: CreateAppDependenciesOptions = {}
     listStorybooksUseCase: new ListStorybooksUseCase(storybookLibraryQueryPort),
     getStorybookDetailUseCase: new GetStorybookDetailUseCase(storybookDetailQueryPort),
     deleteStorybookUseCase: new DeleteStorybookUseCase(storybookDeletionCommandPort),
+    subscriptionAccessUseCase: new SubscriptionAccessUseCase(subscriptionAccessPort),
   }
 }

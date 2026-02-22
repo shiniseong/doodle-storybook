@@ -36,6 +36,10 @@ import {
   selectRemainingFreeStories,
   useStorybookCreationStore,
 } from '@features/storybook-creation/model/storybook-creation.store'
+import type {
+  SubscriptionAccessSnapshot,
+  SubscriptionAccessUseCasePort,
+} from '@features/subscription-access/application/subscription-access.use-case'
 import {
   EMPTY_STORYBOOK_WORKSPACE_DRAFT,
   clearStorybookWorkspaceDraft,
@@ -352,14 +356,62 @@ function AmbientBackdrop() {
 
 interface WorkspaceHeaderProps {
   auth?: StorybookWorkspaceAuth
+  subscriptionAccess?: SubscriptionAccessSnapshot | null
   onRequestAuthentication?: () => void
   onRequestWorkspaceReset?: () => void
   onNavigateToLibrary?: () => void
 }
 
-function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceReset, onNavigateToLibrary }: WorkspaceHeaderProps) {
+function resolveTrialStatusLabel(
+  subscriptionAccess: SubscriptionAccessSnapshot | null | undefined,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  if (subscriptionAccess?.subscription?.status === 'trialing') {
+    return t('workspace.status.trialValueActive')
+  }
+
+  return t('workspace.status.trialValueInactive')
+}
+
+function resolvePlanStatusLabel(
+  subscriptionAccess: SubscriptionAccessSnapshot | null | undefined,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  const status = subscriptionAccess?.subscription?.status ?? null
+
+  if (status === 'active') {
+    return t('workspace.status.planValueActive')
+  }
+
+  if (status === 'past_due') {
+    return t('workspace.status.planValuePastDue')
+  }
+
+  if (status === 'canceled') {
+    return t('workspace.status.planValueCanceled')
+  }
+
+  if (status === 'unpaid') {
+    return t('workspace.status.planValueUnpaid')
+  }
+
+  if (status === 'incomplete') {
+    return t('workspace.status.planValueIncomplete')
+  }
+
+  return t('workspace.status.planValueNone')
+}
+
+function WorkspaceHeader({
+  auth,
+  subscriptionAccess,
+  onRequestAuthentication,
+  onRequestWorkspaceReset,
+  onNavigateToLibrary,
+}: WorkspaceHeaderProps) {
   const { t } = useTranslation()
-  const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
+  const fallbackRemainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
+  const remainingFreeStories = subscriptionAccess?.quota.remainingFreeStories ?? fallbackRemainingFreeStories
   const isLoginButtonDisabled = !auth || !onRequestAuthentication
 
   return (
@@ -442,11 +494,11 @@ function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceRese
           </li>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.trialLabel')}</span>
-            <strong className="status-item__value">{t('workspace.status.trialValue')}</strong>
+            <strong className="status-item__value">{resolveTrialStatusLabel(subscriptionAccess, t)}</strong>
           </li>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.planLabel')}</span>
-            <strong className="status-item__value">{t('workspace.status.planValue')}</strong>
+            <strong className="status-item__value">{resolvePlanStatusLabel(subscriptionAccess, t)}</strong>
           </li>
         </ul>
       </div>
@@ -2145,10 +2197,35 @@ function StoryComposerSection({
   )
 }
 
-function SubscriptionFooter() {
+interface SubscriptionFooterProps {
+  subscriptionAccess: SubscriptionAccessSnapshot | null
+  isBillingActionPending: boolean
+  onBillingAction: () => void
+}
+
+function SubscriptionFooter({
+  subscriptionAccess,
+  isBillingActionPending,
+  onBillingAction,
+}: SubscriptionFooterProps) {
   const { t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
   const isSubmitting = createStatus === 'submitting'
+  const subscriptionStatus = subscriptionAccess?.subscription?.status ?? null
+
+  const ctaLabel =
+    subscriptionStatus === 'active'
+      ? t('workspace.banner.manageCta')
+      : subscriptionStatus === 'trialing'
+        ? t('workspace.banner.trialingCta')
+        : t('workspace.banner.cta')
+  const bannerText =
+    subscriptionStatus === 'active'
+      ? t('workspace.banner.activeMessage')
+      : subscriptionStatus === 'trialing'
+        ? t('workspace.banner.trialingMessage')
+        : `${t('workspace.banner.prefix')} ${t('workspace.banner.free')} ${t('workspace.banner.and')} ${t('workspace.banner.trial')} ${t('workspace.banner.suffix')}`
+  const isDisabled = isSubmitting || isBillingActionPending || subscriptionStatus === 'trialing'
 
   return (
     <motion.footer
@@ -2157,13 +2234,9 @@ function SubscriptionFooter() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut', delay: 0.16 }}
     >
-      <p>
-        {t('workspace.banner.prefix')} <strong>{t('workspace.banner.free')}</strong>{' '}
-        {t('workspace.banner.and')} <strong>{t('workspace.banner.trial')}</strong>{' '}
-        {t('workspace.banner.suffix')}
-      </p>
-      <button type="button" disabled={isSubmitting}>
-        {isSubmitting ? t('workspace.banner.processing') : t('workspace.banner.cta')}
+      <p>{bannerText}</p>
+      <button type="button" disabled={isDisabled} onClick={onBillingAction}>
+        {isSubmitting || isBillingActionPending ? t('workspace.banner.processing') : ctaLabel}
       </button>
     </motion.footer>
   )
@@ -2179,12 +2252,85 @@ interface StorybookWorkspaceProps {
 export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication, onNavigateToLibrary }: StorybookWorkspaceProps) {
   const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0)
+  const [subscriptionAccess, setSubscriptionAccess] = useState<SubscriptionAccessSnapshot | null>(null)
+  const [isBillingActionPending, setIsBillingActionPending] = useState(false)
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
+  const syncQuota = useStorybookCreationStore((state) => state.syncQuota)
   const isSubmitting = createStatus === 'submitting'
 
   useEffect(() => {
     saveStorybookWorkspaceDraft(draft)
   }, [draft])
+
+  const refreshSubscriptionAccess = useCallback(async (): Promise<SubscriptionAccessSnapshot | null> => {
+    if (!dependencies.subscriptionAccessUseCase || !auth?.userId) {
+      setSubscriptionAccess(null)
+      syncQuota(2, 0)
+      return null
+    }
+
+    try {
+      const snapshot = await dependencies.subscriptionAccessUseCase.getSnapshot()
+      setSubscriptionAccess(snapshot)
+      syncQuota(snapshot.quota.freeStoryQuotaTotal, snapshot.quota.freeStoryQuotaUsed)
+      return snapshot
+    } catch (error) {
+      console.error('Failed to refresh subscription access state.', {
+        userId: auth.userId,
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
+  }, [auth?.userId, dependencies.subscriptionAccessUseCase, syncQuota])
+
+  useEffect(() => {
+    void refreshSubscriptionAccess()
+  }, [refreshSubscriptionAccess])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const currentUrl = new URL(window.location.href)
+    const checkout = currentUrl.searchParams.get('checkout')
+    if (!checkout) {
+      return
+    }
+
+    currentUrl.searchParams.delete('checkout')
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+
+    if (checkout !== 'success' || !dependencies.subscriptionAccessUseCase || !auth?.userId) {
+      return
+    }
+
+    let cancelled = false
+    let attempts = 0
+
+    const poll = async () => {
+      if (cancelled) {
+        return
+      }
+
+      attempts += 1
+      const snapshot = await refreshSubscriptionAccess()
+      const status = snapshot?.subscription?.status ?? null
+      if (status === 'active' || status === 'trialing' || attempts >= 6) {
+        return
+      }
+
+      window.setTimeout(() => {
+        void poll()
+      }, 1500)
+    }
+
+    void poll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [auth?.userId, dependencies.subscriptionAccessUseCase, refreshSubscriptionAccess])
 
   const resetWorkspaceDraft = useCallback(() => {
     clearStorybookWorkspaceDraft()
@@ -2224,11 +2370,68 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     })
   }, [])
 
+  const handleBillingAction = useCallback(async () => {
+    if (isBillingActionPending || isSubmitting) {
+      return
+    }
+
+    if (!auth?.userId) {
+      onRequestAuthentication?.()
+      return
+    }
+
+    const subscriptionUseCase = dependencies.subscriptionAccessUseCase
+    if (!subscriptionUseCase) {
+      return
+    }
+
+    setIsBillingActionPending(true)
+    try {
+      if (subscriptionAccess?.subscription?.status === 'active') {
+        const { portalUrl } = await subscriptionUseCase.openPortal()
+        window.location.assign(portalUrl)
+        return
+      }
+
+      const action = await subscriptionUseCase.startTrial()
+      if (action.action === 'checkout') {
+        window.location.assign(action.checkoutUrl)
+        return
+      }
+
+      if (action.action === 'portal') {
+        window.location.assign(action.portalUrl)
+        return
+      }
+
+      if (action.action === 'noop' && action.reason === 'ALREADY_TRIALING') {
+        // Keep UI state synced for trialing users.
+        await refreshSubscriptionAccess()
+      }
+    } catch (error) {
+      console.error('Failed to run billing CTA flow.', {
+        userId: auth.userId,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setIsBillingActionPending(false)
+    }
+  }, [
+    auth?.userId,
+    dependencies.subscriptionAccessUseCase,
+    isBillingActionPending,
+    isSubmitting,
+    onRequestAuthentication,
+    refreshSubscriptionAccess,
+    subscriptionAccess?.subscription?.status,
+  ])
+
   return (
     <div className="storybook-app">
       <AmbientBackdrop />
       <WorkspaceHeader
         auth={auth}
+        subscriptionAccess={subscriptionAccess}
         onRequestAuthentication={onRequestAuthentication}
         onRequestWorkspaceReset={resetWorkspaceDraft}
         onNavigateToLibrary={onNavigateToLibrary}
@@ -2251,7 +2454,11 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           onNavigateToLibrary={onNavigateToLibrary}
         />
       </main>
-      <SubscriptionFooter />
+      <SubscriptionFooter
+        subscriptionAccess={subscriptionAccess}
+        isBillingActionPending={isBillingActionPending}
+        onBillingAction={handleBillingAction}
+      />
       <AnimatePresence>{isSubmitting ? <StoryLoadingGameDialog /> : null}</AnimatePresence>
     </div>
   )
@@ -2260,4 +2467,5 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
 export interface StorybookWorkspaceDependencies {
   readonly currentUserId: string
   readonly createStorybookUseCase: CreateStorybookUseCasePort
+  readonly subscriptionAccessUseCase?: SubscriptionAccessUseCasePort
 }

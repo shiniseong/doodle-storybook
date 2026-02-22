@@ -66,6 +66,7 @@ function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): Supa
     isSigningIn: false,
     userId: 'user-1',
     userEmail: 'user-1@example.com',
+    accessToken: 'test-access-token',
     signInWithEmail: vi.fn(async () => ({ ok: true })),
     signUpWithEmail: vi.fn(async () => ({ ok: true, requiresEmailVerification: true })),
     signInWithProvider: vi.fn(async () => {}),

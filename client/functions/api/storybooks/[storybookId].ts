@@ -1,4 +1,5 @@
 import { buildStorybookDetailApiResponse } from './storybooks-response'
+import { authenticateRequest } from '../_shared/auth'
 
 interface Env {
   SUPABASE_URL?: string
@@ -568,7 +569,6 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const storybookId = resolveStorybookIdFromParams(context.params)
-  const userId = (new URL(context.request.url).searchParams.get('userId') || '').trim()
 
   if (storybookId.length === 0) {
     return jsonResponse(
@@ -579,14 +579,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     )
   }
 
-  if (userId.length === 0) {
+  const authResult = await authenticateRequest(context.request, context.env)
+  if (!authResult.ok) {
     return jsonResponse(
       {
-        error: 'userId query parameter is required.',
+        error: authResult.failure.message,
       },
-      400,
+      authResult.failure.status,
     )
   }
+  const userId = authResult.value.userId
 
   const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
   if (!supabasePersistenceConfig) {
@@ -685,7 +687,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const storybookId = resolveStorybookIdFromParams(context.params)
-  const userId = (new URL(context.request.url).searchParams.get('userId') || '').trim()
 
   if (storybookId.length === 0) {
     return jsonResponse(
@@ -696,14 +697,16 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     )
   }
 
-  if (userId.length === 0) {
+  const authResult = await authenticateRequest(context.request, context.env)
+  if (!authResult.ok) {
     return jsonResponse(
       {
-        error: 'userId query parameter is required.',
+        error: authResult.failure.message,
       },
-      400,
+      authResult.failure.status,
     )
   }
+  const userId = authResult.value.userId
 
   const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
   if (!supabasePersistenceConfig) {

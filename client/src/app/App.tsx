@@ -41,8 +41,9 @@ export default function App() {
     () =>
       createAppDependencies({
         currentUserId: auth.userId ?? 'demo-user',
+        accessToken: auth.accessToken,
       }),
-    [auth.userId],
+    [auth.accessToken, auth.userId],
   )
   const workspaceAuth = useMemo(
     () => ({
