@@ -309,11 +309,11 @@ html[data-theme='night'] .storybook-detail-panel p {
 
 html[data-theme='night'] .storybook-detail-drawing-block {
   border-color: rgba(102, 145, 179, 0.44);
-  background: #1f3247;
+  background: #fff;
 }
 
 html[data-theme='night'] .storybook-detail-drawing-block img {
-  background: #1f3247;
+  background: #fff;
 }
 
 html[data-theme='night'] .storybook-detail-drawing-block__empty {
