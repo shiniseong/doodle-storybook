@@ -13,9 +13,11 @@
   inset: 0;
   pointer-events: none;
   z-index: -1;
-  background:
-    radial-gradient(circle at 14% 18%, rgba(255, 230, 178, 0.55), transparent 44%),
-    radial-gradient(circle at 87% 74%, rgba(206, 235, 255, 0.72), transparent 40%);
+  background-color: #e8f3ff;
+  background-image: url('/assets/library_page_background_light_mode_wide.png');
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .library-header {
@@ -324,5 +326,12 @@
 
   .library-toolbar {
     padding: 0.5rem 0.56rem;
+  }
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .library-page::before {
+    background-image: url('/assets/library_page_background_light_mode_mobile.png');
+    background-position: center top;
   }
 }
