@@ -138,7 +138,7 @@ describe('App', () => {
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
   })
 
-  it('홈에서 내 서재 이동 요청 시 라이브러리 페이지를 렌더링한다', async () => {
+  it('홈에서 내 그림동화 이동 요청 시 라이브러리 페이지를 렌더링한다', async () => {
     const user = userEvent.setup()
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
 

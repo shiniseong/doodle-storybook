@@ -32,7 +32,7 @@ describe('LibraryPage', () => {
       />,
     )
 
-    expect(screen.getByText('내 동화를 불러오는 중이에요...')).toBeInTheDocument()
+    expect(document.querySelectorAll('.library-card--skeleton').length).toBeGreaterThan(0)
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: '달빛 숲' })).toBeInTheDocument()

@@ -454,32 +454,35 @@ function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceRese
           {!auth ? null : (
             <div className="workspace-auth" aria-live="polite">
               {auth.userId ? (
-                <>
+                <div className="workspace-auth__signed-in">
                   {auth.userEmail ? (
                     <p className="workspace-auth__identity">
                       {t('workspace.auth.signedInAs', { email: auth.userEmail })}
                     </p>
                   ) : null}
-                  <button
-                    type="button"
-                    className="workspace-auth__action"
-                    onClick={() => {
-                      onNavigateToLibrary?.()
-                    }}
-                  >
-                    {t('workspace.auth.library')}
-                  </button>
-                  <button
-                    type="button"
-                    className="workspace-auth__action"
-                    onClick={() => {
-                      onRequestWorkspaceReset?.()
-                      void auth.signOut()
-                    }}
-                  >
-                    {t('workspace.auth.signOut')}
-                  </button>
-                </>
+                  <div className="workspace-auth__controls">
+                    <button
+                      type="button"
+                      className="workspace-auth__action workspace-auth__action--library"
+                      onClick={() => {
+                        onNavigateToLibrary?.()
+                      }}
+                    >
+                      <BookOpenText size={14} strokeWidth={2.3} className="workspace-auth__action-icon" aria-hidden="true" />
+                      {t('workspace.auth.library')}
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-auth__action workspace-auth__action--secondary"
+                      onClick={() => {
+                        onRequestWorkspaceReset?.()
+                        void auth.signOut()
+                      }}
+                    >
+                      {t('workspace.auth.signOut')}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   {!auth.isConfigured ? (

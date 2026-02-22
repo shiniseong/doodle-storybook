@@ -184,11 +184,19 @@
 }
 
 .workspace-auth {
+  display: grid;
+  justify-content: flex-end;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.workspace-auth__signed-in {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.42rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .workspace-auth__notice {
@@ -208,6 +216,13 @@
   white-space: nowrap;
 }
 
+.workspace-auth__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  flex-wrap: wrap;
+}
+
 .workspace-auth__action {
   border: 1px solid rgba(108, 150, 179, 0.45);
   border-radius: 999px;
@@ -216,8 +231,30 @@
   font-weight: 700;
   font-size: 0.78rem;
   line-height: 1.1;
-  padding: 0.36rem 0.72rem;
+  padding: 0.38rem 0.74rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.workspace-auth__action-icon {
+  flex-shrink: 0;
+}
+
+.workspace-auth__action--library {
+  background: linear-gradient(145deg, rgba(237, 248, 255, 0.98), rgba(218, 240, 255, 0.95));
+  border-color: rgba(91, 160, 201, 0.52);
+  color: #0e4e77;
+}
+
+.workspace-auth__action--library:hover {
+  border-color: rgba(78, 147, 191, 0.74);
+  background: linear-gradient(145deg, rgba(232, 246, 255, 1), rgba(210, 236, 255, 0.98));
+}
+
+.workspace-auth__action--secondary {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .workspace-auth__action:disabled {
@@ -1807,6 +1844,10 @@
   }
 
   .workspace-auth {
+    justify-content: flex-start;
+  }
+
+  .workspace-auth__signed-in {
     justify-content: flex-start;
   }
 

@@ -64,7 +64,7 @@ export const i18nResources = {
           signIn: '로그인',
           signInWithGoogle: 'Google로 로그인',
           signingIn: '로그인 중...',
-          library: '내 서재',
+          library: '내 그림동화',
           signOut: '로그아웃',
           signedInAs: '{{email}} 로그인됨',
           notConfigured: 'Supabase 환경변수 설정 필요',
@@ -177,14 +177,18 @@ export const i18nResources = {
       },
       library: {
         eyebrow: '내가 만든 동화를 모아보는 공간',
-        title: '내 서재',
-        description: '대표 썸네일은 원본 그림(origin)으로 보여줘요.',
+        title: '내 그림동화',
+        description: '원본 그림(origin)을 대표 썸네일로 보여줘요.',
+        meta: {
+          total: '총 {{count}}권',
+        },
         actions: {
           backToCreate: '새 동화 만들기',
+          refresh: '새로고침',
           retry: '다시 불러오기',
         },
         state: {
-          loading: '내 동화를 불러오는 중이에요...',
+          loading: '내 그림동화를 정리하고 있어요...',
           error: '동화 목록을 불러오지 못했어요.',
           empty: '아직 만든 동화가 없어요. 첫 동화를 만들어 보세요.',
         },
@@ -269,7 +273,7 @@ export const i18nResources = {
           signIn: 'Sign in',
           signInWithGoogle: 'Sign in with Google',
           signingIn: 'Signing in...',
-          library: 'My Library',
+          library: 'My Picture Storybooks',
           signOut: 'Sign out',
           signedInAs: 'Signed in as {{email}}',
           notConfigured: 'Supabase environment variables are required',
@@ -382,10 +386,14 @@ export const i18nResources = {
       },
       library: {
         eyebrow: 'Your saved storybooks in one place',
-        title: 'My Library',
+        title: 'My Picture Storybooks',
         description: 'Each card uses the original drawing (origin) as the cover thumbnail.',
+        meta: {
+          total: '{{count}} books',
+        },
         actions: {
           backToCreate: 'Create New Story',
+          refresh: 'Refresh',
           retry: 'Try Again',
         },
         state: {
@@ -474,7 +482,7 @@ export const i18nResources = {
           signIn: 'ログイン',
           signInWithGoogle: 'Googleでログイン',
           signingIn: 'ログイン中...',
-          library: 'マイ本棚',
+          library: 'わたしの絵ものがたり',
           signOut: 'ログアウト',
           signedInAs: '{{email}} でログイン中',
           notConfigured: 'Supabase の環境変数設定が必要です',
@@ -587,10 +595,14 @@ export const i18nResources = {
       },
       library: {
         eyebrow: '作成した絵本をまとめて確認',
-        title: 'マイ本棚',
+        title: 'わたしの絵ものがたり',
         description: '一覧のサムネイルには原画（origin）を表示します。',
+        meta: {
+          total: '全{{count}}冊',
+        },
         actions: {
           backToCreate: '新しい絵本を作る',
+          refresh: '更新',
           retry: '再読み込み',
         },
         state: {
@@ -679,7 +691,7 @@ export const i18nResources = {
           signIn: '登录',
           signInWithGoogle: '使用 Google 登录',
           signingIn: '登录中...',
-          library: '我的书架',
+          library: '我的图画故事',
           signOut: '退出登录',
           signedInAs: '已登录：{{email}}',
           notConfigured: '需要配置 Supabase 环境变量',
@@ -792,10 +804,14 @@ export const i18nResources = {
       },
       library: {
         eyebrow: '查看你创作的全部绘本',
-        title: '我的书架',
+        title: '我的图画故事',
         description: '列表封面缩略图使用原始画作（origin）。',
+        meta: {
+          total: '共{{count}}本',
+        },
         actions: {
           backToCreate: '继续创作',
+          refresh: '刷新',
           retry: '重新加载',
         },
         state: {
