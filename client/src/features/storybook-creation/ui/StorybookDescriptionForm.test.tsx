@@ -20,7 +20,7 @@ describe('StorybookDescriptionForm', () => {
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
   })
 
-  it('제목과 설명을 모두 입력해야 제출 가능 상태로 바뀐다', async () => {
+  it('제목/지은이/설명을 모두 입력해야 제출 가능 상태로 바뀐다', async () => {
     const user = userEvent.setup()
 
     render(
@@ -33,12 +33,16 @@ describe('StorybookDescriptionForm', () => {
 
     const textarea = screen.getByLabelText('그림 설명')
     const titleInput = screen.getByLabelText('동화 제목')
+    const authorInput = screen.getByLabelText('지은이')
     await user.type(textarea, '달님이 구름 위를 산책해요')
 
     expect(screen.getByText('14 / 500')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
 
     await user.type(titleInput, '달님 산책')
+    expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeDisabled()
+
+    await user.type(authorInput, '달빛 작가')
     expect(screen.getByRole('button', { name: '동화 생성하기' })).toBeEnabled()
   })
 
@@ -49,15 +53,17 @@ describe('StorybookDescriptionForm', () => {
     render(<StorybookDescriptionForm onSubmit={onSubmit} />)
 
     const titleInput = screen.getByLabelText('동화 제목')
+    const authorInput = screen.getByLabelText('지은이')
     const textarea = screen.getByLabelText('그림 설명')
 
     await user.type(titleInput, '  달빛 등불  ')
+    await user.type(authorInput, '  달빛 작가  ')
     await user.type(textarea, '  작은 고양이가 등불을 들고 있어요 ')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       title: '달빛 등불',
-      authorName: '',
+      authorName: '달빛 작가',
       description: '작은 고양이가 등불을 들고 있어요',
     })
   })
@@ -70,16 +76,18 @@ describe('StorybookDescriptionForm', () => {
     render(<StorybookDescriptionForm onSubmit={onSubmit} />)
 
     const titleInput = screen.getByLabelText('동화 제목')
+    const authorInput = screen.getByLabelText('지은이')
     const textarea = screen.getByLabelText('그림 설명')
 
     await user.type(titleInput, overLimitTitle)
+    await user.type(authorInput, '달빛 작가')
     await user.type(textarea, '달빛 정원에서 고양이가 춤춰요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
     expect(titleInput).toHaveValue('123456789012345678901234567890')
     expect(onSubmit).toHaveBeenCalledWith({
       title: '123456789012345678901234567890',
-      authorName: '',
+      authorName: '달빛 작가',
       description: '달빛 정원에서 고양이가 춤춰요',
     })
   })

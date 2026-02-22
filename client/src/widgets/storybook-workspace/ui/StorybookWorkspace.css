@@ -670,7 +670,14 @@
   border-radius: 0.95rem;
   padding: 0.74rem 0.82rem;
   background: rgba(255, 255, 255, 0.94);
+  color: #1f2937;
+  caret-color: #1f2937;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.compose-form input[type='text']::placeholder,
+.compose-form textarea::placeholder {
+  color: #6b7280;
 }
 
 .compose-form input[type='text'] {
@@ -1853,6 +1860,12 @@ html[data-theme='night'] .range-control-panel {
 
 html[data-theme='night'] .range-control-panel__value {
   color: #d4e9fa;
+}
+
+html[data-theme='night'] .compose-form input[type='text'],
+html[data-theme='night'] .compose-form textarea {
+  color: #1f2937;
+  caret-color: #1f2937;
 }
 
 @media (max-width: 767px) {

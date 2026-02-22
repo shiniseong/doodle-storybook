@@ -44,10 +44,11 @@ export function StorybookDescriptionForm({
   const trimmedAuthorName = authorName.trim()
   const trimmedDescription = description.trim()
   const isTitleEmpty = trimmedTitle.length === 0
+  const isAuthorNameEmpty = trimmedAuthorName.length === 0
   const isDescriptionEmpty = trimmedDescription.length === 0
   const isTitleTooLong = title.length > titleMaxLength
   const isTooLong = description.length > maxLength
-  const canSubmit = !isTitleEmpty && !isDescriptionEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
+  const canSubmit = !isTitleEmpty && !isAuthorNameEmpty && !isDescriptionEmpty && !isTooLong && !isTitleTooLong && !isSubmitting
 
   useEffect(() => {
     onDraftChange?.({
@@ -91,6 +92,7 @@ export function StorybookDescriptionForm({
         id="storybook-author-name"
         type="text"
         maxLength={authorNameMaxLength}
+        required
         value={authorName}
         placeholder={t('form.authorPlaceholder')}
         onChange={(event) => {

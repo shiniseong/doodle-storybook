@@ -158,6 +158,15 @@ describe('StorybookWorkspace', () => {
   beforeEach(() => {
     useStorybookCreationStore.getState().reset()
     window.sessionStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+    window.sessionStorage.setItem(
+      STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        title: '',
+        authorName: '테스트 작가',
+        description: '',
+        canvasDataUrl: null,
+      }),
+    )
     document.body.style.overflow = ''
   })
 
@@ -183,6 +192,7 @@ describe('StorybookWorkspace', () => {
     expect(execute).toHaveBeenCalledWith({
       userId: 'user-1',
       title: '달빛 캠핑',
+      authorName: '테스트 작가',
       description: '달빛 아래에서 캠핑을 해요',
       language: 'ko',
     })
