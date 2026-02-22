@@ -1909,7 +1909,7 @@ html[data-theme='night'] .canvas-stage__surface {
     0 1rem 1.8rem rgba(7, 20, 36, 0.5),
     inset 0 0 0 1px rgba(177, 209, 235, 0.18);
   background:
-    linear-gradient(0deg, rgba(18, 29, 43, 0.72), rgba(18, 29, 43, 0.72)),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
     repeating-linear-gradient(
       90deg,
       transparent 0,
@@ -1927,7 +1927,7 @@ html[data-theme='night'] .canvas-stage__surface {
 }
 
 html[data-theme='night'] .canvas-stage__surface--plain {
-  background: rgba(18, 29, 43, 0.86);
+  background: rgba(255, 255, 255, 0.82);
 }
 
 html[data-theme='night'] .canvas-stage__surface:hover,
