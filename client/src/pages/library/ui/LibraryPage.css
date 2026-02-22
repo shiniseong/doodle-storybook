@@ -383,12 +383,18 @@ html[data-theme='night'] .library-card article {
   box-shadow: 0 0.8rem 1.6rem rgba(5, 14, 28, 0.38);
 }
 
-html[data-theme='night'] .library-card__cover,
+html[data-theme='night'] .library-card__cover {
+  background: #ffffff;
+  border-bottom-color: rgba(100, 143, 178, 0.44);
+}
+
 html[data-theme='night'] .library-card__cover img,
 html[data-theme='night'] .library-card__placeholder {
-  background: #203449;
-  border-bottom-color: rgba(100, 143, 178, 0.44);
-  color: #a9c9e3;
+  background: #ffffff;
+}
+
+html[data-theme='night'] .library-card__placeholder {
+  color: #5c8bad;
 }
 
 html[data-theme='night'] .library-card__meta {
