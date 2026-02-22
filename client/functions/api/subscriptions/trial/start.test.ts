@@ -3,15 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../_shared/polar', () => ({
   createPolarCheckoutUrl: vi.fn(async () => 'https://polar.test/checkout/session'),
   createPolarCustomerPortalUrl: vi.fn(async () => 'https://polar.test/portal/session'),
+  resolveCheckoutPlanConfig: vi.fn(() => ({
+    productId: 'prod_standard',
+    planCode: 'standard',
+  })),
   resolveCheckoutUrls: vi.fn(() => ({
     successUrl: 'https://app.example.com/create?checkout=success',
     returnUrl: 'https://app.example.com/create?checkout=canceled',
   })),
   resolvePolarClient: vi.fn(() => ({})),
-  resolvePolarProductConfig: vi.fn(() => ({
-    productId: 'prod_123',
-    planCode: 'monthly_unlimited_6900_krw',
-  })),
   resolvePortalReturnUrl: vi.fn(() => 'https://app.example.com/create'),
 }))
 
@@ -26,7 +26,11 @@ interface TestEnv {
   ALLOW_INSECURE_TEST_TOKENS?: string
   POLAR_ACCESS_TOKEN?: string
   POLAR_PRODUCT_ID?: string
+  POLAR_PRODUCT_ID_STANDARD?: string
+  POLAR_PRODUCT_ID_PRO?: string
   POLAR_PLAN_CODE?: string
+  POLAR_PLAN_CODE_STANDARD?: string
+  POLAR_PLAN_CODE_PRO?: string
 }
 
 function createJsonResponse(payload: unknown, status = 200): Response {
@@ -41,10 +45,12 @@ function createJsonResponse(payload: unknown, status = 200): Response {
 function createContext({
   userId = 'user-1',
   withAuthorization = true,
+  planCode = 'standard',
   envOverrides = {},
 }: {
   userId?: string
   withAuthorization?: boolean
+  planCode?: 'standard' | 'pro'
   envOverrides?: Partial<TestEnv>
 }) {
   const headers = new Headers()
@@ -56,15 +62,19 @@ function createContext({
     request: new Request('https://example.test/api/subscriptions/trial/start', {
       method: 'POST',
       headers,
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        planCode,
+      }),
     }),
     env: {
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
       ALLOW_INSECURE_TEST_TOKENS: '1',
       POLAR_ACCESS_TOKEN: 'polar_access_token',
-      POLAR_PRODUCT_ID: 'prod_123',
-      POLAR_PLAN_CODE: 'monthly_unlimited_6900_krw',
+      POLAR_PRODUCT_ID_STANDARD: 'prod_standard',
+      POLAR_PRODUCT_ID_PRO: 'prod_pro',
+      POLAR_PLAN_CODE_STANDARD: 'standard',
+      POLAR_PLAN_CODE_PRO: 'pro',
       ...envOverrides,
     },
   } as unknown as Parameters<typeof onRequestPost>[0]
@@ -74,14 +84,20 @@ describe('POST /api/subscriptions/trial/start', () => {
   const mockedCreatePolarCheckoutUrl = vi.mocked(polarShared.createPolarCheckoutUrl)
   const mockedCreatePolarCustomerPortalUrl = vi.mocked(polarShared.createPolarCustomerPortalUrl)
   const mockedResolvePolarClient = vi.mocked(polarShared.resolvePolarClient)
+  const mockedResolveCheckoutPlanConfig = vi.mocked(polarShared.resolveCheckoutPlanConfig)
 
   beforeEach(() => {
     mockedResolvePolarClient.mockReset()
     mockedCreatePolarCheckoutUrl.mockReset()
     mockedCreatePolarCustomerPortalUrl.mockReset()
+    mockedResolveCheckoutPlanConfig.mockReset()
     mockedResolvePolarClient.mockReturnValue({} as never)
     mockedCreatePolarCheckoutUrl.mockResolvedValue('https://polar.test/checkout/session')
     mockedCreatePolarCustomerPortalUrl.mockResolvedValue('https://polar.test/portal/session')
+    mockedResolveCheckoutPlanConfig.mockReturnValue({
+      productId: 'prod_standard',
+      planCode: 'standard',
+    })
   })
 
   afterEach(() => {
@@ -160,7 +176,7 @@ describe('POST /api/subscriptions/trial/start', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const response = await onRequestPost(createContext({ userId: 'user-new' }))
+    const response = await onRequestPost(createContext({ userId: 'user-new', planCode: 'pro' }))
 
     expect(response.status).toBe(200)
     const payload = (await response.json()) as { action?: string; checkoutUrl?: string }
@@ -169,6 +185,13 @@ describe('POST /api/subscriptions/trial/start', () => {
       checkoutUrl: 'https://polar.test/checkout/session',
     })
     expect(mockedCreatePolarCheckoutUrl).toHaveBeenCalledTimes(1)
+    expect(mockedResolveCheckoutPlanConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        POLAR_PRODUCT_ID_STANDARD: 'prod_standard',
+        POLAR_PRODUCT_ID_PRO: 'prod_pro',
+      }),
+      'pro',
+    )
     expect(mockedCreatePolarCustomerPortalUrl).not.toHaveBeenCalled()
   })
 })

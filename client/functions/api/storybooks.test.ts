@@ -120,6 +120,10 @@ function resolveTestUserId(payload: unknown): string {
   return 'user-1'
 }
 
+function resolveTodayKstDateForTest(now: Date = new Date()): string {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> = {}) {
   const userId = resolveTestUserId(requestPayload)
   return {
@@ -1048,9 +1052,10 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(403)
-    const payload = (await response.json()) as { code?: string; error?: string; message?: string }
+    const payload = (await response.json()) as { code?: string; error?: string; reason?: string; message?: string }
     expect(payload.code).toBe('QUOTA_EXCEEDED')
     expect(payload.error).toBe('QUOTA_EXCEEDED')
+    expect(payload.reason).toBe('free_total')
     expect(payload.message).toContain('무료 제작 횟수를 모두 사용했어요')
 
     const calledUrls = fetchMock.mock.calls.map((call) => {
@@ -1070,7 +1075,7 @@ describe('storybooks function (v21 pipeline)', () => {
         return createJsonResponse([
           {
             status: 'active',
-            plan_code: 'monthly_unlimited_6900_krw',
+            plan_code: 'standard',
           },
         ])
       }
@@ -1080,6 +1085,8 @@ describe('storybooks function (v21 pipeline)', () => {
           {
             free_story_quota_total: 2,
             free_story_quota_used: 2,
+            daily_story_quota_used: 0,
+            daily_story_quota_date: null,
           },
         ])
       }
@@ -1127,7 +1134,60 @@ describe('storybooks function (v21 pipeline)', () => {
         const method = String((call[1] as RequestInit | undefined)?.method ?? 'GET').toUpperCase()
         return url.includes('/rest/v1/usage_quotas?user_id=eq.') && method === 'PATCH'
       }),
-    ).toBe(false)
+    ).toBe(true)
+  })
+
+  it('active 구독에서 일일 쿼터를 모두 쓰면 403 + daily_limit으로 차단한다', async () => {
+    const todayKst = resolveTodayKstDateForTest()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            status: 'active',
+            plan_code: 'standard',
+          },
+        ])
+      }
+
+      if (url.includes('/rest/v1/usage_quotas?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            free_story_quota_total: 2,
+            free_story_quota_used: 0,
+            daily_story_quota_used: 30,
+            daily_story_quota_date: todayKst,
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-active-daily-exhausted',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: '일일 쿼터 소진 시 생성 차단',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(403)
+    const payload = (await response.json()) as { code?: string; error?: string; reason?: string }
+    expect(payload.code).toBe('QUOTA_EXCEEDED')
+    expect(payload.error).toBe('QUOTA_EXCEEDED')
+    expect(payload.reason).toBe('daily_limit')
   })
 
   it('R2 버킷 바인딩이 없으면 500 에러를 반환한다', async () => {

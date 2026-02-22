@@ -1,9 +1,11 @@
 import {
+  type BillingPaidPlanCode,
+  type BillingPlanCode,
   type BillingSubscriptionStatus,
   type SubscriptionAccessPort,
   type SubscriptionAccessSnapshot,
-  type TrialStartActionResult,
   type SubscriptionPortalResult,
+  type TrialStartActionResult,
 } from '@features/subscription-access/application/subscription-access.use-case'
 
 interface HttpSubscriptionAccessPortOptions {
@@ -91,6 +93,22 @@ function normalizeNonNegativeInteger(value: unknown): number | null {
   return value
 }
 
+function normalizePlanCode(value: unknown): BillingPlanCode | null {
+  if (value === 'free' || value === 'standard' || value === 'pro') {
+    return value
+  }
+
+  return null
+}
+
+function normalizePaidPlanCode(value: unknown): BillingPaidPlanCode | null {
+  if (value === 'standard' || value === 'pro') {
+    return value
+  }
+
+  return null
+}
+
 function normalizeSubscriptionSnapshot(payload: unknown): SubscriptionAccessSnapshot | null {
   if (!payload || typeof payload !== 'object') {
     return null
@@ -99,6 +117,8 @@ function normalizeSubscriptionSnapshot(payload: unknown): SubscriptionAccessSnap
   const candidate = payload as {
     subscription?: unknown
     quota?: unknown
+    currentPlan?: unknown
+    plans?: unknown
     canCreate?: unknown
   }
 
@@ -110,13 +130,36 @@ function normalizeSubscriptionSnapshot(payload: unknown): SubscriptionAccessSnap
     freeStoryQuotaTotal?: unknown
     freeStoryQuotaUsed?: unknown
     remainingFreeStories?: unknown
+    dailyQuotaLimit?: unknown
+    dailyQuotaUsed?: unknown
+    remainingDailyStories?: unknown
+    dailyQuotaDateKst?: unknown
   }
 
   const freeStoryQuotaTotal = normalizeNonNegativeInteger(quotaCandidate.freeStoryQuotaTotal)
   const freeStoryQuotaUsed = normalizeNonNegativeInteger(quotaCandidate.freeStoryQuotaUsed)
   const remainingFreeStories = normalizeNonNegativeInteger(quotaCandidate.remainingFreeStories)
+  const dailyQuotaLimit =
+    typeof quotaCandidate.dailyQuotaLimit === 'number' ? normalizeNonNegativeInteger(quotaCandidate.dailyQuotaLimit) : quotaCandidate.dailyQuotaLimit === null ? null : null
+  const dailyQuotaUsed = normalizeNonNegativeInteger(quotaCandidate.dailyQuotaUsed)
+  const remainingDailyStories =
+    typeof quotaCandidate.remainingDailyStories === 'number'
+      ? normalizeNonNegativeInteger(quotaCandidate.remainingDailyStories)
+      : quotaCandidate.remainingDailyStories === null
+        ? null
+        : null
+  const dailyQuotaDateKst =
+    typeof quotaCandidate.dailyQuotaDateKst === 'string' ? normalizeString(quotaCandidate.dailyQuotaDateKst) : quotaCandidate.dailyQuotaDateKst === null ? null : null
 
-  if (freeStoryQuotaTotal === null || freeStoryQuotaUsed === null || remainingFreeStories === null) {
+  if (
+    freeStoryQuotaTotal === null ||
+    freeStoryQuotaUsed === null ||
+    remainingFreeStories === null ||
+    dailyQuotaUsed === null ||
+    typeof dailyQuotaLimit === 'undefined' ||
+    typeof remainingDailyStories === 'undefined' ||
+    typeof dailyQuotaDateKst === 'undefined'
+  ) {
     return null
   }
 
@@ -151,7 +194,7 @@ function normalizeSubscriptionSnapshot(payload: unknown): SubscriptionAccessSnap
 
     return {
       status,
-      planCode: normalizeString(rawSubscription.planCode),
+      planCode: normalizePaidPlanCode(rawSubscription.planCode),
       trialStartAt: normalizeString(rawSubscription.trialStartAt),
       trialEndAt: normalizeString(rawSubscription.trialEndAt),
       currentPeriodStart: normalizeString(rawSubscription.currentPeriodStart),
@@ -161,13 +204,80 @@ function normalizeSubscriptionSnapshot(payload: unknown): SubscriptionAccessSnap
     }
   })()
 
+  if (!candidate.currentPlan || typeof candidate.currentPlan !== 'object') {
+    return null
+  }
+
+  const currentPlanCandidate = candidate.currentPlan as {
+    code?: unknown
+    name?: unknown
+  }
+  const currentPlanCode = normalizePlanCode(currentPlanCandidate.code)
+  const currentPlanName = normalizeString(currentPlanCandidate.name)
+  if (!currentPlanCode || !currentPlanName) {
+    return null
+  }
+
+  if (!Array.isArray(candidate.plans)) {
+    return null
+  }
+
+  const normalizedPlans = candidate.plans
+    .map((rawPlan) => {
+      if (!rawPlan || typeof rawPlan !== 'object') {
+        return null
+      }
+
+      const plan = rawPlan as {
+        code?: unknown
+        name?: unknown
+        priceUsdMonthly?: unknown
+        totalFreeStories?: unknown
+        dailyQuota?: unknown
+        trialDays?: unknown
+      }
+
+      const code = normalizePlanCode(plan.code)
+      const name = normalizeString(plan.name)
+      if (!code || !name || typeof plan.priceUsdMonthly !== 'number' || Number.isNaN(plan.priceUsdMonthly)) {
+        return null
+      }
+
+      const totalFreeStories = typeof plan.totalFreeStories === 'number' ? normalizeNonNegativeInteger(plan.totalFreeStories) : undefined
+      const dailyQuota = typeof plan.dailyQuota === 'number' ? normalizeNonNegativeInteger(plan.dailyQuota) : undefined
+      const trialDays = typeof plan.trialDays === 'number' ? normalizeNonNegativeInteger(plan.trialDays) : undefined
+
+      return {
+        code,
+        name,
+        priceUsdMonthly: plan.priceUsdMonthly,
+        ...(typeof totalFreeStories === 'number' ? { totalFreeStories } : {}),
+        ...(typeof dailyQuota === 'number' ? { dailyQuota } : {}),
+        ...(typeof trialDays === 'number' ? { trialDays } : {}),
+      }
+    })
+    .filter((plan): plan is SubscriptionAccessSnapshot['plans'][number] => plan !== null)
+
+  if (normalizedPlans.length === 0) {
+    return null
+  }
+
   return {
     subscription: normalizedSubscription,
     quota: {
       freeStoryQuotaTotal,
       freeStoryQuotaUsed,
       remainingFreeStories,
+      dailyQuotaLimit,
+      dailyQuotaUsed,
+      remainingDailyStories,
+      dailyQuotaDateKst,
     },
+    currentPlan: {
+      code: currentPlanCode,
+      name: currentPlanName,
+    },
+    plans: normalizedPlans,
     canCreate: candidate.canCreate === true,
   }
 }
@@ -284,11 +394,13 @@ export class HttpSubscriptionAccessPort implements SubscriptionAccessPort {
     return normalized
   }
 
-  async startTrial(): Promise<TrialStartActionResult> {
+  async startTrial(planCode: BillingPaidPlanCode): Promise<TrialStartActionResult> {
     const response = await fetch(`${this.baseUrl}/api/subscriptions/trial/start`, {
       method: 'POST',
       headers: createJsonHeaders(this.accessToken),
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        planCode,
+      }),
     })
 
     if (!response.ok) {

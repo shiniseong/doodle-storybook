@@ -1,6 +1,6 @@
 import { buildStorybookDetailApiResponse, resolveR2AssetPublicUrl } from './storybooks/storybooks-response'
 import { authenticateRequest } from './_shared/auth'
-import { getBillingAccessSnapshot, incrementFreeQuotaUsage } from './_shared/subscription-access'
+import { getBillingAccessSnapshot, incrementDailyQuotaUsage, incrementFreeQuotaUsage } from './_shared/subscription-access'
 
 type StoryLanguage = 'ko' | 'en' | 'ja' | 'zh'
 
@@ -1590,19 +1590,22 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
+  const isPaidAccess =
+    accessResult.value.subscription?.status === 'trialing' ||
+    accessResult.value.subscription?.status === 'active'
+  const quotaExceededReason = isPaidAccess ? 'daily_limit' : 'free_total'
+
   if (!accessResult.value.canCreate) {
     return jsonResponse(
       {
         code: 'QUOTA_EXCEEDED',
         error: 'QUOTA_EXCEEDED',
+        reason: quotaExceededReason,
         message: '무료 제작 횟수를 모두 사용했어요. 구독 후 계속 만들 수 있어요.',
       },
       403,
     )
   }
-  const shouldConsumeFreeQuota =
-    accessResult.value.subscription?.status !== 'trialing' &&
-    accessResult.value.subscription?.status !== 'active'
 
   const inputContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }> = [
     {
@@ -1934,7 +1937,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  if (shouldConsumeFreeQuota) {
+  if (isPaidAccess) {
+    const paidPlanCode = accessResult.value.currentPlan.code === 'pro' ? 'pro' : 'standard'
+    const quotaUsageResult = await incrementDailyQuotaUsage(supabasePersistenceConfig, authenticatedUserId, paidPlanCode)
+    if (!quotaUsageResult.ok) {
+      console.error('Failed to increment daily story quota after successful creation.', {
+        userId: authenticatedUserId,
+        storybookId,
+        status: quotaUsageResult.failure.status,
+        message: quotaUsageResult.failure.message,
+      })
+    }
+  } else {
     const quotaUsageResult = await incrementFreeQuotaUsage(supabasePersistenceConfig, authenticatedUserId)
     if (!quotaUsageResult.ok) {
       console.error('Failed to increment free story quota after successful creation.', {

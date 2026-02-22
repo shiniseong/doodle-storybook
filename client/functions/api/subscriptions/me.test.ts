@@ -85,6 +85,8 @@ describe('GET /api/subscriptions/me', () => {
           {
             free_story_quota_total: 2,
             free_story_quota_used: 2,
+            daily_story_quota_used: 4,
+            daily_story_quota_date: '2026-02-22',
           },
         ])
       }
@@ -99,15 +101,17 @@ describe('GET /api/subscriptions/me', () => {
     const payload = (await response.json()) as {
       subscription?: { status?: string; planCode?: string | null }
       quota?: { freeStoryQuotaTotal?: number; freeStoryQuotaUsed?: number; remainingFreeStories?: number }
+      currentPlan?: { code?: string; name?: string }
+      plans?: Array<{ code?: string }>
       canCreate?: boolean
     }
     expect(payload.subscription?.status).toBe('active')
-    expect(payload.subscription?.planCode).toBe('monthly_unlimited_6900_krw')
-    expect(payload.quota).toEqual({
-      freeStoryQuotaTotal: 2,
-      freeStoryQuotaUsed: 2,
-      remainingFreeStories: 0,
-    })
+    expect(payload.subscription?.planCode).toBe('standard')
+    expect(payload.currentPlan).toEqual({ code: 'standard', name: 'Standard' })
+    expect(payload.plans?.map((plan) => plan.code)).toEqual(['free', 'standard', 'pro'])
+    expect(payload.quota?.freeStoryQuotaTotal).toBe(2)
+    expect(payload.quota?.freeStoryQuotaUsed).toBe(2)
+    expect(payload.quota?.remainingFreeStories).toBe(0)
     expect(payload.canCreate).toBe(true)
   })
 
@@ -125,6 +129,8 @@ describe('GET /api/subscriptions/me', () => {
           {
             free_story_quota_total: 2,
             free_story_quota_used: 2,
+            daily_story_quota_used: 0,
+            daily_story_quota_date: null,
           },
         ])
       }
@@ -140,9 +146,11 @@ describe('GET /api/subscriptions/me', () => {
       canCreate?: boolean
       subscription?: unknown
       quota?: { remainingFreeStories?: number }
+      currentPlan?: { code?: string }
     }
     expect(payload.subscription).toBeNull()
     expect(payload.quota?.remainingFreeStories).toBe(0)
+    expect(payload.currentPlan?.code).toBe('free')
     expect(payload.canCreate).toBe(false)
   })
 })

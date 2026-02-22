@@ -9,10 +9,26 @@ import {
 } from './supabase'
 
 export type BillingSubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid'
+export type BillingPlanCode = 'free' | 'standard' | 'pro'
+export type BillingPaidPlanCode = Exclude<BillingPlanCode, 'free'>
+
+export interface BillingPlanDefinition {
+  code: BillingPlanCode
+  name: string
+  priceUsdMonthly: number
+  totalFreeStories?: number
+  dailyQuota?: number
+  trialDays?: number
+}
+
+export interface BillingCurrentPlan {
+  code: BillingPlanCode
+  name: string
+}
 
 export interface BillingSubscription {
   status: BillingSubscriptionStatus
-  planCode: string | null
+  planCode: BillingPaidPlanCode | null
   trialStartAt: string | null
   trialEndAt: string | null
   currentPeriodStart: string | null
@@ -25,15 +41,53 @@ export interface BillingQuota {
   freeStoryQuotaTotal: number
   freeStoryQuotaUsed: number
   remainingFreeStories: number
+  dailyQuotaLimit: number | null
+  dailyQuotaUsed: number
+  remainingDailyStories: number | null
+  dailyQuotaDateKst: string | null
 }
 
 export interface BillingAccessSnapshot {
   subscription: BillingSubscription | null
   quota: BillingQuota
+  currentPlan: BillingCurrentPlan
+  plans: BillingPlanDefinition[]
   canCreate: boolean
 }
 
+interface StoredUsageQuota {
+  freeStoryQuotaTotal: number
+  freeStoryQuotaUsed: number
+  dailyStoryQuotaUsed: number
+  dailyStoryQuotaDate: string | null
+}
+
 const DEFAULT_FREE_STORY_QUOTA_TOTAL = 2
+const STANDARD_DAILY_STORY_QUOTA = 30
+const PRO_DAILY_STORY_QUOTA = 60
+
+const BILLING_PLANS: ReadonlyArray<BillingPlanDefinition> = [
+  {
+    code: 'free',
+    name: 'Free',
+    priceUsdMonthly: 0,
+    totalFreeStories: DEFAULT_FREE_STORY_QUOTA_TOTAL,
+  },
+  {
+    code: 'standard',
+    name: 'Standard',
+    priceUsdMonthly: 4.99,
+    dailyQuota: STANDARD_DAILY_STORY_QUOTA,
+    trialDays: 1,
+  },
+  {
+    code: 'pro',
+    name: 'Pro',
+    priceUsdMonthly: 8.99,
+    dailyQuota: PRO_DAILY_STORY_QUOTA,
+    trialDays: 1,
+  },
+]
 
 function asSupabaseFailure(status: number, message: string): SupabaseError {
   return {
@@ -75,12 +129,37 @@ function normalizeNonNegativeInteger(value: unknown): number | null {
 }
 
 function normalizeStatus(value: unknown): BillingSubscriptionStatus | null {
-  if (value === 'trialing' || value === 'active' || value === 'past_due' || value === 'canceled' || value === 'incomplete' || value === 'unpaid') {
+  if (
+    value === 'trialing' ||
+    value === 'active' ||
+    value === 'past_due' ||
+    value === 'canceled' ||
+    value === 'incomplete' ||
+    value === 'unpaid'
+  ) {
     return value
   }
 
   if (value === 'incomplete_expired') {
     return 'incomplete'
+  }
+
+  return null
+}
+
+function normalizePaidPlanCode(value: unknown): BillingPaidPlanCode | null {
+  const normalized = normalizeString(value)
+  if (!normalized) {
+    return null
+  }
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'pro') {
+    return 'pro'
+  }
+
+  if (lower === 'standard' || lower === 'monthly_unlimited_6900_krw') {
+    return 'standard'
   }
 
   return null
@@ -92,6 +171,66 @@ function toIsoString(value: unknown): string | null {
   }
 
   return normalizeString(value)
+}
+
+function normalizeKstDateOnly(value: unknown): string | null {
+  const normalized = normalizeString(value)
+  if (!normalized) {
+    return null
+  }
+
+  const match = normalized.match(/^\d{4}-\d{2}-\d{2}$/)
+  return match ? normalized : null
+}
+
+function resolveCurrentKstDate(now: Date = new Date()): string {
+  const utcTime = now.getTime()
+  const kstTime = utcTime + 9 * 60 * 60 * 1000
+  return new Date(kstTime).toISOString().slice(0, 10)
+}
+
+function resolveBillingPlanDefinition(code: BillingPlanCode): BillingPlanDefinition {
+  const found = BILLING_PLANS.find((plan) => plan.code === code)
+  return found
+    ? { ...found }
+    : {
+        code: 'free',
+        name: 'Free',
+        priceUsdMonthly: 0,
+        totalFreeStories: DEFAULT_FREE_STORY_QUOTA_TOTAL,
+      }
+}
+
+function isPaidAccessStatus(status: BillingSubscriptionStatus | null | undefined): boolean {
+  return status === 'trialing' || status === 'active'
+}
+
+function resolveEffectiveDailyUsage(quota: StoredUsageQuota, todayKst: string): number {
+  if (quota.dailyStoryQuotaDate !== todayKst) {
+    return 0
+  }
+
+  return quota.dailyStoryQuotaUsed
+}
+
+function resolveCurrentPlanCode(subscription: BillingSubscription | null): BillingPlanCode {
+  if (!subscription) {
+    return 'free'
+  }
+
+  if (subscription.planCode === 'pro') {
+    return 'pro'
+  }
+
+  if (subscription.planCode === 'standard') {
+    return 'standard'
+  }
+
+  if (isPaidAccessStatus(subscription.status)) {
+    return 'standard'
+  }
+
+  return 'free'
 }
 
 function normalizeSubscription(raw: unknown): BillingSubscription | null {
@@ -117,7 +256,7 @@ function normalizeSubscription(raw: unknown): BillingSubscription | null {
 
   return {
     status,
-    planCode: normalizeString(candidate.plan_code),
+    planCode: normalizePaidPlanCode(candidate.plan_code),
     trialStartAt: toIsoString(candidate.trial_start_at),
     trialEndAt: toIsoString(candidate.trial_end_at),
     currentPeriodStart: toIsoString(candidate.current_period_start),
@@ -127,7 +266,7 @@ function normalizeSubscription(raw: unknown): BillingSubscription | null {
   }
 }
 
-function normalizeQuota(raw: unknown): BillingQuota | null {
+function normalizeStoredUsageQuota(raw: unknown): StoredUsageQuota | null {
   if (!raw || typeof raw !== 'object') {
     return null
   }
@@ -135,34 +274,75 @@ function normalizeQuota(raw: unknown): BillingQuota | null {
   const candidate = raw as {
     free_story_quota_total?: unknown
     free_story_quota_used?: unknown
+    daily_story_quota_used?: unknown
+    daily_story_quota_date?: unknown
   }
 
   const total = normalizeNonNegativeInteger(candidate.free_story_quota_total)
-  const used = normalizeNonNegativeInteger(candidate.free_story_quota_used)
-  if (total === null || used === null) {
+  const freeUsed = normalizeNonNegativeInteger(candidate.free_story_quota_used)
+  if (total === null || freeUsed === null) {
     return null
   }
 
-  const normalizedUsed = Math.min(total, used)
+  const normalizedFreeUsed = Math.min(total, freeUsed)
+  const normalizedDailyUsed = normalizeNonNegativeInteger(candidate.daily_story_quota_used) ?? 0
 
   return {
     freeStoryQuotaTotal: total,
-    freeStoryQuotaUsed: normalizedUsed,
-    remainingFreeStories: Math.max(0, total - normalizedUsed),
+    freeStoryQuotaUsed: normalizedFreeUsed,
+    dailyStoryQuotaUsed: normalizedDailyUsed,
+    dailyStoryQuotaDate: normalizeKstDateOnly(candidate.daily_story_quota_date),
   }
 }
 
-function buildDefaultQuota(): BillingQuota {
+function buildDefaultStoredUsageQuota(): StoredUsageQuota {
   return {
     freeStoryQuotaTotal: DEFAULT_FREE_STORY_QUOTA_TOTAL,
     freeStoryQuotaUsed: 0,
-    remainingFreeStories: DEFAULT_FREE_STORY_QUOTA_TOTAL,
+    dailyStoryQuotaUsed: 0,
+    dailyStoryQuotaDate: null,
   }
 }
 
-async function ensureUsageQuotaRow(config: SupabaseConfig, userId: string): Promise<SupabaseResult<BillingQuota>> {
+function buildBillingQuota(
+  storedUsageQuota: StoredUsageQuota,
+  currentPlanCode: BillingPlanCode,
+  paidAccessEnabled: boolean,
+): BillingQuota {
+  const todayKst = resolveCurrentKstDate()
+  const freeStoryQuotaUsed = Math.min(storedUsageQuota.freeStoryQuotaTotal, storedUsageQuota.freeStoryQuotaUsed)
+  const remainingFreeStories = Math.max(0, storedUsageQuota.freeStoryQuotaTotal - freeStoryQuotaUsed)
+
+  if (!paidAccessEnabled || currentPlanCode === 'free') {
+    return {
+      freeStoryQuotaTotal: storedUsageQuota.freeStoryQuotaTotal,
+      freeStoryQuotaUsed,
+      remainingFreeStories,
+      dailyQuotaLimit: null,
+      dailyQuotaUsed: 0,
+      remainingDailyStories: null,
+      dailyQuotaDateKst: storedUsageQuota.dailyStoryQuotaDate,
+    }
+  }
+
+  const plan = resolveBillingPlanDefinition(currentPlanCode)
+  const dailyQuotaLimit = plan.dailyQuota ?? STANDARD_DAILY_STORY_QUOTA
+  const effectiveDailyUsed = Math.min(dailyQuotaLimit, resolveEffectiveDailyUsage(storedUsageQuota, todayKst))
+
+  return {
+    freeStoryQuotaTotal: storedUsageQuota.freeStoryQuotaTotal,
+    freeStoryQuotaUsed,
+    remainingFreeStories,
+    dailyQuotaLimit,
+    dailyQuotaUsed: effectiveDailyUsed,
+    remainingDailyStories: Math.max(0, dailyQuotaLimit - effectiveDailyUsed),
+    dailyQuotaDateKst: todayKst,
+  }
+}
+
+async function ensureUsageQuotaRow(config: SupabaseConfig, userId: string): Promise<SupabaseResult<StoredUsageQuota>> {
   const query = new URLSearchParams({
-    select: 'free_story_quota_total,free_story_quota_used',
+    select: 'free_story_quota_total,free_story_quota_used,daily_story_quota_used,daily_story_quota_date',
     user_id: `eq.${userId}`,
     limit: '1',
   })
@@ -186,7 +366,7 @@ async function ensureUsageQuotaRow(config: SupabaseConfig, userId: string): Prom
   }
 
   if (Array.isArray(payload) && payload.length > 0) {
-    const normalized = normalizeQuota(payload[0])
+    const normalized = normalizeStoredUsageQuota(payload[0])
     if (normalized) {
       return {
         ok: true,
@@ -207,6 +387,8 @@ async function ensureUsageQuotaRow(config: SupabaseConfig, userId: string): Prom
         user_id: userId,
         free_story_quota_total: DEFAULT_FREE_STORY_QUOTA_TOTAL,
         free_story_quota_used: 0,
+        daily_story_quota_used: 0,
+        daily_story_quota_date: null,
       }),
     })
   } catch {
@@ -223,7 +405,7 @@ async function ensureUsageQuotaRow(config: SupabaseConfig, userId: string): Prom
 
   return {
     ok: true,
-    value: buildDefaultQuota(),
+    value: buildDefaultStoredUsageQuota(),
   }
 }
 
@@ -275,7 +457,7 @@ export async function getBillingAccessSnapshot(
   config: SupabaseConfig,
   userId: string,
 ): Promise<SupabaseResult<BillingAccessSnapshot>> {
-  const [subscriptionResult, quotaResult] = await Promise.all([
+  const [subscriptionResult, usageQuotaResult] = await Promise.all([
     fetchSubscription(config, userId),
     ensureUsageQuotaRow(config, userId),
   ])
@@ -284,19 +466,27 @@ export async function getBillingAccessSnapshot(
     return subscriptionResult
   }
 
-  if (!quotaResult.ok) {
-    return quotaResult
+  if (!usageQuotaResult.ok) {
+    return usageQuotaResult
   }
 
-  const isPaidAccess =
-    subscriptionResult.value?.status === 'trialing' || subscriptionResult.value?.status === 'active'
+  const currentPlanCode = resolveCurrentPlanCode(subscriptionResult.value)
+  const paidAccessEnabled = isPaidAccessStatus(subscriptionResult.value?.status)
+  const quota = buildBillingQuota(usageQuotaResult.value, currentPlanCode, paidAccessEnabled)
 
   return {
     ok: true,
     value: {
       subscription: subscriptionResult.value,
-      quota: quotaResult.value,
-      canCreate: isPaidAccess || quotaResult.value.remainingFreeStories > 0,
+      quota,
+      currentPlan: {
+        code: currentPlanCode,
+        name: resolveBillingPlanDefinition(currentPlanCode).name,
+      },
+      plans: BILLING_PLANS.map((plan) => ({ ...plan })),
+      canCreate: paidAccessEnabled
+        ? (quota.remainingDailyStories ?? 0) > 0
+        : quota.remainingFreeStories > 0,
     },
   }
 }
@@ -305,17 +495,17 @@ export async function incrementFreeQuotaUsage(
   config: SupabaseConfig,
   userId: string,
 ): Promise<SupabaseResult<BillingQuota>> {
-  const quotaResult = await ensureUsageQuotaRow(config, userId)
-  if (!quotaResult.ok) {
-    return quotaResult
+  const usageQuotaResult = await ensureUsageQuotaRow(config, userId)
+  if (!usageQuotaResult.ok) {
+    return usageQuotaResult
   }
 
-  const currentQuota = quotaResult.value
-  if (currentQuota.freeStoryQuotaUsed >= currentQuota.freeStoryQuotaTotal) {
+  const currentUsageQuota = usageQuotaResult.value
+  if (currentUsageQuota.freeStoryQuotaUsed >= currentUsageQuota.freeStoryQuotaTotal) {
     return asSupabaseFailure(409, 'Free story quota is exhausted.')
   }
 
-  const nextUsed = Math.min(currentQuota.freeStoryQuotaTotal, currentQuota.freeStoryQuotaUsed + 1)
+  const nextUsed = Math.min(currentUsageQuota.freeStoryQuotaTotal, currentUsageQuota.freeStoryQuotaUsed + 1)
 
   let response: Response
   try {
@@ -346,11 +536,77 @@ export async function incrementFreeQuotaUsage(
 
   return {
     ok: true,
-    value: {
-      freeStoryQuotaTotal: currentQuota.freeStoryQuotaTotal,
-      freeStoryQuotaUsed: nextUsed,
-      remainingFreeStories: Math.max(0, currentQuota.freeStoryQuotaTotal - nextUsed),
-    },
+    value: buildBillingQuota(
+      {
+        ...currentUsageQuota,
+        freeStoryQuotaUsed: nextUsed,
+      },
+      'free',
+      false,
+    ),
+  }
+}
+
+export async function incrementDailyQuotaUsage(
+  config: SupabaseConfig,
+  userId: string,
+  planCode: BillingPaidPlanCode,
+): Promise<SupabaseResult<BillingQuota>> {
+  const usageQuotaResult = await ensureUsageQuotaRow(config, userId)
+  if (!usageQuotaResult.ok) {
+    return usageQuotaResult
+  }
+
+  const currentUsageQuota = usageQuotaResult.value
+  const todayKst = resolveCurrentKstDate()
+  const dailyQuotaLimit = planCode === 'pro' ? PRO_DAILY_STORY_QUOTA : STANDARD_DAILY_STORY_QUOTA
+  const effectiveDailyUsed = Math.min(dailyQuotaLimit, resolveEffectiveDailyUsage(currentUsageQuota, todayKst))
+
+  if (effectiveDailyUsed >= dailyQuotaLimit) {
+    return asSupabaseFailure(409, 'Daily story quota is exhausted.')
+  }
+
+  const nextDailyUsed = Math.min(dailyQuotaLimit, effectiveDailyUsed + 1)
+
+  let response: Response
+  try {
+    response = await fetch(
+      `${config.baseUrl}/rest/v1/usage_quotas?user_id=eq.${encodeURIComponent(userId)}`,
+      {
+        method: 'PATCH',
+        headers: createSupabaseHeaders(config, {
+          includeJsonBody: true,
+          preferMinimal: true,
+        }),
+        body: JSON.stringify({
+          daily_story_quota_used: nextDailyUsed,
+          daily_story_quota_date: todayKst,
+        }),
+      },
+    )
+  } catch {
+    return asSupabaseFailure(502, 'Failed to update daily usage quota in Supabase.')
+  }
+
+  if (!response.ok) {
+    const payload = await readResponseBody(response)
+    return asSupabaseFailure(
+      response.status,
+      resolveSupabaseErrorMessage(payload, 'Failed to update daily usage quota in Supabase.'),
+    )
+  }
+
+  return {
+    ok: true,
+    value: buildBillingQuota(
+      {
+        ...currentUsageQuota,
+        dailyStoryQuotaUsed: nextDailyUsed,
+        dailyStoryQuotaDate: todayKst,
+      },
+      planCode,
+      true,
+    ),
   }
 }
 
@@ -379,7 +635,7 @@ export interface UpsertSubscriptionFromPolarInput {
   userId: string
   eventId: string
   status: unknown
-  planCode: string
+  planCode: BillingPaidPlanCode
   providerCustomerId: string | null
   providerSubscriptionId: string | null
   trialStartAt: Date | string | null | undefined

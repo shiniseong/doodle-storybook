@@ -19,6 +19,10 @@ interface TestEnv {
   SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
   POLAR_WEBHOOK_SECRET?: string
+  POLAR_PRODUCT_ID_STANDARD?: string
+  POLAR_PRODUCT_ID_PRO?: string
+  POLAR_PLAN_CODE_STANDARD?: string
+  POLAR_PLAN_CODE_PRO?: string
   POLAR_PLAN_CODE?: string
 }
 
@@ -55,7 +59,11 @@ function createContext({
       SUPABASE_URL: 'https://supabase.test',
       SUPABASE_SECRET_KEY: 'sb_secret_test',
       POLAR_WEBHOOK_SECRET: 'whsec_test',
-      POLAR_PLAN_CODE: 'monthly_unlimited_6900_krw',
+      POLAR_PRODUCT_ID_STANDARD: 'prod_standard',
+      POLAR_PRODUCT_ID_PRO: 'prod_pro',
+      POLAR_PLAN_CODE_STANDARD: 'standard',
+      POLAR_PLAN_CODE_PRO: 'pro',
+      POLAR_PLAN_CODE: 'standard',
       ...envOverrides,
     },
   } as unknown as Parameters<typeof onRequestPost>[0]
@@ -157,7 +165,7 @@ describe('POST /api/webhooks/polar', () => {
         currentPeriodStart: new Date('2026-02-23T00:00:00.000Z'),
         currentPeriodEnd: new Date('2026-03-23T00:00:00.000Z'),
         metadata: {
-          planCode: 'monthly_unlimited_6900_krw',
+          planCode: 'standard',
         },
         customer: {
           externalId: 'user-1',
@@ -191,9 +199,60 @@ describe('POST /api/webhooks/polar', () => {
     expect(upsertBody.user_id).toBe('user-1')
     expect(upsertBody.provider).toBe('polar')
     expect(upsertBody.status).toBe('active')
-    expect(upsertBody.plan_code).toBe('monthly_unlimited_6900_krw')
+    expect(upsertBody.plan_code).toBe('standard')
     expect(upsertBody.provider_customer_id).toBe('cus_123')
     expect(upsertBody.provider_subscription_id).toBe('sub_123')
     expect(upsertBody.last_webhook_event_id).toBe('evt_subscription_active')
+  })
+
+  it('metadata.planCode가 없으면 productId 매핑으로 plan_code를 결정한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/polar_webhook_events?') && method === 'GET') {
+        return createJsonResponse([])
+      }
+
+      if (url.includes('/rest/v1/subscriptions?on_conflict=user_id') && method === 'POST') {
+        return createJsonResponse({}, 201)
+      }
+
+      if (url.endsWith('/rest/v1/polar_webhook_events') && method === 'POST') {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    mockedValidateEvent.mockReturnValue({
+      type: 'subscription.updated',
+      timestamp: new Date('2026-02-22T00:00:00.000Z'),
+      data: {
+        id: 'sub_456',
+        status: 'active',
+        customerId: 'cus_456',
+        productId: 'prod_pro',
+        customer: {
+          externalId: 'user-2',
+        },
+      },
+    } as never)
+
+    const response = await onRequestPost(createContext({ eventId: 'evt_subscription_product_map' }))
+    expect(response.status).toBe(202)
+
+    const subscriptionUpsertCall = fetchMock.mock.calls.find((call) => {
+      const input = call[0] as RequestInfo | URL
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String((call[1] as RequestInit | undefined)?.method ?? 'GET').toUpperCase()
+      return url.includes('/rest/v1/subscriptions?on_conflict=user_id') && method === 'POST'
+    })
+
+    const upsertBody = JSON.parse(String((subscriptionUpsertCall?.[1] as RequestInit | undefined)?.body ?? '{}')) as {
+      plan_code?: string
+    }
+    expect(upsertBody.plan_code).toBe('pro')
   })
 })

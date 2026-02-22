@@ -1,15 +1,20 @@
 import { WebhookVerificationError, validateEvent } from '@polar-sh/sdk/webhooks'
 
 import {
+  resolveCanonicalPaidPlanCode,
+  resolveLegacyFallbackPlanCode,
+  resolvePlanCodeFromPolarProductId,
+  type PolarEnv,
+} from '../_shared/polar'
+import {
   hasProcessedWebhookEvent,
   markWebhookEventProcessed,
   upsertSubscriptionFromPolar,
 } from '../_shared/subscription-access'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../_shared/supabase'
 
-interface Env extends SupabaseEnv {
+interface Env extends SupabaseEnv, PolarEnv {
   POLAR_WEBHOOK_SECRET?: string
-  POLAR_PLAN_CODE?: string
 }
 
 const CORS_HEADERS = {
@@ -194,11 +199,21 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         ? subscriptionData.metadata.planCode.trim()
         : null
 
+    const canonicalPlanCodeFromMetadata = resolveCanonicalPaidPlanCode(metadataPlanCode, context.env)
+    const canonicalPlanCodeFromProductId = resolvePlanCodeFromPolarProductId(
+      normalizeString(subscriptionData.productId),
+      context.env,
+    )
+    const resolvedPlanCode =
+      canonicalPlanCodeFromMetadata ||
+      canonicalPlanCodeFromProductId ||
+      resolveLegacyFallbackPlanCode(context.env)
+
     const upsertResult = await upsertSubscriptionFromPolar(supabaseConfig, {
       userId,
       eventId,
       status: subscriptionData.status,
-      planCode: metadataPlanCode || (context.env.POLAR_PLAN_CODE || '').trim() || 'monthly_unlimited_6900_krw',
+      planCode: resolvedPlanCode,
       providerCustomerId: normalizeString(subscriptionData.customerId),
       providerSubscriptionId: normalizeString(subscriptionData.id),
       trialStartAt: subscriptionData.trialStart as Date | string | null | undefined,

@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { SubscriptionAccessSnapshot } from '@features/subscription-access/application/subscription-access.use-case'
 import { useStorybookCreationStore } from '@features/storybook-creation/model/storybook-creation.store'
 import { STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY } from '@features/storybook-creation/model/storybook-compose-draft.storage'
 import {
@@ -93,6 +94,63 @@ function createMockAuth(overrides: Partial<StorybookWorkspaceAuth> = {}): Storyb
     userEmail: 'user-1@example.com',
     signOut: vi.fn(async () => {}),
     ...overrides,
+  }
+}
+
+function createSubscriptionSnapshot(overrides: Partial<SubscriptionAccessSnapshot> = {}): SubscriptionAccessSnapshot {
+  const base: SubscriptionAccessSnapshot = {
+    subscription: null,
+    quota: {
+      freeStoryQuotaTotal: 2,
+      freeStoryQuotaUsed: 0,
+      remainingFreeStories: 2,
+      dailyQuotaLimit: null,
+      dailyQuotaUsed: 0,
+      remainingDailyStories: null,
+      dailyQuotaDateKst: null,
+    },
+    currentPlan: {
+      code: 'free',
+      name: 'Free',
+    },
+    plans: [
+      {
+        code: 'free',
+        name: 'Free',
+        priceUsdMonthly: 0,
+        totalFreeStories: 2,
+      },
+      {
+        code: 'standard',
+        name: 'Standard',
+        priceUsdMonthly: 4.99,
+        dailyQuota: 30,
+        trialDays: 1,
+      },
+      {
+        code: 'pro',
+        name: 'Pro',
+        priceUsdMonthly: 8.99,
+        dailyQuota: 60,
+        trialDays: 1,
+      },
+    ],
+    canCreate: true,
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    subscription: typeof overrides.subscription === 'undefined' ? base.subscription : overrides.subscription,
+    quota: {
+      ...base.quota,
+      ...(overrides.quota ?? {}),
+    },
+    currentPlan: {
+      ...base.currentPlan,
+      ...(overrides.currentPlan ?? {}),
+    },
+    plans: overrides.plans ?? base.plans,
   }
 }
 
@@ -335,7 +393,8 @@ describe('StorybookWorkspace', () => {
       expect(raw).toContain('로그아웃 이전 제목')
     })
 
-    await user.click(screen.getByRole('button', { name: '로그아웃' }))
+    await user.click(screen.getByRole('button', { name: /signed-in-user: Free/i }))
+    await user.click(screen.getByRole('menuitem', { name: '로그아웃' }))
     expect(signOut).toHaveBeenCalledTimes(1)
 
     await waitFor(() => {
@@ -346,7 +405,7 @@ describe('StorybookWorkspace', () => {
     })
   })
 
-  it('생성 진행 중에는 하단 CTA 버튼을 비활성화한다', async () => {
+  it('생성 진행 중에는 로딩 다이얼로그를 유지하고 닫힘 입력을 무시한다', async () => {
     const user = userEvent.setup()
     let resolveRequest!: (value: CreateStorybookExecuteResult) => void
     const pending = new Promise<CreateStorybookExecuteResult>((resolve) => {
@@ -366,8 +425,6 @@ describe('StorybookWorkspace', () => {
     await user.type(screen.getByLabelText('그림 설명'), '숲속에서 친구를 만나요')
     await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
 
-    const pendingButton = screen.getByRole('button', { name: '동화 생성 처리 중...' })
-    expect(pendingButton).toBeDisabled()
     expect(screen.getByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-mini-game')).toBeInTheDocument()
     expect(screen.getByTestId('story-loading-game-backdrop')).toBeInTheDocument()
@@ -389,7 +446,6 @@ describe('StorybookWorkspace', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: '동화 생성 처리 중...' })).not.toBeInTheDocument()
       expect(screen.queryByTestId('story-loading-mini-game')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
     })
   })
 
@@ -2063,7 +2119,7 @@ describe('StorybookWorkspace', () => {
     expect(screen.queryByRole('heading', { name: '라이브 북 미리보기' })).not.toBeInTheDocument()
   })
 
-  it('하단 CTA 클릭 시 비로그인 상태면 인증 이동 콜백을 호출한다', async () => {
+  it('비로그인 상태에서 로그인 칩을 누르면 인증 이동 콜백을 호출한다', async () => {
     const user = userEvent.setup()
     const requestAuthentication = vi.fn()
     const startTrial = vi.fn(async () => ({
@@ -2076,15 +2132,7 @@ describe('StorybookWorkspace', () => {
         execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-cta-auth-gate'))),
       },
       subscriptionAccessUseCase: {
-        getSnapshot: vi.fn(async () => ({
-          subscription: null,
-          quota: {
-            freeStoryQuotaTotal: 2,
-            freeStoryQuotaUsed: 0,
-            remainingFreeStories: 2,
-          },
-          canCreate: true,
-        })),
+        getSnapshot: vi.fn(async () => createSubscriptionSnapshot()),
         startTrial,
         openPortal: vi.fn(async () => ({
           portalUrl: 'https://portal.example.com',
@@ -2103,23 +2151,27 @@ describe('StorybookWorkspace', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: '1일 무료 사용 시작' }))
+    await user.click(screen.getByRole('button', { name: '로그인' }))
 
     expect(requestAuthentication).toHaveBeenCalledTimes(1)
     expect(startTrial).not.toHaveBeenCalled()
   })
 
-  it('미구독 로그인 상태에서 CTA 클릭 시 checkout URL로 이동한다', async () => {
+  it('미구독 로그인 상태에서 메뉴의 구독하기로 요금제 모달을 열고 checkout을 호출한다', async () => {
     const user = userEvent.setup()
-    const getSnapshot = vi.fn(async () => ({
-      subscription: null,
-      quota: {
-        freeStoryQuotaTotal: 2,
-        freeStoryQuotaUsed: 1,
-        remainingFreeStories: 1,
-      },
-      canCreate: true,
-    }))
+    const getSnapshot = vi.fn(async () =>
+      createSubscriptionSnapshot({
+        quota: {
+          freeStoryQuotaTotal: 2,
+          freeStoryQuotaUsed: 1,
+          remainingFreeStories: 1,
+          dailyQuotaLimit: null,
+          dailyQuotaUsed: 0,
+          remainingDailyStories: null,
+          dailyQuotaDateKst: null,
+        },
+      }),
+    )
     const startTrial = vi.fn(async () => ({
       action: 'checkout' as const,
       checkoutUrl: 'https://checkout.example.com/session',
@@ -2155,34 +2207,49 @@ describe('StorybookWorkspace', () => {
       expect(screen.getByText('미구독')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: '1일 무료 사용 시작' }))
+    await user.click(screen.getByRole('button', { name: 'user-1: Free' }))
+    await user.click(screen.getByRole('menuitem', { name: '구독하기' }))
+
+    const pricingDialog = screen.getByRole('dialog', { name: '요금제 선택' })
+    const subscribeButtons = within(pricingDialog).getAllByRole('button', { name: '구독하기' })
+    await user.click(subscribeButtons[0])
 
     expect(startTrial).toHaveBeenCalledTimes(1)
+    expect(startTrial).toHaveBeenCalledWith('standard')
   })
 
-  it('active 상태에서 CTA 클릭 시 portal URL로 이동한다', async () => {
+  it('active 상태에서 계정 메뉴의 구독 관리 클릭 시 portal URL로 이동한다', async () => {
     const user = userEvent.setup()
     const openPortal = vi.fn(async () => ({
       portalUrl: 'https://portal.example.com/session',
     }))
-    const getSnapshot = vi.fn(async () => ({
-      subscription: {
-        status: 'active' as const,
-        planCode: 'monthly_unlimited_6900_krw',
-        trialStartAt: null,
-        trialEndAt: null,
-        currentPeriodStart: null,
-        currentPeriodEnd: null,
-        providerCustomerId: 'cus_1',
-        providerSubscriptionId: 'sub_1',
-      },
-      quota: {
-        freeStoryQuotaTotal: 2,
-        freeStoryQuotaUsed: 2,
-        remainingFreeStories: 0,
-      },
-      canCreate: true,
-    }))
+    const getSnapshot = vi.fn(async () =>
+      createSubscriptionSnapshot({
+        subscription: {
+          status: 'active' as const,
+          planCode: 'standard',
+          trialStartAt: null,
+          trialEndAt: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          providerCustomerId: 'cus_1',
+          providerSubscriptionId: 'sub_1',
+        },
+        quota: {
+          freeStoryQuotaTotal: 2,
+          freeStoryQuotaUsed: 2,
+          remainingFreeStories: 0,
+          dailyQuotaLimit: 30,
+          dailyQuotaUsed: 3,
+          remainingDailyStories: 27,
+          dailyQuotaDateKst: '2026-02-22',
+        },
+        currentPlan: {
+          code: 'standard',
+          name: 'Standard',
+        },
+      }),
+    )
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
       createStorybookUseCase: {
@@ -2210,56 +2277,77 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalled()
-      expect(screen.getByText('이용 중')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '구독 관리' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'user-1: Standard' })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: '구독 관리' }))
+    await user.click(screen.getByRole('button', { name: 'user-1: Standard' }))
+    expect(screen.queryByRole('menuitem', { name: '구독하기' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: '구독 관리' }))
 
     expect(openPortal).toHaveBeenCalledTimes(1)
   })
 
-  it('/create?checkout=success 복귀 시 상태를 재조회해 UI를 갱신한다', async () => {
+  it('/create?checkout=success 복귀 시 상태를 재조회해 계정 플랜 칩을 갱신한다', async () => {
     window.history.replaceState({}, '', '/create?checkout=success')
 
     const getSnapshot = vi
       .fn()
-      .mockResolvedValueOnce({
-        subscription: {
-          status: 'incomplete' as const,
-          planCode: 'monthly_unlimited_6900_krw',
-          trialStartAt: null,
-          trialEndAt: null,
-          currentPeriodStart: null,
-          currentPeriodEnd: null,
-          providerCustomerId: 'cus_1',
-          providerSubscriptionId: 'sub_1',
-        },
-        quota: {
-          freeStoryQuotaTotal: 2,
-          freeStoryQuotaUsed: 2,
-          remainingFreeStories: 0,
-        },
-        canCreate: false,
-      })
-      .mockResolvedValueOnce({
-        subscription: {
-          status: 'active' as const,
-          planCode: 'monthly_unlimited_6900_krw',
-          trialStartAt: null,
-          trialEndAt: null,
-          currentPeriodStart: null,
-          currentPeriodEnd: null,
-          providerCustomerId: 'cus_1',
-          providerSubscriptionId: 'sub_1',
-        },
-        quota: {
-          freeStoryQuotaTotal: 2,
-          freeStoryQuotaUsed: 2,
-          remainingFreeStories: 0,
-        },
-        canCreate: true,
-      })
+      .mockResolvedValueOnce(
+        createSubscriptionSnapshot({
+          subscription: {
+            status: 'incomplete' as const,
+            planCode: 'standard',
+            trialStartAt: null,
+            trialEndAt: null,
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+            providerCustomerId: 'cus_1',
+            providerSubscriptionId: 'sub_1',
+          },
+          quota: {
+            freeStoryQuotaTotal: 2,
+            freeStoryQuotaUsed: 2,
+            remainingFreeStories: 0,
+            dailyQuotaLimit: 30,
+            dailyQuotaUsed: 30,
+            remainingDailyStories: 0,
+            dailyQuotaDateKst: '2026-02-22',
+          },
+          currentPlan: {
+            code: 'standard',
+            name: 'Standard',
+          },
+          canCreate: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createSubscriptionSnapshot({
+          subscription: {
+            status: 'active' as const,
+            planCode: 'standard',
+            trialStartAt: null,
+            trialEndAt: null,
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+            providerCustomerId: 'cus_1',
+            providerSubscriptionId: 'sub_1',
+          },
+          quota: {
+            freeStoryQuotaTotal: 2,
+            freeStoryQuotaUsed: 2,
+            remainingFreeStories: 0,
+            dailyQuotaLimit: 30,
+            dailyQuotaUsed: 1,
+            remainingDailyStories: 29,
+            dailyQuotaDateKst: '2026-02-22',
+          },
+          currentPlan: {
+            code: 'standard',
+            name: 'Standard',
+          },
+          canCreate: true,
+        }),
+      )
     const dependencies: StorybookWorkspaceDependencies = {
       currentUserId: 'user-1',
       createStorybookUseCase: {
@@ -2289,7 +2377,7 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalledTimes(2)
-      expect(screen.getByText('이용 중')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'user-1: Standard' })).toBeInTheDocument()
     })
     expect(window.location.search).toBe('')
   })
@@ -2327,7 +2415,6 @@ describe('StorybookWorkspace', () => {
     await waitFor(() => {
       expect(screen.getByText('Free stories')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Create Storybook' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Start 1-day free trial' })).toBeInTheDocument()
     })
   })
 })

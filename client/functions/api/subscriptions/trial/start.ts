@@ -2,10 +2,11 @@ import { authenticateRequest } from '../../_shared/auth'
 import {
   createPolarCheckoutUrl,
   createPolarCustomerPortalUrl,
+  resolveCheckoutPlanConfig,
   resolveCheckoutUrls,
   resolvePolarClient,
-  resolvePolarProductConfig,
   resolvePortalReturnUrl,
+  type PolarPaidPlanCode,
   type PolarEnv,
 } from '../../_shared/polar'
 import { getBillingAccessSnapshot } from '../../_shared/subscription-access'
@@ -38,6 +39,35 @@ function jsonResponse(payload: unknown, status: number = 200): Response {
   })
 }
 
+function resolveRequestedPlanCode(value: unknown): PolarPaidPlanCode | null {
+  if (value === 'standard' || value === 'pro') {
+    return value
+  }
+
+  return null
+}
+
+async function parseRequestedPlanCode(request: Request): Promise<PolarPaidPlanCode | null> {
+  const contentLength = request.headers.get('content-length')
+  if (contentLength === '0') {
+    return 'standard'
+  }
+
+  try {
+    const payload = (await request.json()) as {
+      planCode?: unknown
+    }
+
+    if (typeof payload.planCode === 'undefined') {
+      return 'standard'
+    }
+
+    return resolveRequestedPlanCode(payload.planCode)
+  } catch {
+    return 'standard'
+  }
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
@@ -46,6 +76,16 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
+  const requestedPlanCode = await parseRequestedPlanCode(context.request)
+  if (!requestedPlanCode) {
+    return jsonResponse(
+      {
+        error: 'Invalid planCode. Use standard or pro.',
+      },
+      400,
+    )
+  }
+
   const authResult = await authenticateRequest(context.request, context.env)
   if (!authResult.ok) {
     return jsonResponse(
@@ -131,11 +171,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     })
   }
 
-  const productConfig = resolvePolarProductConfig(context.env)
+  const productConfig = resolveCheckoutPlanConfig(context.env, requestedPlanCode)
   if (!productConfig) {
     return jsonResponse(
       {
-        error: 'POLAR_PRODUCT_ID must be configured.',
+        error: requestedPlanCode === 'pro' ? 'POLAR_PRODUCT_ID_PRO must be configured.' : 'POLAR_PRODUCT_ID_STANDARD (or POLAR_PRODUCT_ID) must be configured.',
       },
       500,
     )

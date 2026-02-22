@@ -362,7 +362,8 @@ describe('App auth flow persistence', () => {
       expect(stored?.canvasDataUrl).toBe('data:image/png;base64,draft-before-signout')
     })
 
-    await user.click(screen.getByRole('button', { name: '로그아웃' }))
+    await user.click(screen.getByRole('button', { name: /before-logout:/i }))
+    await user.click(await screen.findByRole('menuitem', { name: '로그아웃' }))
     expect(signOut).toHaveBeenCalledTimes(1)
 
     authState = createMockAuth({

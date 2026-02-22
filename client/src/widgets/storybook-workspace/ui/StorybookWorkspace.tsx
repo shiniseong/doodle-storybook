@@ -37,6 +37,9 @@ import {
   useStorybookCreationStore,
 } from '@features/storybook-creation/model/storybook-creation.store'
 import type {
+  BillingPaidPlanCode,
+  BillingPlanCode,
+  BillingPlanDefinition,
   SubscriptionAccessSnapshot,
   SubscriptionAccessUseCasePort,
 } from '@features/subscription-access/application/subscription-access.use-case'
@@ -53,6 +56,9 @@ import { useBodyScrollLock } from '@shared/lib/dom/body-scroll-lock'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
 import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
 import { StorybookReaderDialog, type StorybookReaderBook } from '@widgets/storybook-reader/ui/StorybookReaderDialog'
+import { SubscriptionPlansModal } from './SubscriptionPlansModal'
+import { WorkspaceAccountChip } from './WorkspaceAccountChip'
+import { WorkspaceAccountMenu } from './WorkspaceAccountMenu'
 
 import './StorybookWorkspace.css'
 
@@ -70,6 +76,29 @@ const flowSteps: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
   { key: 'stepTwo', icon: WandSparkles },
   { key: 'stepThree', icon: AudioLines },
   { key: 'stepFour', icon: BookOpenText },
+]
+
+const DEFAULT_SUBSCRIPTION_PLANS: ReadonlyArray<BillingPlanDefinition> = [
+  {
+    code: 'free',
+    name: 'Free',
+    priceUsdMonthly: 0,
+    totalFreeStories: 2,
+  },
+  {
+    code: 'standard',
+    name: 'Standard',
+    priceUsdMonthly: 4.99,
+    dailyQuota: 30,
+    trialDays: 1,
+  },
+  {
+    code: 'pro',
+    name: 'Pro',
+    priceUsdMonthly: 8.99,
+    dailyQuota: 60,
+    trialDays: 1,
+  },
 ]
 
 const MAX_CANVAS_UNDO_STEPS = 30
@@ -357,9 +386,12 @@ function AmbientBackdrop() {
 interface WorkspaceHeaderProps {
   auth?: StorybookWorkspaceAuth
   subscriptionAccess?: SubscriptionAccessSnapshot | null
+  isBillingActionPending: boolean
   onRequestAuthentication?: () => void
-  onRequestWorkspaceReset?: () => void
   onNavigateToLibrary?: () => void
+  onRequestOpenPricingModal?: () => void
+  onRequestManageSubscription?: () => void
+  onRequestSignOut?: () => void
 }
 
 function resolveTrialStatusLabel(
@@ -378,6 +410,10 @@ function resolvePlanStatusLabel(
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
   const status = subscriptionAccess?.subscription?.status ?? null
+
+  if (status === 'trialing') {
+    return t('workspace.status.planValueTrialing')
+  }
 
   if (status === 'active') {
     return t('workspace.status.planValueActive')
@@ -402,17 +438,87 @@ function resolvePlanStatusLabel(
   return t('workspace.status.planValueNone')
 }
 
+function resolveAccountChipId(auth: StorybookWorkspaceAuth): string {
+  if (auth.userEmail) {
+    const normalized = auth.userEmail.trim()
+    const atIndex = normalized.indexOf('@')
+    if (atIndex > 0) {
+      return normalized.slice(0, atIndex)
+    }
+
+    if (normalized.length > 0) {
+      return normalized
+    }
+  }
+
+  if (auth.userId) {
+    return auth.userId.slice(0, 8)
+  }
+
+  return 'user'
+}
+
 function WorkspaceHeader({
   auth,
   subscriptionAccess,
+  isBillingActionPending,
   onRequestAuthentication,
-  onRequestWorkspaceReset,
   onNavigateToLibrary,
+  onRequestOpenPricingModal,
+  onRequestManageSubscription,
+  onRequestSignOut,
 }: WorkspaceHeaderProps) {
   const { t } = useTranslation()
   const fallbackRemainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
   const remainingFreeStories = subscriptionAccess?.quota.remainingFreeStories ?? fallbackRemainingFreeStories
   const isLoginButtonDisabled = !auth || !onRequestAuthentication
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const accountControlRef = useRef<HTMLDivElement | null>(null)
+  const isAuthenticated = Boolean(auth?.userId)
+  const isAccountMenuVisible = isAuthenticated && isAccountMenuOpen
+  const currentPlanCode = subscriptionAccess?.currentPlan.code ?? 'free'
+  const currentPlanName = subscriptionAccess?.currentPlan.name ?? t('workspace.planNames.free')
+  const accountChipLabel = isAuthenticated && auth
+    ? `${resolveAccountChipId(auth)}: ${currentPlanName}`
+    : t('workspace.accountChip.signIn')
+  const planStatusLabel =
+    currentPlanCode === 'free'
+      ? t('workspace.status.planValueNone')
+      : `${currentPlanName} · ${resolvePlanStatusLabel(subscriptionAccess, t)}`
+
+  useEffect(() => {
+    if (!isAccountMenuVisible) {
+      return
+    }
+
+    const handleWindowPointerDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) {
+        return
+      }
+
+      if (!accountControlRef.current?.contains(target)) {
+        setIsAccountMenuOpen(false)
+      }
+    }
+
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      setIsAccountMenuOpen(false)
+    }
+
+    window.addEventListener('mousedown', handleWindowPointerDown)
+    window.addEventListener('keydown', handleWindowKeyDown)
+
+    return () => {
+      window.removeEventListener('mousedown', handleWindowPointerDown)
+      window.removeEventListener('keydown', handleWindowKeyDown)
+    }
+  }, [isAccountMenuVisible])
 
   return (
     <header className="workspace-header">
@@ -435,53 +541,47 @@ function WorkspaceHeader({
           <LanguageSwitcher />
           {!auth ? null : (
             <div className="workspace-auth" aria-live="polite">
-              {auth.userId ? (
-                <div className="workspace-auth__signed-in">
-                  {auth.userEmail ? (
-                    <p className="workspace-auth__identity">
-                      {t('workspace.auth.signedInAs', { email: auth.userEmail })}
-                    </p>
-                  ) : null}
-                  <div className="workspace-auth__controls">
-                    <button
-                      type="button"
-                      className="workspace-auth__action workspace-auth__action--library"
-                      onClick={() => {
-                        onNavigateToLibrary?.()
-                      }}
-                    >
-                      <BookOpenText size={14} strokeWidth={2.3} className="workspace-auth__action-icon" aria-hidden="true" />
-                      {t('workspace.auth.library')}
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-auth__action workspace-auth__action--secondary"
-                      onClick={() => {
-                        onRequestWorkspaceReset?.()
-                        void auth.signOut()
-                      }}
-                    >
-                      {t('workspace.auth.signOut')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {!auth.isConfigured ? (
-                    <p className="workspace-auth__notice">{t('workspace.auth.notConfigured')}</p>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="workspace-auth__action"
-                    disabled={isLoginButtonDisabled}
-                    onClick={() => {
+              {!isAuthenticated && !auth.isConfigured ? (
+                <p className="workspace-auth__notice">{t('workspace.auth.notConfigured')}</p>
+              ) : null}
+              <div className="workspace-account" ref={accountControlRef}>
+                <WorkspaceAccountChip
+                  label={accountChipLabel}
+                  isAuthenticated={isAuthenticated}
+                  isExpanded={isAccountMenuVisible}
+                  disabled={isAuthenticated ? isBillingActionPending : isLoginButtonDisabled}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      setIsAccountMenuOpen(false)
                       onRequestAuthentication?.()
+                      return
+                    }
+
+                    setIsAccountMenuOpen((previous) => !previous)
+                  }}
+                />
+                {isAccountMenuVisible ? (
+                  <WorkspaceAccountMenu
+                    isFreePlan={currentPlanCode === 'free'}
+                    onNavigateToLibrary={() => {
+                      setIsAccountMenuOpen(false)
+                      onNavigateToLibrary?.()
                     }}
-                  >
-                    {t('workspace.auth.signIn')}
-                  </button>
-                </>
-              )}
+                    onOpenPricingModal={() => {
+                      setIsAccountMenuOpen(false)
+                      onRequestOpenPricingModal?.()
+                    }}
+                    onManageSubscription={() => {
+                      setIsAccountMenuOpen(false)
+                      onRequestManageSubscription?.()
+                    }}
+                    onSignOut={() => {
+                      setIsAccountMenuOpen(false)
+                      onRequestSignOut?.()
+                    }}
+                  />
+                ) : null}
+              </div>
             </div>
           )}
         </div>
@@ -498,7 +598,7 @@ function WorkspaceHeader({
           </li>
           <li className="status-item">
             <span className="status-item__label">{t('workspace.status.planLabel')}</span>
-            <strong className="status-item__value">{resolvePlanStatusLabel(subscriptionAccess, t)}</strong>
+            <strong className="status-item__value">{planStatusLabel}</strong>
           </li>
         </ul>
       </div>
@@ -1950,7 +2050,7 @@ function StoryLoadingGameDialog() {
       className="story-loading-game-dialog"
       role="dialog"
       aria-modal="true"
-      aria-label={t('workspace.banner.processing')}
+      aria-label={t('workspace.loading.processing')}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -2197,51 +2297,6 @@ function StoryComposerSection({
   )
 }
 
-interface SubscriptionFooterProps {
-  subscriptionAccess: SubscriptionAccessSnapshot | null
-  isBillingActionPending: boolean
-  onBillingAction: () => void
-}
-
-function SubscriptionFooter({
-  subscriptionAccess,
-  isBillingActionPending,
-  onBillingAction,
-}: SubscriptionFooterProps) {
-  const { t } = useTranslation()
-  const createStatus = useStorybookCreationStore((state) => state.createStatus)
-  const isSubmitting = createStatus === 'submitting'
-  const subscriptionStatus = subscriptionAccess?.subscription?.status ?? null
-
-  const ctaLabel =
-    subscriptionStatus === 'active'
-      ? t('workspace.banner.manageCta')
-      : subscriptionStatus === 'trialing'
-        ? t('workspace.banner.trialingCta')
-        : t('workspace.banner.cta')
-  const bannerText =
-    subscriptionStatus === 'active'
-      ? t('workspace.banner.activeMessage')
-      : subscriptionStatus === 'trialing'
-        ? t('workspace.banner.trialingMessage')
-        : `${t('workspace.banner.prefix')} ${t('workspace.banner.free')} ${t('workspace.banner.and')} ${t('workspace.banner.trial')} ${t('workspace.banner.suffix')}`
-  const isDisabled = isSubmitting || isBillingActionPending || subscriptionStatus === 'trialing'
-
-  return (
-    <motion.footer
-      className="bottom-banner"
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: 'easeOut', delay: 0.16 }}
-    >
-      <p>{bannerText}</p>
-      <button type="button" disabled={isDisabled} onClick={onBillingAction}>
-        {isSubmitting || isBillingActionPending ? t('workspace.banner.processing') : ctaLabel}
-      </button>
-    </motion.footer>
-  )
-}
-
 interface StorybookWorkspaceProps {
   dependencies: StorybookWorkspaceDependencies
   auth?: StorybookWorkspaceAuth
@@ -2254,6 +2309,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0)
   const [subscriptionAccess, setSubscriptionAccess] = useState<SubscriptionAccessSnapshot | null>(null)
   const [isBillingActionPending, setIsBillingActionPending] = useState(false)
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false)
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
   const syncQuota = useStorybookCreationStore((state) => state.syncQuota)
   const isSubmitting = createStatus === 'submitting'
@@ -2316,7 +2372,12 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
       attempts += 1
       const snapshot = await refreshSubscriptionAccess()
       const status = snapshot?.subscription?.status ?? null
-      if (status === 'active' || status === 'trialing' || attempts >= 6) {
+      if (status === 'active' || status === 'trialing') {
+        setIsPricingModalOpen(false)
+        return
+      }
+
+      if (attempts >= 6) {
         return
       }
 
@@ -2337,6 +2398,12 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     setDraft(EMPTY_STORYBOOK_WORKSPACE_DRAFT)
     setWorkspaceResetVersion((previous) => previous + 1)
   }, [])
+
+  useEffect(() => {
+    if (!auth?.userId) {
+      setIsPricingModalOpen(false)
+    }
+  }, [auth?.userId])
 
   const handleComposeDraftChange = useCallback((nextDraft: { title: string; authorName: string; description: string }) => {
     setDraft((previous) => {
@@ -2370,7 +2437,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     })
   }, [])
 
-  const handleBillingAction = useCallback(async () => {
+  const handleSelectPricingPlan = useCallback(async (planCode: BillingPaidPlanCode) => {
     if (isBillingActionPending || isSubmitting) {
       return
     }
@@ -2387,13 +2454,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
 
     setIsBillingActionPending(true)
     try {
-      if (subscriptionAccess?.subscription?.status === 'active') {
-        const { portalUrl } = await subscriptionUseCase.openPortal()
-        window.location.assign(portalUrl)
-        return
-      }
-
-      const action = await subscriptionUseCase.startTrial()
+      const action = await subscriptionUseCase.startTrial(planCode)
       if (action.action === 'checkout') {
         window.location.assign(action.checkoutUrl)
         return
@@ -2409,7 +2470,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
         await refreshSubscriptionAccess()
       }
     } catch (error) {
-      console.error('Failed to run billing CTA flow.', {
+      console.error('Failed to run pricing checkout flow.', {
         userId: auth.userId,
         message: error instanceof Error ? error.message : String(error),
       })
@@ -2423,8 +2484,70 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     isSubmitting,
     onRequestAuthentication,
     refreshSubscriptionAccess,
-    subscriptionAccess?.subscription?.status,
   ])
+
+  const currentPlanCode: BillingPlanCode = subscriptionAccess?.currentPlan?.code ?? 'free'
+  const availablePlans = subscriptionAccess?.plans ?? [...DEFAULT_SUBSCRIPTION_PLANS]
+
+  const handleOpenPricingModal = useCallback(() => {
+    if (!auth?.userId) {
+      onRequestAuthentication?.()
+      return
+    }
+
+    setIsPricingModalOpen(true)
+  }, [auth?.userId, onRequestAuthentication])
+
+  const handleManageSubscription = useCallback(async () => {
+    if (isBillingActionPending || isSubmitting) {
+      return
+    }
+
+    if (!auth?.userId) {
+      onRequestAuthentication?.()
+      return
+    }
+
+    if (currentPlanCode === 'free') {
+      setIsPricingModalOpen(true)
+      return
+    }
+
+    const subscriptionUseCase = dependencies.subscriptionAccessUseCase
+    if (!subscriptionUseCase) {
+      return
+    }
+
+    setIsBillingActionPending(true)
+    try {
+      const { portalUrl } = await subscriptionUseCase.openPortal()
+      window.location.assign(portalUrl)
+    } catch (error) {
+      console.error('Failed to open billing management portal.', {
+        userId: auth.userId,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setIsBillingActionPending(false)
+    }
+  }, [
+    auth?.userId,
+    currentPlanCode,
+    dependencies.subscriptionAccessUseCase,
+    isBillingActionPending,
+    isSubmitting,
+    onRequestAuthentication,
+  ])
+
+  const handleHeaderSignOut = useCallback(() => {
+    if (!auth) {
+      return
+    }
+
+    setIsPricingModalOpen(false)
+    resetWorkspaceDraft()
+    void auth.signOut()
+  }, [auth, resetWorkspaceDraft])
 
   return (
     <div className="storybook-app">
@@ -2432,9 +2555,12 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
       <WorkspaceHeader
         auth={auth}
         subscriptionAccess={subscriptionAccess}
+        isBillingActionPending={isBillingActionPending}
         onRequestAuthentication={onRequestAuthentication}
-        onRequestWorkspaceReset={resetWorkspaceDraft}
         onNavigateToLibrary={onNavigateToLibrary}
+        onRequestOpenPricingModal={handleOpenPricingModal}
+        onRequestManageSubscription={handleManageSubscription}
+        onRequestSignOut={handleHeaderSignOut}
       />
       <main className="layout-grid">
         <DrawingBoardSection
@@ -2454,10 +2580,19 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           onNavigateToLibrary={onNavigateToLibrary}
         />
       </main>
-      <SubscriptionFooter
-        subscriptionAccess={subscriptionAccess}
-        isBillingActionPending={isBillingActionPending}
-        onBillingAction={handleBillingAction}
+      <SubscriptionPlansModal
+        isOpen={isPricingModalOpen}
+        plans={availablePlans}
+        currentPlanCode={currentPlanCode}
+        isSubmitting={isBillingActionPending || isSubmitting}
+        onSelectPlan={handleSelectPricingPlan}
+        onClose={() => {
+          if (isBillingActionPending || isSubmitting) {
+            return
+          }
+
+          setIsPricingModalOpen(false)
+        }}
       />
       <AnimatePresence>{isSubmitting ? <StoryLoadingGameDialog /> : null}</AnimatePresence>
     </div>
