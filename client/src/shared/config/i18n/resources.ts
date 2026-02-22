@@ -189,6 +189,7 @@ export const i18nResources = {
           retry: '다시 불러오기',
           delete: '삭제하기',
           deleting: '삭제 중...',
+          deleteConfirm: '한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?',
         },
         state: {
           loading: '내 그림동화를 정리하고 있어요...',
@@ -226,6 +227,7 @@ export const i18nResources = {
           openEbook: '동화 열람하기',
           delete: '삭제하기',
           deleting: '삭제 중...',
+          deleteConfirm: '한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?',
         },
         state: {
           loading: '동화 상세를 불러오는 중이에요...',
@@ -435,6 +437,7 @@ export const i18nResources = {
           retry: 'Try Again',
           delete: 'Delete',
           deleting: 'Deleting...',
+          deleteConfirm: 'This cannot be undone. Are you sure you want to delete?',
         },
         state: {
           loading: 'Loading your storybooks...',
@@ -472,6 +475,7 @@ export const i18nResources = {
           openEbook: 'Open Storybook',
           delete: 'Delete',
           deleting: 'Deleting...',
+          deleteConfirm: 'This cannot be undone. Are you sure you want to delete?',
         },
         state: {
           loading: 'Loading storybook detail...',
@@ -681,6 +685,7 @@ export const i18nResources = {
           retry: '再読み込み',
           delete: '削除',
           deleting: '削除中...',
+          deleteConfirm: '一度削除すると復元できません。本当に削除しますか？',
         },
         state: {
           loading: '絵本一覧を読み込み中...',
@@ -718,6 +723,7 @@ export const i18nResources = {
           openEbook: '絵本を読む',
           delete: '削除',
           deleting: '削除中...',
+          deleteConfirm: '一度削除すると復元できません。本当に削除しますか？',
         },
         state: {
           loading: '絵本の詳細を読み込み中...',
@@ -927,6 +933,7 @@ export const i18nResources = {
           retry: '重新加载',
           delete: '删除',
           deleting: '删除中...',
+          deleteConfirm: '删除后将无法恢复。确定要删除吗？',
         },
         state: {
           loading: '正在加载你的绘本...',
@@ -964,6 +971,7 @@ export const i18nResources = {
           openEbook: '阅读绘本',
           delete: '删除',
           deleting: '删除中...',
+          deleteConfirm: '删除后将无法恢复。确定要删除吗？',
         },
         state: {
           loading: '正在加载绘本详情...',

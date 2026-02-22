@@ -134,6 +134,7 @@ describe('LibraryPage', () => {
 
   it('카드 삭제 버튼 클릭 시 삭제 유스케이스를 호출하고 목록에서 제거한다', async () => {
     const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const listExecute = vi.fn(async () => ({
       ok: true as const,
       value: {
@@ -173,6 +174,7 @@ describe('LibraryPage', () => {
 
     await user.click(screen.getByRole('button', { name: '삭제하기: 삭제 대상' }))
 
+    expect(confirmSpy).toHaveBeenCalledWith('한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?')
     expect(deleteExecute).toHaveBeenCalledWith({
       userId: 'user-1',
       storybookId: 'storybook-delete-1',
@@ -181,5 +183,55 @@ describe('LibraryPage', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: '삭제 대상' })).not.toBeInTheDocument()
     })
+
+    confirmSpy.mockRestore()
+  })
+
+  it('삭제 확인에서 취소하면 삭제를 수행하지 않는다', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const listExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        items: [
+          {
+            storybookId: 'storybook-delete-cancel',
+            title: '삭제 취소 대상',
+            authorName: '도담',
+            originImageUrl: null,
+            createdAt: null,
+          },
+        ],
+      },
+    }))
+    const deleteExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: undefined,
+    }))
+
+    render(
+      <LibraryPage
+        dependencies={{
+          listStorybooksUseCase: {
+            execute: listExecute,
+          },
+          deleteStorybookUseCase: {
+            execute: deleteExecute,
+          },
+        }}
+        userId="user-1"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '삭제 취소 대상' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '삭제하기: 삭제 취소 대상' }))
+
+    expect(deleteExecute).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: '삭제 취소 대상' })).toBeInTheDocument()
+
+    confirmSpy.mockRestore()
   })
 })

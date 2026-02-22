@@ -148,6 +148,14 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
       return
     }
 
+    const isConfirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm(t('storybookDetail.actions.deleteConfirm'))
+    if (!isConfirmed) {
+      return
+    }
+
     setDeleteErrorMessage(null)
     setReaderRequestKey(null)
     setIsDeleting(true)

@@ -161,6 +161,7 @@ describe('StorybookDetailPage', () => {
 
   it('상세 페이지에서 삭제하기 버튼 클릭 시 삭제 후 뒤로 이동 콜백을 호출한다', async () => {
     const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const execute = vi.fn(async () => ({
       ok: true as const,
       value: {
@@ -222,10 +223,83 @@ describe('StorybookDetailPage', () => {
 
     await user.click(screen.getByRole('button', { name: '삭제하기' }))
 
+    expect(confirmSpy).toHaveBeenCalledWith('한번 삭제하면 복구할 수 없습니다. 정말 삭제하시겠습니까?')
     expect(deleteExecute).toHaveBeenCalledWith({
       userId: 'user-1',
       storybookId: 'storybook-3',
     })
     expect(onBack).toHaveBeenCalledTimes(1)
+
+    confirmSpy.mockRestore()
+  })
+
+  it('상세 삭제 확인에서 취소하면 삭제를 수행하지 않는다', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const execute = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        storybookId: 'storybook-4',
+        storybook: {
+          storybookId: 'storybook-4',
+          title: '삭제 취소 테스트',
+          authorName: null,
+          description: '삭제 취소 버튼 테스트',
+          originImageUrl: null,
+          createdAt: '2026-02-22T04:00:00.000Z',
+        },
+        details: {
+          origin: [],
+          output: [],
+        },
+        ebook: {
+          title: '삭제 취소 테스트',
+          authorName: null,
+          coverImageUrl: null,
+          highlightImageUrl: null,
+          finalImageUrl: null,
+          pages: [
+            {
+              page: 1,
+              content: '삭제 취소 테스트 본문',
+              isHighlight: false,
+            },
+          ],
+          narrations: [],
+        },
+      },
+    }))
+    const deleteExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: undefined,
+    }))
+    const onBack = vi.fn()
+
+    render(
+      <StorybookDetailPage
+        dependencies={{
+          getStorybookDetailUseCase: {
+            execute,
+          },
+          deleteStorybookUseCase: {
+            execute: deleteExecute,
+          },
+        }}
+        userId="user-1"
+        storybookId="storybook-4"
+        onBack={onBack}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '삭제 취소 테스트' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '삭제하기' }))
+
+    expect(deleteExecute).not.toHaveBeenCalled()
+    expect(onBack).not.toHaveBeenCalled()
+
+    confirmSpy.mockRestore()
   })
 })

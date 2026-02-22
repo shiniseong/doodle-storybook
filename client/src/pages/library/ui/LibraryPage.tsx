@@ -159,6 +159,14 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
 
   const handleDeleteStorybook = useCallback(
     async (storybookId: string) => {
+      const isConfirmed =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(t('library.actions.deleteConfirm'))
+      if (!isConfirmed) {
+        return
+      }
+
       setDeleteErrorMessage(null)
       setDeletingStorybookIds((previous) => {
         const next = new Set(previous)
@@ -183,7 +191,7 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
         return next
       })
     },
-    [deleteStorybookUseCase, userId],
+    [deleteStorybookUseCase, t, userId],
   )
 
   useEffect(() => {
