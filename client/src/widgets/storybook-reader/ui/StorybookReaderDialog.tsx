@@ -10,52 +10,14 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useBodyScrollLock } from '@shared/lib/dom/body-scroll-lock'
+
 import './StorybookReaderDialog.css'
 
 const STORYBOOK_COVER_FLIP_DURATION_MS = 760
 const STORYBOOK_PAGE_TURN_DURATION_MS = 540
 const STORYBOOK_PAGE_TURN_DURATION_SECONDS = STORYBOOK_PAGE_TURN_DURATION_MS / 1000
 const STORYBOOK_AUTO_NARRATION_WAIT_PADDING_MS = 48
-
-let bodyScrollLockCount = 0
-let bodyOverflowBeforeScrollLock: string | null = null
-
-function acquireBodyScrollLock(): void {
-  if (typeof document === 'undefined') {
-    return
-  }
-
-  if (bodyScrollLockCount === 0) {
-    bodyOverflowBeforeScrollLock = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-  }
-
-  bodyScrollLockCount += 1
-}
-
-function releaseBodyScrollLock(): void {
-  if (typeof document === 'undefined' || bodyScrollLockCount === 0) {
-    return
-  }
-
-  bodyScrollLockCount -= 1
-  if (bodyScrollLockCount > 0) {
-    return
-  }
-
-  document.body.style.overflow = bodyOverflowBeforeScrollLock ?? ''
-  bodyOverflowBeforeScrollLock = null
-}
-
-function useBodyScrollLock(): void {
-  useEffect(() => {
-    acquireBodyScrollLock()
-
-    return () => {
-      releaseBodyScrollLock()
-    }
-  }, [])
-}
 
 function waitForMilliseconds(durationMs: number): Promise<void> {
   return new Promise((resolve) => {

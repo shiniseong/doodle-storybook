@@ -100,6 +100,7 @@ describe('StorybookWorkspace', () => {
   beforeEach(() => {
     useStorybookCreationStore.getState().reset()
     window.sessionStorage.removeItem(STORYBOOK_WORKSPACE_DRAFT_STORAGE_KEY)
+    document.body.style.overflow = ''
   })
 
   it('동화 생성 성공 시 uuid 디버그 메시지를 노출하지 않는다', async () => {
@@ -390,6 +391,72 @@ describe('StorybookWorkspace', () => {
       expect(screen.queryByTestId('story-loading-mini-game')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '1일 무료 사용 시작' })).toBeEnabled()
     })
+  })
+
+  it('생성 로딩 다이얼로그와 이북 다이얼로그가 연속으로 열려도 body 스크롤 락을 해제한다', async () => {
+    const user = userEvent.setup()
+    let resolveRequest!: (value: CreateStorybookExecuteResult) => void
+    const pending = new Promise<CreateStorybookExecuteResult>((resolve) => {
+      resolveRequest = resolve
+    })
+
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(() => pending),
+      },
+    }
+
+    render(<StorybookWorkspace dependencies={dependencies} />)
+
+    expect(document.body.style.overflow).toBe('')
+
+    await user.type(screen.getByLabelText('동화 제목'), '스크롤 락 테스트')
+    await user.type(screen.getByLabelText('그림 설명'), '로딩 다이얼로그와 이북 다이얼로그 연속 열림')
+    await user.click(screen.getByRole('button', { name: '동화 생성하기' }))
+
+    expect(await screen.findByRole('dialog', { name: '동화 생성 처리 중...' })).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    resolveRequest({
+      ok: true,
+      value: {
+        storybookId: 'storybook-scroll-lock',
+        storybook: {
+          storybookId: 'storybook-scroll-lock',
+          title: '스크롤 락 테스트',
+          authorName: null,
+          description: '로딩 다이얼로그와 이북 다이얼로그 연속 열림',
+          originImageUrl: null,
+          createdAt: null,
+        },
+        details: {
+          origin: [],
+          output: [],
+        },
+        ebook: {
+          title: '스크롤 락 테스트',
+          authorName: null,
+          coverImageUrl: 'data:image/png;base64,cover-scroll-lock',
+          highlightImageUrl: null,
+          finalImageUrl: null,
+          pages: [
+            { page: 1, content: '첫 페이지', isHighlight: false },
+          ],
+          narrations: [],
+        },
+      },
+    })
+
+    expect(await screen.findByRole('dialog', { name: '생성된 동화책: 스크롤 락 테스트' })).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await user.click(screen.getAllByRole('button', { name: '이북 닫기' })[0])
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '생성된 동화책: 스크롤 락 테스트' })).not.toBeInTheDocument()
+    })
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('미니게임 게임오버 후 다시 도전하기를 누르면 하트가 복구되고 즉시 재시작된다', async () => {

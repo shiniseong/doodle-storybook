@@ -45,6 +45,7 @@ import {
 } from '@features/storybook-creation/model/storybook-compose-draft.storage'
 import { StorybookDescriptionForm } from '@features/storybook-creation/ui/StorybookDescriptionForm'
 import { resolveAppLanguage } from '@shared/config/i18n/constants'
+import { useBodyScrollLock } from '@shared/lib/dom/body-scroll-lock'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
 import { StorybookReaderDialog, type StorybookReaderBook } from '@widgets/storybook-reader/ui/StorybookReaderDialog'
 
@@ -127,46 +128,6 @@ const LOADING_GAME_OBSTACLE_ICONS: Record<LoadingGameObstacleType, string> = {
   can: '🥫',
   poop: '💩',
   bug: '🐞',
-}
-
-let bodyScrollLockCount = 0
-let bodyOverflowBeforeScrollLock: string | null = null
-
-function acquireBodyScrollLock(): void {
-  if (typeof document === 'undefined') {
-    return
-  }
-
-  if (bodyScrollLockCount === 0) {
-    bodyOverflowBeforeScrollLock = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-  }
-
-  bodyScrollLockCount += 1
-}
-
-function releaseBodyScrollLock(): void {
-  if (typeof document === 'undefined' || bodyScrollLockCount === 0) {
-    return
-  }
-
-  bodyScrollLockCount -= 1
-  if (bodyScrollLockCount > 0) {
-    return
-  }
-
-  document.body.style.overflow = bodyOverflowBeforeScrollLock ?? ''
-  bodyOverflowBeforeScrollLock = null
-}
-
-function useBodyScrollLock(): void {
-  useEffect(() => {
-    acquireBodyScrollLock()
-
-    return () => {
-      releaseBodyScrollLock()
-    }
-  }, [])
 }
 
 interface CanvasPoint {
