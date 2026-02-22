@@ -17,6 +17,7 @@
     "OPENAI_PROMPT_ID": "pmpt_6997ab7bf5a8819696d08aa2f6349bda056f201a80d93697",
     "OPENAI_PROMPT_VERSION": "21",
     "OPENAI_IMAGE_MODEL": "gpt-image-1.5",
+    "CLOUDFLARE_R2_PUBLIC_BASE_URL": "https://pub-4ad9de16906d4932938cb601401cc1f1.r2.dev",
     "VITE_SUPABASE_URL": "https://spxxtcujyjzxinsfbonb.supabase.co",
     "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_YXEjANbMxCbS0sjDX0MlBQ_kxp9w0rB"
   }

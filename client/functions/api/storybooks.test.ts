@@ -428,6 +428,35 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(outputInsertBody.some((row) => row.audio_r2_key === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(true)
   })
 
+  it('제목이 @@!!TEST!!@@ 이고 mock base URL이 없으면 500 에러를 반환한다', async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse({}, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-mock',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: 'mock mode',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: '',
+          R2_PUBLIC_BASE_URL: '',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(500)
+    const payload = (await response.json()) as { error?: string }
+    expect(payload.error).toBe(
+      'CLOUDFLARE_R2_PUBLIC_BASE_URL (or R2_PUBLIC_BASE_URL) must be configured for @@!!TEST!!@@ mode.',
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {
     const legacyOutput = createLegacyStoryPagesOutput()
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

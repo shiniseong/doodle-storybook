@@ -89,7 +89,7 @@ Set in Cloudflare Pages project:
 - `OPENAI_IMAGE_MODEL` (var, default `gpt-image-1.5`)
 - `SUPABASE_URL` or `VITE_SUPABASE_URL` (var)
 - `SUPABASE_SECRET_KEY` (secret, required for server-side DB persistence)
-- `CLOUDFLARE_R2_PUBLIC_BASE_URL` (var, optional. Used for `@@!!TEST!!@@` mock mode asset URLs)
+- `CLOUDFLARE_R2_PUBLIC_BASE_URL` (var, required for `@@!!TEST!!@@` mock mode asset URLs)
 
 The storybook API writes generated entities to `doodle_storybook_db` schema tables:
 

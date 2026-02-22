@@ -188,7 +188,6 @@ const DEFAULT_IMAGE_SIZE = '1024x1024'
 const MAX_NARRATION_COUNT = 10
 const STORYBOOK_DB_SCHEMA = 'doodle_storybook_db'
 const MOCK_TEST_REQUEST_TITLE = '@@!!TEST!!@@'
-const MOCK_CLOUDFLARE_R2_BASE_URL_PLACEHOLDER = '{cloud_flare_r2}'
 const MOCK_IMAGE_OBJECT_PATH = 'test/mock_generated_image.png'
 const MOCK_TTS_OBJECT_PATH = 'test/mock_generated_tts.mp3'
 const MOCK_HIGHLIGHT_PAGE = 6
@@ -1299,10 +1298,10 @@ function isMockStorybookGenerationRequest(title: string): boolean {
   return title.trim() === MOCK_TEST_REQUEST_TITLE
 }
 
-function resolveMockCloudflareR2BaseUrl(env: Env): string {
+function resolveMockCloudflareR2BaseUrl(env: Env): string | null {
   const baseUrl = (env.CLOUDFLARE_R2_PUBLIC_BASE_URL || env.R2_PUBLIC_BASE_URL || '').trim()
   if (baseUrl.length === 0) {
-    return MOCK_CLOUDFLARE_R2_BASE_URL_PLACEHOLDER
+    return null
   }
 
   return baseUrl.replace(/\/+$/, '')
@@ -1514,6 +1513,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   if (isMockMode) {
     const mockBaseUrl = resolveMockCloudflareR2BaseUrl(context.env)
+    if (!mockBaseUrl) {
+      return jsonResponse(
+        {
+          error: 'CLOUDFLARE_R2_PUBLIC_BASE_URL (or R2_PUBLIC_BASE_URL) must be configured for @@!!TEST!!@@ mode.',
+        },
+        500,
+      )
+    }
+
     const mockImageUrl = joinUrl(mockBaseUrl, MOCK_IMAGE_OBJECT_PATH)
     const mockTtsUrl = joinUrl(mockBaseUrl, MOCK_TTS_OBJECT_PATH)
 
