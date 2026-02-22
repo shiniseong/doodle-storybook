@@ -10,7 +10,7 @@ const openaiImageModel = import.meta.env.VITE_OPENAI_IMAGE_MODEL
 const openaiTtsModel = import.meta.env.VITE_OPENAI_TTS_MODEL
 const openaiTtsVoice = import.meta.env.VITE_OPENAI_TTS_VOICE
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+const supabaseSecretKey = import.meta.env.VITE_SUPABASE_SECRET_KEY ?? import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 const describeLive = shouldRunLiveCheck ? describe : describe.skip
 
@@ -20,8 +20,8 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
     async () => {
       expect(openaiApiKey).toBeTruthy()
       expect(supabaseUrl).toBeTruthy()
-      expect(supabaseServiceRoleKey).toBeTruthy()
-      if (!openaiApiKey || !supabaseUrl || !supabaseServiceRoleKey) {
+      expect(supabaseSecretKey).toBeTruthy()
+      if (!openaiApiKey || !supabaseUrl || !supabaseSecretKey) {
         return
       }
 
@@ -42,7 +42,7 @@ describeLive('Storybooks OpenAI live check (optional)', () => {
           OPENAI_API_KEY: openaiApiKey,
           OPENAI_PROMPT_VERSION: openaiPromptVersion,
           SUPABASE_URL: supabaseUrl,
-          SUPABASE_SERVICE_ROLE_KEY: supabaseServiceRoleKey,
+          SUPABASE_SECRET_KEY: supabaseSecretKey,
           STORYBOOK_ASSETS_BUCKET: {
             put: async () => null,
           },

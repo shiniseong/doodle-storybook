@@ -11,6 +11,7 @@ interface TestEnv {
   OPENAI_TTS_VOICE?: string
   SUPABASE_URL?: string
   VITE_SUPABASE_URL?: string
+  SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
   CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
   R2_PUBLIC_BASE_URL?: string
@@ -106,7 +107,7 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
       OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
       OPENAI_TTS_VOICE: 'alloy',
       SUPABASE_URL: 'https://supabase.test',
-      SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
+      SUPABASE_SECRET_KEY: 'sb_secret_test',
       STORYBOOK_ASSETS_BUCKET: {
         put: async () => null,
       },

@@ -24,6 +24,7 @@ interface Env {
   STORYBOOK_ASSETS_BUCKET?: StorybookAssetsBucket
   SUPABASE_URL?: string
   VITE_SUPABASE_URL?: string
+  SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
   CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
   R2_PUBLIC_BASE_URL?: string
@@ -1073,7 +1074,7 @@ function normalizePromptVersion(value: unknown): string | null {
 
 function resolveSupabasePersistenceConfig(env: Env): SupabasePersistenceConfig | null {
   const rawBaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim()
-  const serviceRoleKey = (env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+  const serviceRoleKey = (env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
   if (rawBaseUrl.length === 0 || serviceRoleKey.length === 0) {
     return null
@@ -1401,7 +1402,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!supabasePersistenceConfig) {
     return jsonResponse(
       {
-        error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY must be configured.',
+        error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SECRET_KEY must be configured.',
       },
       500,
     )
