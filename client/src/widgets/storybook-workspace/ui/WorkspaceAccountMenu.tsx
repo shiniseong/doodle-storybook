@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import './WorkspaceAccountMenu.css'
 
 interface WorkspaceAccountMenuProps {
-  isFreePlan: boolean
+  isUnsubscribed: boolean
   onNavigateToLibrary: () => void
   onOpenPricingModal: () => void
   onManageSubscription: () => void
@@ -11,7 +11,7 @@ interface WorkspaceAccountMenuProps {
 }
 
 export function WorkspaceAccountMenu({
-  isFreePlan,
+  isUnsubscribed,
   onNavigateToLibrary,
   onOpenPricingModal,
   onManageSubscription,
@@ -24,14 +24,21 @@ export function WorkspaceAccountMenu({
       <button type="button" role="menuitem" className="workspace-account-menu__item" onClick={onNavigateToLibrary}>
         {t('workspace.accountMenu.library')}
       </button>
-      {isFreePlan ? (
-        <button type="button" role="menuitem" className="workspace-account-menu__item" onClick={onOpenPricingModal}>
+      {isUnsubscribed ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="workspace-account-menu__item workspace-account-menu__item--trial"
+          onClick={onOpenPricingModal}
+        >
           {t('workspace.accountMenu.subscribe')}
         </button>
       ) : null}
-      <button type="button" role="menuitem" className="workspace-account-menu__item" onClick={onManageSubscription}>
-        {t('workspace.accountMenu.manage')}
-      </button>
+      {!isUnsubscribed ? (
+        <button type="button" role="menuitem" className="workspace-account-menu__item" onClick={onManageSubscription}>
+          {t('workspace.accountMenu.manage')}
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"

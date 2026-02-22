@@ -31,6 +31,16 @@
   background: rgba(231, 245, 255, 0.86);
 }
 
+.workspace-account-menu__item--trial {
+  background: linear-gradient(135deg, #ffd36f, #ff9a62);
+  color: #3f2a17;
+  box-shadow: 0 0.4rem 0.9rem rgba(255, 157, 104, 0.22);
+}
+
+.workspace-account-menu__item--trial:hover {
+  background: linear-gradient(135deg, #ffd986, #ffab76);
+}
+
 .workspace-account-menu__item:focus-visible {
   outline: 3px solid rgba(81, 183, 225, 0.24);
   outline-offset: 2px;
@@ -58,6 +68,15 @@ html[data-theme='night'] .workspace-account-menu__item {
 
 html[data-theme='night'] .workspace-account-menu__item:hover {
   background: rgba(50, 74, 99, 0.92);
+}
+
+html[data-theme='night'] .workspace-account-menu__item--trial {
+  background: linear-gradient(135deg, #ffd36f, #ff9a62);
+  color: #342111;
+}
+
+html[data-theme='night'] .workspace-account-menu__item--trial:hover {
+  background: linear-gradient(135deg, #ffe29a, #ffb17f);
 }
 
 html[data-theme='night'] .workspace-account-menu__item--danger {

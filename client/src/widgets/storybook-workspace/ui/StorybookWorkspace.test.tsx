@@ -393,7 +393,7 @@ describe('StorybookWorkspace', () => {
       expect(raw).toContain('로그아웃 이전 제목')
     })
 
-    await user.click(screen.getByRole('button', { name: /signed-in-user: Free/i }))
+    await user.click(screen.getByRole('button', { name: /signed-in-user/i }))
     await user.click(screen.getByRole('menuitem', { name: '로그아웃' }))
     expect(signOut).toHaveBeenCalledTimes(1)
 
@@ -2151,13 +2151,17 @@ describe('StorybookWorkspace', () => {
       />,
     )
 
+    expect(screen.queryByLabelText('서비스 상태')).not.toBeInTheDocument()
+    expect(screen.queryByText('무료 제작')).not.toBeInTheDocument()
+    expect(screen.queryByText('월 구독')).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: '로그인' }))
 
     expect(requestAuthentication).toHaveBeenCalledTimes(1)
     expect(startTrial).not.toHaveBeenCalled()
   })
 
-  it('미구독 로그인 상태에서 메뉴의 구독하기로 요금제 모달을 열고 checkout을 호출한다', async () => {
+  it('미구독 로그인 상태에서 메뉴의 1일 체험하기로 요금제 모달을 열고 checkout을 호출한다', async () => {
     const user = userEvent.setup()
     const getSnapshot = vi.fn(async () =>
       createSubscriptionSnapshot({
@@ -2203,12 +2207,15 @@ describe('StorybookWorkspace', () => {
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalled()
       expect(screen.getByText('1편 남음')).toBeInTheDocument()
-      expect(screen.getByText('미사용')).toBeInTheDocument()
       expect(screen.getByText('미구독')).toBeInTheDocument()
+      expect(screen.queryByText('체험')).not.toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'user-1: Free' }))
-    await user.click(screen.getByRole('menuitem', { name: '구독하기' }))
+    await user.click(screen.getByRole('button', { name: 'user-1' }))
+    const trialMenuItem = screen.getByRole('menuitem', { name: '1일 체험하기' })
+    expect(trialMenuItem).toHaveClass('workspace-account-menu__item--trial')
+    expect(screen.queryByRole('menuitem', { name: '구독 관리' })).not.toBeInTheDocument()
+    await user.click(trialMenuItem)
 
     const pricingDialog = screen.getByRole('dialog', { name: '요금제 선택' })
     const subscribeButtons = within(pricingDialog).getAllByRole('button', { name: '구독하기' })
@@ -2216,6 +2223,61 @@ describe('StorybookWorkspace', () => {
 
     expect(startTrial).toHaveBeenCalledTimes(1)
     expect(startTrial).toHaveBeenCalledWith('standard')
+    expect(screen.queryByRole('button', { name: /user-1: Free/i })).not.toBeInTheDocument()
+  })
+
+  it('미구독 + 무료 제작 소진 상태면 무료 제작/월 구독 카드 모두 1일 무료 체험 CTA를 노출한다', async () => {
+    const user = userEvent.setup()
+    const getSnapshot = vi.fn(async () =>
+      createSubscriptionSnapshot({
+        quota: {
+          freeStoryQuotaTotal: 2,
+          freeStoryQuotaUsed: 2,
+          remainingFreeStories: 0,
+          dailyQuotaLimit: null,
+          dailyQuotaUsed: 0,
+          remainingDailyStories: null,
+          dailyQuotaDateKst: null,
+        },
+      }),
+    )
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => (createSuccessfulCreateResult('storybook-cta-cards'))),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot,
+        startTrial: vi.fn(async () => ({
+          action: 'checkout' as const,
+          checkoutUrl: 'https://checkout.example.com/session',
+        })),
+        openPortal: vi.fn(async () => ({
+          portalUrl: 'https://portal.example.com',
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'user-1',
+          userEmail: 'user-1@example.com',
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalled()
+      expect(screen.getByText('0편 남음')).toBeInTheDocument()
+    })
+
+    const trialButtons = screen.getAllByRole('button', { name: '1일 무료 체험' })
+    expect(trialButtons).toHaveLength(2)
+
+    await user.click(trialButtons[0])
+    expect(screen.getByRole('dialog', { name: '요금제 선택' })).toBeInTheDocument()
   })
 
   it('active 상태에서 계정 메뉴의 구독 관리 클릭 시 portal URL로 이동한다', async () => {
@@ -2277,11 +2339,12 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'user-1: Standard' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'user-1' })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'user-1: Standard' }))
-    expect(screen.queryByRole('menuitem', { name: '구독하기' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'user-1' }))
+    expect(screen.queryByRole('menuitem', { name: '1일 체험하기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '구독 관리' })).toBeInTheDocument()
     await user.click(screen.getByRole('menuitem', { name: '구독 관리' }))
 
     expect(openPortal).toHaveBeenCalledTimes(1)
@@ -2377,7 +2440,7 @@ describe('StorybookWorkspace', () => {
 
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenCalledTimes(2)
-      expect(screen.getByRole('button', { name: 'user-1: Standard' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'user-1' })).toBeInTheDocument()
     })
     expect(window.location.search).toBe('')
   })
