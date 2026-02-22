@@ -2973,6 +2973,7 @@ interface StoryComposerSectionProps {
   initialDescription: string
   onDraftChange: (draft: { title: string; authorName: string; description: string }) => void
   onRequestAuthentication?: () => void
+  onNavigateToLibrary?: () => void
 }
 
 interface AuthGateDialogProps {
@@ -3050,6 +3051,7 @@ function StoryComposerSection({
   initialDescription,
   onDraftChange,
   onRequestAuthentication,
+  onNavigateToLibrary,
 }: StoryComposerSectionProps) {
   const { i18n, t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
@@ -3079,6 +3081,14 @@ function StoryComposerSection({
     setIsAuthGateDialogOpen(false)
     onRequestAuthentication?.()
   }, [onRequestAuthentication])
+  const openLibraryShortcut = useCallback(() => {
+    if (auth?.userId) {
+      onNavigateToLibrary?.()
+      return
+    }
+
+    onRequestAuthentication?.()
+  }, [auth?.userId, onNavigateToLibrary, onRequestAuthentication])
 
   return (
     <motion.section
@@ -3156,11 +3166,26 @@ function StoryComposerSection({
         <ol className="flow-step-list">
           {flowSteps.map((step) => {
             const Icon = step.icon
+            const isStepFour = step.key === 'stepFour'
 
             return (
               <li key={step.key}>
                 <Icon size={14} strokeWidth={2.4} aria-hidden="true" />
-                {t(`workspace.flow.${step.key}`)}
+                <span>
+                  {t(`workspace.flow.${step.key}`)}
+                  {isStepFour && (onNavigateToLibrary || onRequestAuthentication) ? (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="flow-step-list__shortcut"
+                        onClick={openLibraryShortcut}
+                      >
+                        {t('workspace.flow.stepFourShortcut')}
+                      </button>
+                    </>
+                  ) : null}
+                </span>
               </li>
             )
           })}
@@ -3281,6 +3306,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           initialDescription={draft.description}
           onDraftChange={handleComposeDraftChange}
           onRequestAuthentication={onRequestAuthentication}
+          onNavigateToLibrary={onNavigateToLibrary}
         />
       </main>
       <SubscriptionFooter />

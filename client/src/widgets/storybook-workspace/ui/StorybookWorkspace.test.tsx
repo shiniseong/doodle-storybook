@@ -179,6 +179,67 @@ describe('StorybookWorkspace', () => {
     expect(requestAuthentication).toHaveBeenCalledTimes(1)
   })
 
+  it('제작 플로우 바로가기 버튼을 누르면 내 그림동화 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const navigateToLibrary = vi.fn()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'user-1',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-library-shortcut' },
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: 'signed-in-user',
+          userEmail: 'signed-in-user@example.com',
+        })}
+        onNavigateToLibrary={navigateToLibrary}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '(바로가기)' }))
+
+    expect(navigateToLibrary).toHaveBeenCalledTimes(1)
+  })
+
+  it('비로그인 상태에서 제작 플로우 바로가기 버튼을 누르면 인증 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const requestAuthentication = vi.fn()
+    const navigateToLibrary = vi.fn()
+    const dependencies: StorybookWorkspaceDependencies = {
+      currentUserId: 'guest-user',
+      createStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { storybookId: 'storybook-library-shortcut-auth' },
+        })),
+      },
+    }
+
+    render(
+      <StorybookWorkspace
+        dependencies={dependencies}
+        auth={createMockAuth({
+          userId: null,
+          userEmail: null,
+        })}
+        onRequestAuthentication={requestAuthentication}
+        onNavigateToLibrary={navigateToLibrary}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '(바로가기)' }))
+
+    expect(navigateToLibrary).not.toHaveBeenCalled()
+    expect(requestAuthentication).toHaveBeenCalledTimes(1)
+  })
+
   it('우측 상단 로그인 버튼을 누르면 로그인/가입 페이지 이동 콜백을 호출한다', async () => {
     const user = userEvent.setup()
     const requestAuthentication = vi.fn()

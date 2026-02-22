@@ -826,10 +826,39 @@
 
 .flow-step-list li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.45rem;
   color: #315a76;
   font-size: 0.87rem;
+}
+
+.flow-step-list li span {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.18rem;
+}
+
+.flow-step-list__shortcut {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #0f6fa8;
+  font-size: 0.8rem;
+  font-weight: 760;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+  cursor: pointer;
+}
+
+.flow-step-list__shortcut:hover {
+  color: #075884;
+}
+
+.flow-step-list__shortcut:focus-visible {
+  outline: 3px solid rgba(81, 183, 225, 0.24);
+  outline-offset: 2px;
+  border-radius: 0.22rem;
 }
 
 .story-loading-game {

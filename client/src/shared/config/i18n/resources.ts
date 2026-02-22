@@ -127,7 +127,8 @@ export const i18nResources = {
           stepOne: '그림을 그리고 장면을 설명해요',
           stepTwo: 'AI가 표지와 본문 페이지를 생성해요',
           stepThree: '책장 넘김으로 읽고 TTS로 들어요',
-          stepFour: '완성된 그림책을 보관하고 다시 열람해요',
+          stepFour: "'내 그림동화'에 완성된 그림책을 보관하고 다시 열람해요",
+          stepFourShortcut: '(바로가기)',
         },
         miniGame: {
           title: '기다리는 동안 미니 게임',
@@ -336,7 +337,8 @@ export const i18nResources = {
           stepOne: 'Draw a scene and describe it clearly',
           stepTwo: 'AI generates the cover and story pages',
           stepThree: 'Read with page-flip and listen with TTS',
-          stepFour: 'Save and revisit the finished storybook',
+          stepFour: "Save finished books in 'My Picture Storybooks' and reopen them anytime.",
+          stepFourShortcut: '(Go)',
         },
         miniGame: {
           title: 'Mini game while waiting',
@@ -545,7 +547,8 @@ export const i18nResources = {
           stepOne: '絵を描いてシーンを説明します',
           stepTwo: 'AIが表紙と本文ページを生成します',
           stepThree: 'ページめくりで読み、読み上げで聞きます',
-          stepFour: '完成した絵本を保存していつでも見返せます',
+          stepFour: '完成した絵本を『わたしの絵ものがたり』に保管して、いつでも読み返せます。',
+          stepFourShortcut: '（移動）',
         },
         miniGame: {
           title: '待ち時間ミニゲーム',
@@ -754,7 +757,8 @@ export const i18nResources = {
           stepOne: '先画出场景，再写下说明',
           stepTwo: 'AI 生成封面与故事页面',
           stepThree: '翻页阅读，并用 TTS 收听',
-          stepFour: '保存成品，随时回看',
+          stepFour: '把完成的绘本保存在「我的图画故事」里，随时都能再次阅读。',
+          stepFourShortcut: '（前往）',
         },
         miniGame: {
           title: '等待时小游戏',
