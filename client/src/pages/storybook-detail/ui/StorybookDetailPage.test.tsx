@@ -62,6 +62,9 @@ describe('StorybookDetailPage', () => {
           getStorybookDetailUseCase: {
             execute,
           },
+          deleteStorybookUseCase: {
+            execute: vi.fn(async () => ({ ok: true as const, value: undefined })),
+          },
         }}
         userId="user-1"
         storybookId="storybook-1"
@@ -138,6 +141,9 @@ describe('StorybookDetailPage', () => {
           getStorybookDetailUseCase: {
             execute,
           },
+          deleteStorybookUseCase: {
+            execute: vi.fn(async () => ({ ok: true as const, value: undefined })),
+          },
         }}
         userId="user-1"
         storybookId="storybook-2"
@@ -151,5 +157,75 @@ describe('StorybookDetailPage', () => {
     await user.click(screen.getByRole('button', { name: '동화 열람하기' }))
 
     expect(await screen.findByRole('dialog', { name: '생성된 동화책: 숲속 여행' })).toBeInTheDocument()
+  })
+
+  it('상세 페이지에서 삭제하기 버튼 클릭 시 삭제 후 뒤로 이동 콜백을 호출한다', async () => {
+    const user = userEvent.setup()
+    const execute = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        storybookId: 'storybook-3',
+        storybook: {
+          storybookId: 'storybook-3',
+          title: '삭제 테스트',
+          authorName: null,
+          description: '삭제 버튼 테스트',
+          originImageUrl: null,
+          createdAt: '2026-02-22T04:00:00.000Z',
+        },
+        details: {
+          origin: [],
+          output: [],
+        },
+        ebook: {
+          title: '삭제 테스트',
+          authorName: null,
+          coverImageUrl: null,
+          highlightImageUrl: null,
+          finalImageUrl: null,
+          pages: [
+            {
+              page: 1,
+              content: '삭제 테스트 본문',
+              isHighlight: false,
+            },
+          ],
+          narrations: [],
+        },
+      },
+    }))
+    const deleteExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: undefined,
+    }))
+    const onBack = vi.fn()
+
+    render(
+      <StorybookDetailPage
+        dependencies={{
+          getStorybookDetailUseCase: {
+            execute,
+          },
+          deleteStorybookUseCase: {
+            execute: deleteExecute,
+          },
+        }}
+        userId="user-1"
+        storybookId="storybook-3"
+        onBack={onBack}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '삭제 테스트' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '삭제하기' }))
+
+    expect(deleteExecute).toHaveBeenCalledWith({
+      userId: 'user-1',
+      storybookId: 'storybook-3',
+    })
+    expect(onBack).toHaveBeenCalledTimes(1)
   })
 })

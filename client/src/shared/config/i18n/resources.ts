@@ -187,6 +187,8 @@ export const i18nResources = {
           backToCreate: '새 동화 만들기',
           refresh: '새로고침',
           retry: '다시 불러오기',
+          delete: '삭제하기',
+          deleting: '삭제 중...',
         },
         state: {
           loading: '내 그림동화를 정리하고 있어요...',
@@ -222,6 +224,8 @@ export const i18nResources = {
           back: '내 그림동화로 돌아가기',
           retry: '다시 불러오기',
           openEbook: '동화 열람하기',
+          delete: '삭제하기',
+          deleting: '삭제 중...',
         },
         state: {
           loading: '동화 상세를 불러오는 중이에요...',
@@ -429,6 +433,8 @@ export const i18nResources = {
           backToCreate: 'Create New Story',
           refresh: 'Refresh',
           retry: 'Try Again',
+          delete: 'Delete',
+          deleting: 'Deleting...',
         },
         state: {
           loading: 'Loading your storybooks...',
@@ -464,6 +470,8 @@ export const i18nResources = {
           back: 'Back to My Storybooks',
           retry: 'Try Again',
           openEbook: 'Open Storybook',
+          delete: 'Delete',
+          deleting: 'Deleting...',
         },
         state: {
           loading: 'Loading storybook detail...',
@@ -671,6 +679,8 @@ export const i18nResources = {
           backToCreate: '新しい絵本を作る',
           refresh: '更新',
           retry: '再読み込み',
+          delete: '削除',
+          deleting: '削除中...',
         },
         state: {
           loading: '絵本一覧を読み込み中...',
@@ -706,6 +716,8 @@ export const i18nResources = {
           back: 'わたしの絵ものがたりへ戻る',
           retry: '再読み込み',
           openEbook: '絵本を読む',
+          delete: '削除',
+          deleting: '削除中...',
         },
         state: {
           loading: '絵本の詳細を読み込み中...',
@@ -913,6 +925,8 @@ export const i18nResources = {
           backToCreate: '继续创作',
           refresh: '刷新',
           retry: '重新加载',
+          delete: '删除',
+          deleting: '删除中...',
         },
         state: {
           loading: '正在加载你的绘本...',
@@ -948,6 +962,8 @@ export const i18nResources = {
           back: '返回我的图画故事',
           retry: '重新加载',
           openEbook: '阅读绘本',
+          delete: '删除',
+          deleting: '删除中...',
         },
         state: {
           loading: '正在加载绘本详情...',

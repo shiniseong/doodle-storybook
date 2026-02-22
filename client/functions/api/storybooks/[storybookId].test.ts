@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { onRequestGet } from './[storybookId]'
+import { onRequestDelete, onRequestGet } from './[storybookId]'
 
 interface TestEnv {
   SUPABASE_URL?: string
@@ -41,6 +41,29 @@ function createGetContext({
       ...envOverrides,
     },
   } as unknown as Parameters<typeof onRequestGet>[0]
+}
+
+function createDeleteContext({
+  requestUrl,
+  storybookId,
+  envOverrides = {},
+}: {
+  requestUrl: string
+  storybookId?: string
+  envOverrides?: Partial<TestEnv>
+}) {
+  return {
+    request: new Request(requestUrl, {
+      method: 'DELETE',
+    }),
+    params: storybookId ? { storybookId } : {},
+    env: {
+      SUPABASE_URL: 'https://supabase.test',
+      SUPABASE_SECRET_KEY: 'sb_secret_test',
+      CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+      ...envOverrides,
+    },
+  } as unknown as Parameters<typeof onRequestDelete>[0]
 }
 
 describe('storybook detail function', () => {
@@ -237,5 +260,65 @@ describe('storybook detail function', () => {
     const payload = (await response.json()) as { error?: string; detail?: string }
     expect(payload.error).toBe('Failed to fetch storybook detail.')
     expect(payload.detail).toContain('permission denied')
+  })
+
+  it('삭제 요청 성공 시 204를 반환한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url.includes('/rest/v1/storybooks?') && init?.method === 'GET') {
+        return createJsonResponse([
+          {
+            id: 'storybook-1',
+            title: '달빛 숲',
+            author_name: '도담',
+            description: '토끼가 숲길을 달려요',
+            origin_image_r2_key: 'user-1/storybook-1/images/origin',
+            cover_image_r2_key: 'user-1/storybook-1/images/cover',
+            highlight_image_r2_key: 'user-1/storybook-1/images/highlight',
+            end_image_r2_key: 'user-1/storybook-1/images/end',
+            created_at: '2026-02-22T04:00:00.000Z',
+          },
+        ])
+      }
+
+      if (url.includes('/rest/v1/storybook_output_details?') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 })
+      }
+
+      if (url.includes('/rest/v1/storybook_origin_details?') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 })
+      }
+
+      if (url.includes('/rest/v1/storybooks?') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 })
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestDelete(
+      createDeleteContext({
+        requestUrl: 'https://example.test/api/storybooks/storybook-1?userId=user-1',
+        storybookId: 'storybook-1',
+      }),
+    )
+
+    expect(response.status).toBe(204)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('삭제 요청에서 userId가 없으면 400을 반환한다', async () => {
+    const response = await onRequestDelete(
+      createDeleteContext({
+        requestUrl: 'https://example.test/api/storybooks/storybook-1',
+        storybookId: 'storybook-1',
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    const payload = (await response.json()) as { error?: string }
+    expect(payload.error).toBe('userId query parameter is required.')
   })
 })

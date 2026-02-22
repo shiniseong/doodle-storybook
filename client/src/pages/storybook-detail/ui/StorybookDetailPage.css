@@ -78,6 +78,20 @@
   line-height: 1.1;
   padding: 0.42rem 0.8rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.storybook-detail-header__action:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.storybook-detail-header__action--danger {
+  border-color: rgba(208, 118, 108, 0.58);
+  color: #8b3a34;
+  background: linear-gradient(145deg, rgba(255, 248, 247, 0.95), rgba(255, 240, 238, 0.92));
 }
 
 .storybook-detail-header__action:focus-visible {

@@ -92,7 +92,7 @@ const STORYBOOK_DB_SCHEMA = 'doodle_storybook_db'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 } as const
 
@@ -166,6 +166,7 @@ function resolveSupabasePersistenceConfig(env: Env): SupabasePersistenceConfig |
 function createSupabaseHeaders(
   config: SupabasePersistenceConfig,
   includeJsonBody: boolean,
+  preferMinimal: boolean = false,
 ): Headers {
   const headers = new Headers({
     apikey: config.serviceRoleKey,
@@ -176,6 +177,10 @@ function createSupabaseHeaders(
 
   if (includeJsonBody) {
     headers.set('Content-Type', 'application/json')
+  }
+
+  if (preferMinimal) {
+    headers.set('Prefer', 'return=minimal')
   }
 
   return headers
@@ -466,6 +471,74 @@ async function fetchStorybookOutputDetailRows(
   }
 }
 
+async function deleteRowsByFilterFromSupabase(
+  config: SupabasePersistenceConfig,
+  table: 'storybooks' | 'storybook_origin_details' | 'storybook_output_details',
+  filterQuery: string,
+): Promise<SupabaseMutationResult<null>> {
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl}/rest/v1/${table}?${filterQuery}`, {
+      method: 'DELETE',
+      headers: createSupabaseHeaders(config, false, true),
+    })
+  } catch {
+    return {
+      ok: false,
+      failure: {
+        status: 502,
+        message: `Failed to reach Supabase REST API for deleting "${table}".`,
+      },
+    }
+  }
+
+  if (response.ok) {
+    return {
+      ok: true,
+      value: null,
+    }
+  }
+
+  const payload = await readResponseBody(response)
+  return {
+    ok: false,
+    failure: {
+      status: response.status,
+      message: resolveSupabaseErrorMessage(payload, `Failed to delete rows from "${table}".`),
+    },
+  }
+}
+
+async function deleteStorybookByIdFromSupabase(
+  config: SupabasePersistenceConfig,
+  userId: string,
+  storybookId: string,
+): Promise<SupabaseMutationResult<null>> {
+  const outputDelete = await deleteRowsByFilterFromSupabase(
+    config,
+    'storybook_output_details',
+    `storybook_id=eq.${encodeURIComponent(storybookId)}`,
+  )
+  if (!outputDelete.ok) {
+    return outputDelete
+  }
+
+  const originDelete = await deleteRowsByFilterFromSupabase(
+    config,
+    'storybook_origin_details',
+    `storybook_id=eq.${encodeURIComponent(storybookId)}`,
+  )
+  if (!originDelete.ok) {
+    return originDelete
+  }
+
+  return deleteRowsByFilterFromSupabase(
+    config,
+    'storybooks',
+    `id=eq.${encodeURIComponent(storybookId)}&user_id=eq.${encodeURIComponent(userId)}`,
+  )
+}
+
 function resolveStorybookIdFromParams(params: unknown): string {
   if (!params || typeof params !== 'object') {
     return ''
@@ -608,4 +681,87 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   return jsonResponse(detailResponse)
+}
+
+export const onRequestDelete: PagesFunction<Env> = async (context) => {
+  const storybookId = resolveStorybookIdFromParams(context.params)
+  const userId = (new URL(context.request.url).searchParams.get('userId') || '').trim()
+
+  if (storybookId.length === 0) {
+    return jsonResponse(
+      {
+        error: 'storybookId path parameter is required.',
+      },
+      400,
+    )
+  }
+
+  if (userId.length === 0) {
+    return jsonResponse(
+      {
+        error: 'userId query parameter is required.',
+      },
+      400,
+    )
+  }
+
+  const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
+  if (!supabasePersistenceConfig) {
+    return jsonResponse(
+      {
+        error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SECRET_KEY must be configured.',
+      },
+      500,
+    )
+  }
+
+  const storybookResult = await fetchStorybookRow(supabasePersistenceConfig, userId, storybookId)
+  if (!storybookResult.ok) {
+    console.error('Failed to verify storybook ownership before delete.', {
+      storybookId,
+      userId,
+      status: storybookResult.failure.status,
+      message: storybookResult.failure.message,
+    })
+
+    return jsonResponse(
+      {
+        error: 'Failed to delete storybook.',
+        detail: storybookResult.failure.message,
+      },
+      502,
+    )
+  }
+
+  if (!storybookResult.value) {
+    return jsonResponse(
+      {
+        error: 'Storybook not found.',
+      },
+      404,
+    )
+  }
+
+  const deleteResult = await deleteStorybookByIdFromSupabase(supabasePersistenceConfig, userId, storybookId)
+  if (!deleteResult.ok) {
+    console.error('Failed to delete storybook from Supabase.', {
+      storybookId,
+      userId,
+      status: deleteResult.failure.status,
+      message: deleteResult.failure.message,
+    })
+
+    return jsonResponse(
+      {
+        error: 'Failed to delete storybook.',
+        detail: deleteResult.failure.message,
+      },
+      502,
+    )
+  }
+
+  return new Response(null, {
+    status: 204,
+    headers: withCors(),
+  })
 }

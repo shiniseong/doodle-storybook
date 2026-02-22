@@ -1,7 +1,8 @@
-import { BookOpenText, RefreshCcw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { BookOpenText, RefreshCcw, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type DeleteStorybookUseCasePort } from '@features/storybook-deletion/application/delete-storybook.use-case'
 import {
   type ListStorybooksUseCasePort,
   type StorybookLibraryItem,
@@ -15,6 +16,7 @@ const LIBRARY_SKELETON_CARD_COUNT = 8
 
 interface LibraryPageDependencies {
   listStorybooksUseCase: ListStorybooksUseCasePort
+  deleteStorybookUseCase: DeleteStorybookUseCasePort
 }
 
 interface LibraryPageProps {
@@ -47,12 +49,20 @@ function StorybookLibraryCard({
   unknownAuthorLabel,
   createdAtLabel,
   onOpenStorybookDetail,
+  onDeleteStorybook,
+  isDeleting,
+  deleteLabel,
+  deletingLabel,
 }: {
   item: StorybookLibraryItem
   locale: string
   unknownAuthorLabel: string
   createdAtLabel: string
   onOpenStorybookDetail?: (storybookId: string) => void
+  onDeleteStorybook?: (storybookId: string) => void
+  isDeleting?: boolean
+  deleteLabel: string
+  deletingLabel: string
 }) {
   const createdAt = formatCreatedAt(item.createdAt, locale)
   const cardBody = (
@@ -94,6 +104,21 @@ function StorybookLibraryCard({
       ) : (
         cardBody
       )}
+      {onDeleteStorybook ? (
+        <button
+          type="button"
+          className="library-card__delete"
+          aria-label={`${isDeleting ? deletingLabel : deleteLabel}: ${item.title}`}
+          title={isDeleting ? deletingLabel : deleteLabel}
+          onClick={() => {
+            onDeleteStorybook(item.storybookId)
+          }}
+          disabled={isDeleting}
+        >
+          <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
+          <span>{isDeleting ? deletingLabel : deleteLabel}</span>
+        </button>
+      ) : null}
     </li>
   )
 }
@@ -120,13 +145,46 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
   const [loadState, setLoadState] = useState<LibraryLoadState>('loading')
   const [items, setItems] = useState<StorybookLibraryItem[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
+  const [deletingStorybookIds, setDeletingStorybookIds] = useState<Set<string>>(new Set())
   const [reloadVersion, setReloadVersion] = useState(0)
   const listStorybooksUseCase = useMemo(() => dependencies.listStorybooksUseCase, [dependencies])
+  const deleteStorybookUseCase = useMemo(() => dependencies.deleteStorybookUseCase, [dependencies])
   const handleReload = () => {
     setLoadState('loading')
     setErrorMessage(null)
+    setDeleteErrorMessage(null)
     setReloadVersion((previous) => previous + 1)
   }
+
+  const handleDeleteStorybook = useCallback(
+    async (storybookId: string) => {
+      setDeleteErrorMessage(null)
+      setDeletingStorybookIds((previous) => {
+        const next = new Set(previous)
+        next.add(storybookId)
+        return next
+      })
+
+      const result = await deleteStorybookUseCase.execute({
+        userId,
+        storybookId,
+      })
+
+      if (!result.ok) {
+        setDeleteErrorMessage(result.error.message)
+      } else {
+        setItems((previous) => previous.filter((item) => item.storybookId !== storybookId))
+      }
+
+      setDeletingStorybookIds((previous) => {
+        const next = new Set(previous)
+        next.delete(storybookId)
+        return next
+      })
+    },
+    [deleteStorybookUseCase, userId],
+  )
 
   useEffect(() => {
     let isDisposed = false
@@ -142,10 +200,13 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
       if (!result.ok) {
         setLoadState('error')
         setErrorMessage(result.error.message)
+        setDeleteErrorMessage(null)
         return
       }
 
       setItems(result.value.items)
+      setDeletingStorybookIds(new Set())
+      setDeleteErrorMessage(null)
       setLoadState('success')
     })
 
@@ -187,6 +248,12 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
         </button>
       </section>
 
+      {loadState === 'success' && deleteErrorMessage ? (
+        <section className="library-state library-state--error" aria-live="polite">
+          <p>{deleteErrorMessage}</p>
+        </section>
+      ) : null}
+
       {loadState === 'loading' ? (
         <section className="library-loading" aria-label={t('library.state.loading')}>
           <ul className="library-grid library-grid--skeleton" aria-hidden="true">
@@ -226,6 +293,10 @@ export function LibraryPage({ dependencies, userId, onBackToCreate, onOpenStoryb
               unknownAuthorLabel={t('library.card.unknownAuthor')}
               createdAtLabel={t('library.card.createdAt')}
               onOpenStorybookDetail={onOpenStorybookDetail}
+              onDeleteStorybook={handleDeleteStorybook}
+              isDeleting={deletingStorybookIds.has(item.storybookId)}
+              deleteLabel={t('library.actions.delete')}
+              deletingLabel={t('library.actions.deleting')}
             />
           ))}
         </ul>

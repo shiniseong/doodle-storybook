@@ -1,9 +1,10 @@
 import { AnimatePresence } from 'framer-motion'
-import { BookImage, RefreshCcw } from 'lucide-react'
+import { BookImage, RefreshCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { StorybookDetailResponse } from '@entities/storybook/model/storybook-detail'
+import { type DeleteStorybookUseCasePort } from '@features/storybook-deletion/application/delete-storybook.use-case'
 import {
   type GetStorybookDetailUseCasePort,
 } from '@features/storybook-detail/application/get-storybook-detail.use-case'
@@ -16,6 +17,7 @@ type StorybookDetailLoadState = 'loading' | 'success' | 'error'
 
 interface StorybookDetailPageDependencies {
   getStorybookDetailUseCase: GetStorybookDetailUseCasePort
+  deleteStorybookUseCase: DeleteStorybookUseCasePort
 }
 
 interface StorybookDetailPageProps {
@@ -49,8 +51,11 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
   const [resolvedRequestKey, setResolvedRequestKey] = useState<string | null>(null)
   const [failedRequest, setFailedRequest] = useState<{ requestKey: string; message: string } | null>(null)
   const [readerRequestKey, setReaderRequestKey] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
 
   const getStorybookDetailUseCase = useMemo(() => dependencies.getStorybookDetailUseCase, [dependencies])
+  const deleteStorybookUseCase = useMemo(() => dependencies.deleteStorybookUseCase, [dependencies])
   const requestKey = useMemo(() => `${userId}:${storybookId}:${reloadVersion}`, [reloadVersion, storybookId, userId])
 
   useEffect(() => {
@@ -134,7 +139,36 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
 
   const handleReload = () => {
     setReaderRequestKey(null)
+    setDeleteErrorMessage(null)
     setReloadVersion((previous) => previous + 1)
+  }
+
+  const handleDelete = async () => {
+    if (isDeleting || loadState !== 'success') {
+      return
+    }
+
+    setDeleteErrorMessage(null)
+    setReaderRequestKey(null)
+    setIsDeleting(true)
+
+    const result = await deleteStorybookUseCase.execute({
+      userId,
+      storybookId,
+    })
+
+    if (!result.ok) {
+      setDeleteErrorMessage(result.error.message)
+      setIsDeleting(false)
+      return
+    }
+
+    if (onBack) {
+      onBack()
+      return
+    }
+
+    setIsDeleting(false)
   }
 
   return (
@@ -150,8 +184,23 @@ export function StorybookDetailPage({ dependencies, userId, storybookId, onBack 
           <button type="button" className="storybook-detail-header__action" onClick={onBack}>
             {t('storybookDetail.actions.back')}
           </button>
+          <button
+            type="button"
+            className="storybook-detail-header__action storybook-detail-header__action--danger"
+            onClick={handleDelete}
+            disabled={loadState !== 'success' || isDeleting}
+          >
+            <Trash2 size={14} strokeWidth={2.2} aria-hidden="true" />
+            {isDeleting ? t('storybookDetail.actions.deleting') : t('storybookDetail.actions.delete')}
+          </button>
         </div>
       </header>
+
+      {deleteErrorMessage ? (
+        <section className="storybook-detail-state storybook-detail-state--error" aria-live="polite">
+          <p>{deleteErrorMessage}</p>
+        </section>
+      ) : null}
 
       {loadState === 'loading' ? (
         <section className="storybook-detail-state" aria-live="polite">

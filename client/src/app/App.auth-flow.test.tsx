@@ -201,6 +201,12 @@ describe('App auth flow persistence', () => {
           },
         })),
       },
+      deleteStorybookUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: undefined,
+        })),
+      },
     }))
   })
 

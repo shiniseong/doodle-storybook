@@ -27,6 +27,9 @@ describe('LibraryPage', () => {
           listStorybooksUseCase: {
             execute,
           },
+          deleteStorybookUseCase: {
+            execute: vi.fn(async () => ({ ok: true as const, value: undefined })),
+          },
         }}
         userId="user-1"
       />,
@@ -68,6 +71,9 @@ describe('LibraryPage', () => {
           listStorybooksUseCase: {
             execute,
           },
+          deleteStorybookUseCase: {
+            execute: vi.fn(async () => ({ ok: true as const, value: undefined })),
+          },
         }}
         userId="user-1"
         onOpenStorybookDetail={onOpenStorybookDetail}
@@ -106,6 +112,9 @@ describe('LibraryPage', () => {
           listStorybooksUseCase: {
             execute,
           },
+          deleteStorybookUseCase: {
+            execute: vi.fn(async () => ({ ok: true as const, value: undefined })),
+          },
         }}
         userId="user-1"
       />,
@@ -121,5 +130,56 @@ describe('LibraryPage', () => {
       expect(screen.getByText('아직 만든 동화가 없어요. 첫 동화를 만들어 보세요.')).toBeInTheDocument()
     })
     expect(execute).toHaveBeenCalledTimes(2)
+  })
+
+  it('카드 삭제 버튼 클릭 시 삭제 유스케이스를 호출하고 목록에서 제거한다', async () => {
+    const user = userEvent.setup()
+    const listExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        items: [
+          {
+            storybookId: 'storybook-delete-1',
+            title: '삭제 대상',
+            authorName: '도담',
+            originImageUrl: null,
+            createdAt: null,
+          },
+        ],
+      },
+    }))
+    const deleteExecute = vi.fn(async () => ({
+      ok: true as const,
+      value: undefined,
+    }))
+
+    render(
+      <LibraryPage
+        dependencies={{
+          listStorybooksUseCase: {
+            execute: listExecute,
+          },
+          deleteStorybookUseCase: {
+            execute: deleteExecute,
+          },
+        }}
+        userId="user-1"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '삭제 대상' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: '삭제하기: 삭제 대상' }))
+
+    expect(deleteExecute).toHaveBeenCalledWith({
+      userId: 'user-1',
+      storybookId: 'storybook-delete-1',
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: '삭제 대상' })).not.toBeInTheDocument()
+    })
   })
 })
