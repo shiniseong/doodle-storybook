@@ -425,9 +425,10 @@ interface WorkspaceHeaderProps {
   auth?: StorybookWorkspaceAuth
   onRequestAuthentication?: () => void
   onRequestWorkspaceReset?: () => void
+  onNavigateToLibrary?: () => void
 }
 
-function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceReset }: WorkspaceHeaderProps) {
+function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceReset, onNavigateToLibrary }: WorkspaceHeaderProps) {
   const { t } = useTranslation()
   const remainingFreeStories = useStorybookCreationStore(selectRemainingFreeStories)
   const isLoginButtonDisabled = !auth || !onRequestAuthentication
@@ -459,6 +460,15 @@ function WorkspaceHeader({ auth, onRequestAuthentication, onRequestWorkspaceRese
                       {t('workspace.auth.signedInAs', { email: auth.userEmail })}
                     </p>
                   ) : null}
+                  <button
+                    type="button"
+                    className="workspace-auth__action"
+                    onClick={() => {
+                      onNavigateToLibrary?.()
+                    }}
+                  >
+                    {t('workspace.auth.library')}
+                  </button>
                   <button
                     type="button"
                     className="workspace-auth__action"
@@ -3097,6 +3107,7 @@ function StoryComposerSection({
           const result = await useCase.execute({
             userId: auth?.userId ?? dependencies.currentUserId,
             title,
+            ...(authorName.trim().length > 0 ? { authorName: authorName.trim() } : {}),
             description,
             language: resolveStoryLanguage(i18n.language),
           })
@@ -3192,9 +3203,10 @@ interface StorybookWorkspaceProps {
   dependencies: StorybookWorkspaceDependencies
   auth?: StorybookWorkspaceAuth
   onRequestAuthentication?: () => void
+  onNavigateToLibrary?: () => void
 }
 
-export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication }: StorybookWorkspaceProps) {
+export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication, onNavigateToLibrary }: StorybookWorkspaceProps) {
   const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0)
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
@@ -3249,6 +3261,7 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
         auth={auth}
         onRequestAuthentication={onRequestAuthentication}
         onRequestWorkspaceReset={resetWorkspaceDraft}
+        onNavigateToLibrary={onNavigateToLibrary}
       />
       <main className="layout-grid">
         <DrawingBoardSection

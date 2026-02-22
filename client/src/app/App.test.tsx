@@ -14,16 +14,21 @@ vi.mock('@pages/home/ui/HomePage', () => ({
   HomePage: ({
     dependencies,
     onRequestAuthentication,
+    onNavigateToLibrary,
   }: {
     dependencies: {
       currentUserId: string
     }
     onRequestAuthentication?: () => void
+    onNavigateToLibrary?: () => void
   }) => (
     <div data-testid="home-page">
       {dependencies.currentUserId}
       <button type="button" onClick={onRequestAuthentication}>
         open-auth
+      </button>
+      <button type="button" onClick={onNavigateToLibrary}>
+        open-library
       </button>
     </div>
   ),
@@ -45,6 +50,10 @@ vi.mock('@pages/auth/ui/LoginPage', () => ({
   }: {
     isConfigured: boolean
   }) => <div data-testid="login-page">{String(isConfigured)}</div>,
+}))
+
+vi.mock('@pages/library/ui/LibraryPage', () => ({
+  LibraryPage: ({ userId }: { userId: string }) => <div data-testid="library-page">{userId}</div>,
 }))
 
 function createMockAuth(overrides: Partial<SupabaseGoogleAuthResult> = {}): SupabaseGoogleAuthResult {
@@ -127,6 +136,19 @@ describe('App', () => {
 
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+  })
+
+  it('홈에서 내 서재 이동 요청 시 라이브러리 페이지를 렌더링한다', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+
+    renderAppAt('/')
+    await user.click(screen.getByRole('button', { name: 'start-workspace' }))
+    await user.click(screen.getByRole('button', { name: 'open-library' }))
+
+    expect(screen.getByTestId('library-page')).toHaveTextContent('user-1')
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
   it('새로고침으로 /auth 경로에 들어오면 로그인 페이지를 렌더링한다', () => {

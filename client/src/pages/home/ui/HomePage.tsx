@@ -8,8 +8,16 @@ interface HomePageProps {
   dependencies: StorybookWorkspaceDependencies
   auth: StorybookWorkspaceAuth
   onRequestAuthentication?: () => void
+  onNavigateToLibrary?: () => void
 }
 
-export function HomePage({ dependencies, auth, onRequestAuthentication }: HomePageProps) {
-  return <StorybookWorkspace dependencies={dependencies} auth={auth} onRequestAuthentication={onRequestAuthentication} />
+export function HomePage({ dependencies, auth, onRequestAuthentication, onNavigateToLibrary }: HomePageProps) {
+  return (
+    <StorybookWorkspace
+      dependencies={dependencies}
+      auth={auth}
+      onRequestAuthentication={onRequestAuthentication}
+      onNavigateToLibrary={onNavigateToLibrary}
+    />
+  )
 }

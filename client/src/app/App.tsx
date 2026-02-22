@@ -5,6 +5,7 @@ import { createAppDependencies } from '@app/providers/dependencies'
 import { LoginPage } from '@pages/auth/ui/LoginPage'
 import { HomePage } from '@pages/home/ui/HomePage'
 import { LandingPage } from '@pages/landing/ui/LandingPage'
+import { LibraryPage } from '@pages/library/ui/LibraryPage'
 import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
 
 export default function App() {
@@ -49,7 +50,26 @@ export default function App() {
             onRequestAuthentication={() => {
               navigate('/auth')
             }}
+            onNavigateToLibrary={() => {
+              navigate('/library')
+            }}
           />
+        }
+      />
+      <Route
+        path="/library"
+        element={
+          auth.userId ? (
+            <LibraryPage
+              dependencies={dependencies}
+              userId={auth.userId}
+              onBackToCreate={() => {
+                navigate('/create')
+              }}
+            />
+          ) : (
+            <Navigate to="/auth" replace />
+          )
         }
       />
       <Route

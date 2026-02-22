@@ -163,6 +163,12 @@ describe('App auth flow persistence', () => {
           value: { storybookId: 'storybook-auth-flow' },
         })),
       },
+      listStorybooksUseCase: {
+        execute: vi.fn(async () => ({
+          ok: true as const,
+          value: { items: [] },
+        })),
+      },
     }))
   })
 

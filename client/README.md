@@ -77,6 +77,7 @@ export default defineConfig([
 This project now includes a Pages Function endpoint:
 
 - `POST /api/storybooks`
+- `GET /api/storybooks?userId=<supabase-user-id>&limit=<number>`
 - file: `functions/api/storybooks.ts`
 
 ### Required environment variables

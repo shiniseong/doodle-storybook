@@ -34,6 +34,7 @@ interface StorybookCreateRequestBody {
   userId: string
   language: StoryLanguage
   title: string
+  authorName?: string
   description: string
   imageDataUrl?: string
 }
@@ -157,6 +158,22 @@ interface SupabasePersistenceConfig {
   schema: string
 }
 
+interface StorybookListRowFromSupabase {
+  id?: unknown
+  title?: unknown
+  author_name?: unknown
+  origin_image_r2_key?: unknown
+  created_at?: unknown
+}
+
+interface StorybookListItem {
+  storybookId: string
+  title: string
+  authorName: string | null
+  originImageUrl: string | null
+  createdAt: string | null
+}
+
 interface SupabaseMutationFailure {
   status: number
   message: string
@@ -254,6 +271,10 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
   }
 
   const normalizedTitle = candidate.title.trim()
+  const normalizedAuthorName =
+    typeof candidate.authorName === 'string' && candidate.authorName.trim().length > 0
+      ? candidate.authorName.trim()
+      : undefined
   const normalizedDescription = candidate.description.trim()
   const normalizedImageDataUrl =
     typeof candidate.imageDataUrl === 'string' && candidate.imageDataUrl.startsWith('data:image/')
@@ -268,6 +289,7 @@ function normalizeCreateRequestBody(payload: unknown): StorybookCreateRequestBod
     userId: candidate.userId,
     language: candidate.language,
     title: normalizedTitle,
+    ...(normalizedAuthorName ? { authorName: normalizedAuthorName } : {}),
     description: normalizedDescription,
     ...(normalizedImageDataUrl ? { imageDataUrl: normalizedImageDataUrl } : {}),
   }
@@ -1086,6 +1108,38 @@ function resolveSupabasePersistenceConfig(env: Env): SupabasePersistenceConfig |
   }
 }
 
+function resolveR2PublicBaseUrl(env: Env): string | null {
+  const baseUrl = (env.CLOUDFLARE_R2_PUBLIC_BASE_URL || env.R2_PUBLIC_BASE_URL || '').trim()
+  if (baseUrl.length === 0) {
+    return null
+  }
+
+  return baseUrl.replace(/\/+$/, '')
+}
+
+function resolveR2AssetPublicUrl(assetKeyOrUrl: string, env: Env): string | null {
+  const normalized = assetKeyOrUrl.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+
+  if (
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('data:') ||
+    normalized.startsWith('//')
+  ) {
+    return normalized
+  }
+
+  const baseUrl = resolveR2PublicBaseUrl(env)
+  if (!baseUrl) {
+    return null
+  }
+
+  return `${baseUrl}/${normalized.replace(/^\/+/, '')}`
+}
+
 function createSupabaseHeaders(
   config: SupabasePersistenceConfig,
   includeJsonBody: boolean,
@@ -1233,6 +1287,93 @@ async function persistStorybookEntities(
   return { ok: true }
 }
 
+function normalizeStorybookListRow(
+  row: StorybookListRowFromSupabase,
+  env: Env,
+): StorybookListItem | null {
+  const storybookId = typeof row.id === 'string' ? row.id.trim() : ''
+  if (storybookId.length === 0) {
+    return null
+  }
+
+  const title = typeof row.title === 'string' && row.title.trim().length > 0 ? row.title.trim() : 'Untitled'
+  const authorName =
+    typeof row.author_name === 'string' && row.author_name.trim().length > 0 ? row.author_name.trim() : null
+  const originImageUrl =
+    typeof row.origin_image_r2_key === 'string' ? resolveR2AssetPublicUrl(row.origin_image_r2_key, env) : null
+  const createdAt = typeof row.created_at === 'string' && row.created_at.trim().length > 0 ? row.created_at : null
+
+  return {
+    storybookId,
+    title,
+    authorName,
+    originImageUrl,
+    createdAt,
+  }
+}
+
+async function fetchStorybookListFromSupabase(
+  config: SupabasePersistenceConfig,
+  userId: string,
+  limit: number,
+  env: Env,
+): Promise<{ ok: true; items: StorybookListItem[] } | SupabaseMutationError> {
+  const query = new URLSearchParams({
+    select: 'id,title,author_name,origin_image_r2_key,created_at',
+    user_id: `eq.${userId}`,
+    status: 'eq.completed',
+    order: 'created_at.desc',
+    limit: `${limit}`,
+  })
+
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl}/rest/v1/storybooks?${query.toString()}`, {
+      method: 'GET',
+      headers: createSupabaseHeaders(config, false, false),
+    })
+  } catch {
+    return {
+      ok: false,
+      failure: {
+        status: 502,
+        message: 'Failed to reach Supabase REST API for storybook list.',
+      },
+    }
+  }
+
+  const payload = await readResponseBody(response)
+  if (!response.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: response.status,
+        message: resolveSupabaseErrorMessage(payload, 'Failed to fetch storybook list from Supabase.'),
+      },
+    }
+  }
+
+  if (!Array.isArray(payload)) {
+    return {
+      ok: false,
+      failure: {
+        status: 502,
+        message: 'Invalid storybook list response from Supabase.',
+      },
+    }
+  }
+
+  const items = payload
+    .filter((item): item is StorybookListRowFromSupabase => typeof item === 'object' && item !== null)
+    .map((item) => normalizeStorybookListRow(item, env))
+    .filter((item): item is StorybookListItem => item !== null)
+
+  return {
+    ok: true,
+    items,
+  }
+}
+
 function buildStorybookOutputDetailRowsForInsert(
   storybookId: string,
   title: string,
@@ -1299,12 +1440,7 @@ function isMockStorybookGenerationRequest(title: string): boolean {
 }
 
 function resolveMockCloudflareR2BaseUrl(env: Env): string | null {
-  const baseUrl = (env.CLOUDFLARE_R2_PUBLIC_BASE_URL || env.R2_PUBLIC_BASE_URL || '').trim()
-  if (baseUrl.length === 0) {
-    return null
-  }
-
-  return baseUrl.replace(/\/+$/, '')
+  return resolveR2PublicBaseUrl(env)
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -1341,6 +1477,53 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
   return new Response(null, {
     status: 204,
     headers: withCors(),
+  })
+}
+
+export const onRequestGet: PagesFunction<Env> = async (context) => {
+  const requestUrl = new URL(context.request.url)
+  const userId = (requestUrl.searchParams.get('userId') || '').trim()
+  const requestedLimit = parsePositiveInteger(requestUrl.searchParams.get('limit'))
+  const limit = requestedLimit ? Math.min(requestedLimit, 100) : 30
+
+  if (userId.length === 0) {
+    return jsonResponse(
+      {
+        error: 'userId query parameter is required.',
+      },
+      400,
+    )
+  }
+
+  const supabasePersistenceConfig = resolveSupabasePersistenceConfig(context.env)
+  if (!supabasePersistenceConfig) {
+    return jsonResponse(
+      {
+        error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SECRET_KEY must be configured.',
+      },
+      500,
+    )
+  }
+
+  const listResult = await fetchStorybookListFromSupabase(supabasePersistenceConfig, userId, limit, context.env)
+  if (!listResult.ok) {
+    console.error('Failed to fetch storybook list from Supabase.', {
+      userId,
+      status: listResult.failure.status,
+      message: listResult.failure.message,
+    })
+
+    return jsonResponse(
+      {
+        error: 'Failed to fetch storybook list.',
+        detail: listResult.failure.message,
+      },
+      502,
+    )
+  }
+
+  return jsonResponse({
+    items: listResult.items,
   })
 }
 
@@ -1669,7 +1852,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     id: createdStoryBookId,
     user_id: normalizedBody.userId,
     title: normalizedBody.title,
-    author_name: null,
+    author_name: normalizedBody.authorName ?? null,
     description: normalizedBody.description,
     language_code: normalizedBody.language,
     status: 'completed',

@@ -27,6 +27,7 @@ interface CreateStorybookApiErrorResponse {
 interface CreateStorybookApiRequest {
   userId: string
   title?: string
+  authorName?: string
   description: string
   language: StoryLanguage
   imageDataUrl?: string
@@ -330,6 +331,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
   async createStorybook(draft: {
     userId: string
     title?: string
+    authorName?: string
     description: string
     language: StoryLanguage
   }): Promise<{
@@ -346,6 +348,7 @@ export class HttpStorybookCommandPort implements StorybookCommandPort {
     const payload: CreateStorybookApiRequest = {
       userId: draft.userId,
       title: draft.title,
+      authorName: draft.authorName,
       description: draft.description,
       language: draft.language,
       ...(imageDataUrl ? { imageDataUrl } : {}),

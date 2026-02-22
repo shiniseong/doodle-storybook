@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { onRequestPost, parsePromptStorybookOutput } from './storybooks'
+import { onRequestGet, onRequestPost, parsePromptStorybookOutput } from './storybooks'
 
 interface TestEnv {
   OPENAI_API_KEY: string
@@ -114,6 +114,28 @@ function createContext(requestPayload: unknown, envOverrides: Partial<TestEnv> =
       ...envOverrides,
     },
   } as unknown as Parameters<typeof onRequestPost>[0]
+}
+
+function createGetContext(requestUrl: string, envOverrides: Partial<TestEnv> = {}) {
+  return {
+    request: new Request(requestUrl, {
+      method: 'GET',
+    }),
+    env: {
+      OPENAI_API_KEY: 'test-api-key',
+      OPENAI_PROMPT_ID: 'pmpt_test',
+      OPENAI_PROMPT_VERSION: '21',
+      OPENAI_IMAGE_MODEL: 'gpt-image-1.5',
+      OPENAI_TTS_MODEL: 'gpt-4o-mini-tts',
+      OPENAI_TTS_VOICE: 'alloy',
+      SUPABASE_URL: 'https://supabase.test',
+      SUPABASE_SECRET_KEY: 'sb_secret_test',
+      STORYBOOK_ASSETS_BUCKET: {
+        put: async () => null,
+      },
+      ...envOverrides,
+    },
+  } as unknown as Parameters<typeof onRequestGet>[0]
 }
 
 describe('storybooks function (v21 pipeline)', () => {
@@ -428,6 +450,48 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(outputInsertBody.some((row) => row.audio_r2_key === 'https://cdn.example.com/test/mock_generated_tts.mp3')).toBe(true)
   })
 
+  it('authorName이 전달되면 storybooks.author_name에 저장한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url.startsWith('https://supabase.test/rest/v1/')) {
+        return createJsonResponse({}, 201)
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-author',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          authorName: '홍길동',
+          description: '작가명 저장 테스트',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    const storybooksInsertCall = fetchMock.mock.calls.find((call) => {
+      const input = call[0] as RequestInfo | URL
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      return url.includes('/storybooks')
+    })
+    expect(storybooksInsertCall).toBeDefined()
+    const insertedRow = JSON.parse(String((storybooksInsertCall?.[1] as RequestInit)?.body ?? '{}')) as {
+      author_name?: string | null
+    }
+    expect(insertedRow.author_name).toBe('홍길동')
+  })
+
   it('제목이 @@!!TEST!!@@ 이고 mock base URL이 없으면 500 에러를 반환한다', async () => {
     const fetchMock = vi.fn(async () => createJsonResponse({}, 201))
     vi.stubGlobal('fetch', fetchMock)
@@ -455,6 +519,55 @@ describe('storybooks function (v21 pipeline)', () => {
       'CLOUDFLARE_R2_PUBLIC_BASE_URL (or R2_PUBLIC_BASE_URL) must be configured for @@!!TEST!!@@ mode.',
     )
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('GET /api/storybooks는 userId 기준 목록을 반환한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      expect(url).toContain('/rest/v1/storybooks?')
+      return createJsonResponse([
+        {
+          id: 'storybook-1',
+          title: '별빛 모험',
+          author_name: '도담',
+          origin_image_r2_key: 'user-1/storybook-1/images/user-1-storybook-1-image-origin',
+          created_at: '2026-02-22T04:00:00.000Z',
+        },
+      ])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestGet(
+      createGetContext('https://example.test/api/storybooks?userId=user-1&limit=5', {
+        CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as {
+      items?: Array<{
+        storybookId: string
+        title: string
+        authorName: string | null
+        originImageUrl: string | null
+      }>
+    }
+    expect(payload.items).toEqual([
+      {
+        storybookId: 'storybook-1',
+        title: '별빛 모험',
+        authorName: '도담',
+        originImageUrl: 'https://cdn.example.com/user-1/storybook-1/images/user-1-storybook-1-image-origin',
+        createdAt: '2026-02-22T04:00:00.000Z',
+      },
+    ])
+  })
+
+  it('GET /api/storybooks는 userId가 없으면 400을 반환한다', async () => {
+    const response = await onRequestGet(createGetContext('https://example.test/api/storybooks'))
+    expect(response.status).toBe(400)
+    const payload = (await response.json()) as { error?: string }
+    expect(payload.error).toBe('userId query parameter is required.')
   })
 
   it('레거시 페이지 배열 응답이어도 이미지 3병렬 + TTS 10 파이프라인을 수행한다', async () => {
