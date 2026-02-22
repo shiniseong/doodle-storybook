@@ -298,16 +298,36 @@ describe('storybooks function (v21 pipeline)', () => {
         expect(requestBody.prompt).toContain('Shared world setting: moonlit forest with warm colors')
 
         if (requestBody.prompt?.includes('Scene role: cover.')) {
+          expect(requestBody.prompt).not.toContain('Target story page (highest-priority source of truth):')
+          expect(requestBody.prompt).not.toContain('First principle (must follow): maximize fidelity to the target story page content for this request.')
           expect(requestBody.prompt).toContain('Scene description: cover prompt')
           return createJsonResponse({ data: [{ b64_json: 'Y292ZXItYjY0' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: highlight.')) {
+          expect(requestBody.prompt).toContain(
+            'First principle (must follow): maximize fidelity to the target story page content for this request.',
+          )
+          expect(requestBody.prompt).toContain(
+            'If scene text, style hints, or previous visual assumptions conflict with target story page facts, target story page facts win.',
+          )
+          expect(requestBody.prompt).toContain(
+            'Target story page (highest-priority source of truth): Page 7: 7페이지 본문 내용',
+          )
           expect(requestBody.prompt).toContain('Scene description: highlight prompt')
           return createJsonResponse({ data: [{ b64_json: 'aGlnaGxpZ2h0LWI2NA==' }] })
         }
 
         if (requestBody.prompt?.includes('Scene role: end.')) {
+          expect(requestBody.prompt).toContain(
+            'First principle (must follow): maximize fidelity to the target story page content for this request.',
+          )
+          expect(requestBody.prompt).toContain(
+            'If scene text, style hints, or previous visual assumptions conflict with target story page facts, target story page facts win.',
+          )
+          expect(requestBody.prompt).toContain(
+            'Target story page (highest-priority source of truth): Page 10: 10페이지 본문 내용',
+          )
           expect(requestBody.prompt).toContain('Scene description: end prompt')
           return createJsonResponse({ data: [{ b64_json: 'ZW5kLWI2NA==' }] })
         }

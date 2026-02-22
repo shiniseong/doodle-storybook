@@ -80,6 +80,8 @@ interface StoryImagePrompts {
   commonWorld?: string
 }
 
+type StoryImageSceneRole = 'cover' | 'highlight' | 'end'
+
 interface StoryCharacter {
   id: string
   name: string
@@ -932,10 +934,11 @@ async function resolveImageDataUrlFromGeneratedImageUrl(imageUrl: string): Promi
 }
 
 function buildSingleImagePrompt(
-  sceneRole: 'cover' | 'highlight' | 'end',
+  sceneRole: StoryImageSceneRole,
   scenePrompt: string,
   imagePrompts: StoryImagePrompts,
   characters: StoryCharacter[],
+  pages: StoryPage[],
   storyTitle: string,
   storyDescription: string,
 ): string {
@@ -957,6 +960,23 @@ function buildSingleImagePrompt(
         ]
       : []
 
+  const targetStoryPage =
+    sceneRole === 'highlight'
+      ? pages.find((page) => page.isHighlight) ?? null
+      : sceneRole === 'end'
+        ? pages[pages.length - 1] ?? null
+        : null
+
+  const targetStoryPageLines =
+    targetStoryPage === null
+      ? []
+      : [
+          'First principle (must follow): maximize fidelity to the target story page content for this request.',
+          'If scene text, style hints, or previous visual assumptions conflict with target story page facts, target story page facts win.',
+          'Critical continuity (weather, time, place, character state, event progression) must follow the target story page exactly.',
+          `Target story page (highest-priority source of truth): Page ${targetStoryPage.page}: ${targetStoryPage.content}`,
+        ]
+
   return [
     'Create exactly one children\'s storybook illustration for a single scene.',
     'Output one full-frame image only. Do not create a collage, split-panel, triptych, or multi-scene composition.',
@@ -966,6 +986,7 @@ function buildSingleImagePrompt(
     `User-provided story description: ${storyDescription}`,
     'No text, letters, logos, or watermarks.',
     ...characterLines,
+    ...targetStoryPageLines,
     ...(commonStyleGuide ? [`Shared style guide: ${commonStyleGuide}`] : []),
     ...(commonWorld ? [`Shared world setting: ${commonWorld}`] : []),
     `Scene role: ${sceneRole}.`,
@@ -995,10 +1016,11 @@ async function resolveGeneratedImageDataUrl(item: unknown): Promise<string | nul
 }
 
 async function generateImageFromPrompt(
-  sceneRole: 'cover' | 'highlight' | 'end',
+  sceneRole: StoryImageSceneRole,
   scenePrompt: string,
   imagePrompts: StoryImagePrompts,
   characters: StoryCharacter[],
+  pages: StoryPage[],
   storyTitle: string,
   storyDescription: string,
   env: Env,
@@ -1024,6 +1046,7 @@ async function generateImageFromPrompt(
           scenePrompt,
           imagePrompts,
           characters,
+          pages,
           storyTitle,
           storyDescription,
         ),
@@ -1752,6 +1775,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         parsedPromptStorybook.imagePrompts.cover,
         parsedPromptStorybook.imagePrompts,
         parsedPromptStorybook.characters,
+        parsedPromptStorybook.pages,
         normalizedBody.title,
         normalizedBody.description,
         context.env,
@@ -1762,6 +1786,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         parsedPromptStorybook.imagePrompts.highlight,
         parsedPromptStorybook.imagePrompts,
         parsedPromptStorybook.characters,
+        parsedPromptStorybook.pages,
         normalizedBody.title,
         normalizedBody.description,
         context.env,
@@ -1772,6 +1797,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         parsedPromptStorybook.imagePrompts.end,
         parsedPromptStorybook.imagePrompts,
         parsedPromptStorybook.characters,
+        parsedPromptStorybook.pages,
         normalizedBody.title,
         normalizedBody.description,
         context.env,
