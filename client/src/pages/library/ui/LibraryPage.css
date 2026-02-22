@@ -195,6 +195,7 @@
   display: grid;
   gap: 0.2rem;
   padding: 0.7rem 0.8rem 0.82rem;
+  background: linear-gradient(180deg, #fffdf6 0%, #f4f9ff 100%);
 }
 
 .library-card__meta h2 {
