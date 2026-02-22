@@ -2364,6 +2364,8 @@ describe('StorybookWorkspace', () => {
       expect(getSnapshot).toHaveBeenCalled()
       expect(screen.getByRole('button', { name: 'user-1' })).toBeInTheDocument()
       expect(screen.queryByText('무료 제작')).not.toBeInTheDocument()
+      expect(screen.getByText('오늘 제작')).toBeInTheDocument()
+      expect(screen.getByText('27회 남음')).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole('button', { name: 'user-1' }))

@@ -187,6 +187,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.status-list--single > .status-item {
+  grid-column: 2;
+}
+
 .status-item {
   border-radius: 1rem;
   border: 1px solid rgba(124, 176, 209, 0.4);
@@ -1980,6 +1984,10 @@ html[data-theme='night'] .compose-form textarea {
     grid-template-columns: 1fr;
   }
 
+  .status-list--single > .status-item {
+    grid-column: 1;
+  }
+
   .story-loading-game__hud {
     grid-template-columns: 1fr;
   }
@@ -2090,6 +2098,10 @@ html[data-theme='night'] .compose-form textarea {
 
   .status-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-list--single > .status-item {
+    grid-column: 2;
   }
 }
 
