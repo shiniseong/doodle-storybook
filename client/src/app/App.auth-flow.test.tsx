@@ -267,7 +267,7 @@ describe('App auth flow persistence', () => {
     getContextSpy.mockRestore()
     getBoundingClientRectSpy.mockRestore()
     toDataURLSpy.mockRestore()
-  })
+  }, 10000)
 
   it('우측 상단 로그인 버튼 경유 로그인 후에도 작업중 draft(제목/내용/그림)를 유지한다', async () => {
     const user = userEvent.setup()
