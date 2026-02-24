@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
 import { createAppDependencies } from '@app/providers/dependencies'
+import { AgreementsPage } from '@pages/agreements/ui/AgreementsPage'
 import { LoginPage } from '@pages/auth/ui/LoginPage'
 import { HomePage } from '@pages/home/ui/HomePage'
 import { LandingPage } from '@pages/landing/ui/LandingPage'
 import { LibraryPage } from '@pages/library/ui/LibraryPage'
 import { StorybookDetailPage } from '@pages/storybook-detail/ui/StorybookDetailPage'
-import { useSupabaseGoogleAuth } from '@shared/lib/supabase/use-supabase-google-auth'
+import { useSupabaseGoogleAuth, type SupabaseGoogleAuthResult } from '@shared/lib/supabase/use-supabase-google-auth'
 import { ThemeProvider } from '@shared/lib/theme/theme-context'
 
 interface StorybookDetailRouteProps {
@@ -30,6 +31,106 @@ function StorybookDetailRoute({ dependencies, userId, onBack }: StorybookDetailR
       userId={userId}
       storybookId={storybookId}
       onBack={onBack}
+    />
+  )
+}
+
+interface CreateRouteProps {
+  dependencies: ReturnType<typeof createAppDependencies>
+  auth: SupabaseGoogleAuthResult
+  workspaceAuth: SupabaseGoogleAuthResult
+  onRequestAuthentication: () => void
+  onNavigateToLibrary: () => void
+  onRequireAgreements: () => void
+}
+
+function CreateRoute({
+  dependencies,
+  auth,
+  workspaceAuth,
+  onRequestAuthentication,
+  onNavigateToLibrary,
+  onRequireAgreements,
+}: CreateRouteProps) {
+  const [agreementGuardStatus, setAgreementGuardStatus] = useState<{
+    userId: string
+    status: 'accepted' | 'rejected'
+  } | null>(null)
+  const shouldCheckRequiredAgreements = Boolean(auth.userId && dependencies.accountAgreementsUseCase)
+
+  useEffect(() => {
+    if (!shouldCheckRequiredAgreements || !auth.userId || !dependencies.accountAgreementsUseCase) {
+      return
+    }
+
+    const currentUserId = auth.userId
+
+    if (agreementGuardStatus?.userId === currentUserId) {
+      return
+    }
+
+    let cancelled = false
+
+    void dependencies.accountAgreementsUseCase
+      .getStatus()
+      .then((status) => {
+        if (cancelled) {
+          return
+        }
+
+        setAgreementGuardStatus({
+          userId: currentUserId,
+          status: status.hasAcceptedRequiredAgreements ? 'accepted' : 'rejected',
+        })
+      })
+      .catch(() => {
+        if (cancelled) {
+          return
+        }
+
+        setAgreementGuardStatus({
+          userId: currentUserId,
+          status: 'rejected',
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    agreementGuardStatus?.userId,
+    auth.userId,
+    dependencies.accountAgreementsUseCase,
+    shouldCheckRequiredAgreements,
+  ])
+
+  if (!shouldCheckRequiredAgreements) {
+    return (
+      <HomePage
+        dependencies={dependencies}
+        auth={workspaceAuth}
+        onRequestAuthentication={onRequestAuthentication}
+        onNavigateToLibrary={onNavigateToLibrary}
+        onRequireAgreements={onRequireAgreements}
+      />
+    )
+  }
+
+  if (!auth.userId || agreementGuardStatus?.userId !== auth.userId) {
+    return null
+  }
+
+  if (agreementGuardStatus.status === 'rejected') {
+    return <Navigate to="/agreements" replace />
+  }
+
+  return (
+    <HomePage
+      dependencies={dependencies}
+      auth={workspaceAuth}
+      onRequestAuthentication={onRequestAuthentication}
+      onNavigateToLibrary={onNavigateToLibrary}
+      onRequireAgreements={onRequireAgreements}
     />
   )
 }
@@ -72,16 +173,35 @@ export default function App() {
         <Route
           path="/create"
           element={
-            <HomePage
+            <CreateRoute
               dependencies={dependencies}
-              auth={workspaceAuth}
+              auth={auth}
+              workspaceAuth={workspaceAuth}
               onRequestAuthentication={() => {
                 navigate('/auth')
               }}
               onNavigateToLibrary={() => {
                 navigate('/library')
               }}
+              onRequireAgreements={() => {
+                navigate('/agreements', { replace: true })
+              }}
             />
+          }
+        />
+        <Route
+          path="/agreements"
+          element={
+            auth.userId ? (
+              <AgreementsPage
+                useCase={dependencies.accountAgreementsUseCase}
+                onCompleted={() => {
+                  navigate('/create', { replace: true })
+                }}
+              />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
           }
         />
         <Route

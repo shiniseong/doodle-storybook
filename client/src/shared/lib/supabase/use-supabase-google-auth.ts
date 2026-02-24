@@ -98,7 +98,7 @@ export function useSupabaseGoogleAuth(): SupabaseGoogleAuthResult {
       return
     }
 
-    const redirectTo = typeof window === 'undefined' ? undefined : window.location.origin
+    const redirectTo = typeof window === 'undefined' ? undefined : `${window.location.origin}/create`
     setIsSigningIn(true)
 
     const { error } = await supabaseClient.auth.signInWithOAuth({

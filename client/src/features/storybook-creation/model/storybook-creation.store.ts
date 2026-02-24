@@ -8,6 +8,7 @@ export type StorybookCreationErrorCode =
   | 'DESCRIPTION_TOO_LONG'
   | 'INVALID_LANGUAGE'
   | 'QUOTA_EXCEEDED'
+  | 'REQUIRED_AGREEMENTS_NOT_ACCEPTED'
   | 'UNEXPECTED'
 
 export type StorybookCreationFeedback =

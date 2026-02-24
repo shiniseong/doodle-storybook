@@ -28,6 +28,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { type StoryLanguage } from '@entities/storybook/model/storybook'
+import type { AccountAgreementsUseCasePort } from '@features/account-agreements/application/account-agreements.use-case'
 import type {
   CreateStorybookResponse,
   CreateStorybookUseCasePort,
@@ -1618,6 +1619,14 @@ function resolveStoryLanguage(language: string): StoryLanguage {
   return resolveAppLanguage(language) as StoryLanguage
 }
 
+function isRequiredAgreementsErrorMessage(message: string | null | undefined): boolean {
+  if (!message) {
+    return false
+  }
+
+  return message.toUpperCase().includes('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+}
+
 function resolveErrorFeedbackText(
   feedback: ReturnType<typeof useStorybookCreationStore.getState>['feedback'],
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -2107,6 +2116,8 @@ interface StoryComposerSectionProps {
   onRequestAuthentication?: () => void
   onNavigateToLibrary?: () => void
   onRequestOpenPricingModal?: () => void
+  onEnsureRequiredAgreementsAccepted?: () => Promise<boolean>
+  onRequireAgreements?: () => void
 }
 
 interface AuthGateDialogProps {
@@ -2252,6 +2263,8 @@ function StoryComposerSection({
   onRequestAuthentication,
   onNavigateToLibrary,
   onRequestOpenPricingModal,
+  onEnsureRequiredAgreementsAccepted,
+  onRequireAgreements,
 }: StoryComposerSectionProps) {
   const { i18n, t } = useTranslation()
   const createStatus = useStorybookCreationStore((state) => state.createStatus)
@@ -2334,6 +2347,13 @@ function StoryComposerSection({
             return
           }
 
+          if (auth?.userId && onEnsureRequiredAgreementsAccepted) {
+            const agreementsAccepted = await onEnsureRequiredAgreementsAccepted()
+            if (!agreementsAccepted) {
+              return
+            }
+          }
+
           setIsQuotaExceededDialogOpen(false)
           setReaderBook(null)
           startSubmitting()
@@ -2360,6 +2380,15 @@ function StoryComposerSection({
             if (isQuotaExceededError) {
               markError('QUOTA_EXCEEDED', result.error.message)
               openQuotaExceededDialog()
+              return
+            }
+
+            if (
+              result.error.code === 'REQUIRED_AGREEMENTS_NOT_ACCEPTED' ||
+              isRequiredAgreementsErrorMessage(result.error.message)
+            ) {
+              markError('REQUIRED_AGREEMENTS_NOT_ACCEPTED', result.error.message)
+              onRequireAgreements?.()
               return
             }
 
@@ -2431,9 +2460,16 @@ interface StorybookWorkspaceProps {
   auth?: StorybookWorkspaceAuth
   onRequestAuthentication?: () => void
   onNavigateToLibrary?: () => void
+  onRequireAgreements?: () => void
 }
 
-export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication, onNavigateToLibrary }: StorybookWorkspaceProps) {
+export function StorybookWorkspace({
+  dependencies,
+  auth,
+  onRequestAuthentication,
+  onNavigateToLibrary,
+  onRequireAgreements,
+}: StorybookWorkspaceProps) {
   const [draft, setDraft] = useState<StorybookWorkspaceDraft>(() => loadStorybookWorkspaceDraft())
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0)
   const [subscriptionAccess, setSubscriptionAccess] = useState<SubscriptionAccessSnapshot | null>(null)
@@ -2566,6 +2602,32 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     })
   }, [])
 
+  const ensureRequiredAgreementsAccepted = useCallback(async (): Promise<boolean> => {
+    if (!auth?.userId) {
+      return false
+    }
+
+    const agreementUseCase = dependencies.accountAgreementsUseCase
+    if (!agreementUseCase) {
+      return true
+    }
+
+    try {
+      const status = await agreementUseCase.getStatus()
+      if (status.hasAcceptedRequiredAgreements) {
+        return true
+      }
+    } catch (error) {
+      console.error('Failed to validate required agreements status before action.', {
+        userId: auth.userId,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    onRequireAgreements?.()
+    return false
+  }, [auth?.userId, dependencies.accountAgreementsUseCase, onRequireAgreements])
+
   const handleSelectPricingPlan = useCallback(async (planCode: BillingPaidPlanCode) => {
     if (isBillingActionPending || isSubmitting) {
       return
@@ -2578,6 +2640,11 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
 
     const subscriptionUseCase = dependencies.subscriptionAccessUseCase
     if (!subscriptionUseCase) {
+      return
+    }
+
+    const agreementsAccepted = await ensureRequiredAgreementsAccepted()
+    if (!agreementsAccepted) {
       return
     }
 
@@ -2599,6 +2666,11 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
         await refreshSubscriptionAccess()
       }
     } catch (error) {
+      if (error instanceof Error && isRequiredAgreementsErrorMessage(error.message)) {
+        onRequireAgreements?.()
+        return
+      }
+
       console.error('Failed to run pricing checkout flow.', {
         userId: auth.userId,
         message: error instanceof Error ? error.message : String(error),
@@ -2612,7 +2684,9 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     isBillingActionPending,
     isSubmitting,
     onRequestAuthentication,
+    onRequireAgreements,
     refreshSubscriptionAccess,
+    ensureRequiredAgreementsAccepted,
   ])
 
   const currentPlanCode: BillingPlanCode = subscriptionAccess?.currentPlan?.code ?? 'free'
@@ -2624,8 +2698,15 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
       return
     }
 
-    setIsPricingModalOpen(true)
-  }, [auth?.userId, onRequestAuthentication])
+    void (async () => {
+      const agreementsAccepted = await ensureRequiredAgreementsAccepted()
+      if (!agreementsAccepted) {
+        return
+      }
+
+      setIsPricingModalOpen(true)
+    })()
+  }, [auth?.userId, onRequestAuthentication, ensureRequiredAgreementsAccepted])
 
   const handleManageSubscription = useCallback(async () => {
     if (isBillingActionPending || isSubmitting) {
@@ -2647,11 +2728,21 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
       return
     }
 
+    const agreementsAccepted = await ensureRequiredAgreementsAccepted()
+    if (!agreementsAccepted) {
+      return
+    }
+
     setIsBillingActionPending(true)
     try {
       const { portalUrl } = await subscriptionUseCase.openPortal()
       window.location.assign(portalUrl)
     } catch (error) {
+      if (error instanceof Error && isRequiredAgreementsErrorMessage(error.message)) {
+        onRequireAgreements?.()
+        return
+      }
+
       console.error('Failed to open billing management portal.', {
         userId: auth.userId,
         message: error instanceof Error ? error.message : String(error),
@@ -2666,6 +2757,8 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
     isBillingActionPending,
     isSubmitting,
     onRequestAuthentication,
+    onRequireAgreements,
+    ensureRequiredAgreementsAccepted,
   ])
 
   const handleHeaderSignOut = useCallback(() => {
@@ -2708,6 +2801,8 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
           onRequestAuthentication={onRequestAuthentication}
           onNavigateToLibrary={onNavigateToLibrary}
           onRequestOpenPricingModal={handleOpenPricingModal}
+          onEnsureRequiredAgreementsAccepted={ensureRequiredAgreementsAccepted}
+          onRequireAgreements={onRequireAgreements}
         />
       </main>
       <SubscriptionPlansModal
@@ -2732,5 +2827,6 @@ export function StorybookWorkspace({ dependencies, auth, onRequestAuthentication
 export interface StorybookWorkspaceDependencies {
   readonly currentUserId: string
   readonly createStorybookUseCase: CreateStorybookUseCasePort
+  readonly accountAgreementsUseCase?: AccountAgreementsUseCasePort
   readonly subscriptionAccessUseCase?: SubscriptionAccessUseCasePort
 }

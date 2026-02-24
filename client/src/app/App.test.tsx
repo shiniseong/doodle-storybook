@@ -4,10 +4,56 @@ import { BrowserRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import App from '@app/App'
+import { createAppDependencies } from '@app/providers/dependencies'
 import { useSupabaseGoogleAuth, type SupabaseGoogleAuthResult } from '@shared/lib/supabase/use-supabase-google-auth'
 
 vi.mock('@shared/lib/supabase/use-supabase-google-auth', () => ({
   useSupabaseGoogleAuth: vi.fn(),
+}))
+
+vi.mock('@app/providers/dependencies', () => ({
+  createAppDependencies: vi.fn((options?: { currentUserId?: string }) => ({
+    currentUserId: options?.currentUserId ?? 'demo-user',
+    createStorybookUseCase: {
+      execute: vi.fn(),
+    },
+    listStorybooksUseCase: {
+      execute: vi.fn(),
+    },
+    getStorybookDetailUseCase: {
+      execute: vi.fn(),
+    },
+    deleteStorybookUseCase: {
+      execute: vi.fn(),
+    },
+    accountAgreementsUseCase: {
+      getStatus: vi.fn(async () => ({
+        requiredVersion: '2026-02-24',
+        hasAcceptedRequiredAgreements: true,
+        agreements: {
+          termsOfService: true,
+          adultPayer: true,
+          noDirectChildDataCollection: true,
+        },
+        acceptedAt: '2026-02-24T10:00:00.000Z',
+      })),
+      acceptAllRequiredAgreements: vi.fn(async () => ({
+        requiredVersion: '2026-02-24',
+        hasAcceptedRequiredAgreements: true,
+        agreements: {
+          termsOfService: true,
+          adultPayer: true,
+          noDirectChildDataCollection: true,
+        },
+        acceptedAt: '2026-02-24T10:00:00.000Z',
+      })),
+    },
+    subscriptionAccessUseCase: {
+      getSnapshot: vi.fn(),
+      startTrial: vi.fn(),
+      openPortal: vi.fn(),
+    },
+  })),
 }))
 
 vi.mock('@pages/home/ui/HomePage', () => ({
@@ -50,6 +96,20 @@ vi.mock('@pages/auth/ui/LoginPage', () => ({
   }: {
     isConfigured: boolean
   }) => <div data-testid="login-page">{String(isConfigured)}</div>,
+}))
+
+vi.mock('@pages/agreements/ui/AgreementsPage', () => ({
+  AgreementsPage: ({
+    onCompleted,
+  }: {
+    onCompleted?: () => void
+  }) => (
+    <div data-testid="agreements-page">
+      <button type="button" onClick={onCompleted}>
+        agreements-complete
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@pages/library/ui/LibraryPage', () => ({
@@ -119,6 +179,14 @@ function renderAppAt(pathname = '/') {
 }
 
 describe('App', () => {
+  it('create dependencies를 호출한다', () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+
+    renderAppAt('/')
+
+    expect(vi.mocked(createAppDependencies)).toHaveBeenCalled()
+  })
+
   it('기본 진입은 랜딩 페이지다', () => {
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
 
@@ -136,7 +204,7 @@ describe('App', () => {
     renderAppAt('/')
     await user.click(screen.getByRole('button', { name: 'start-workspace' }))
 
-    expect(screen.getByTestId('home-page')).toHaveTextContent('user-1')
+    expect(await screen.findByTestId('home-page')).toHaveTextContent('user-1')
     expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
@@ -156,6 +224,48 @@ describe('App', () => {
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
+  it('로그인 사용자가 /create 진입 시 필수 동의가 미완료면 /agreements로 이동한다', async () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(createMockAuth())
+    vi.mocked(createAppDependencies).mockImplementationOnce((options?: { currentUserId?: string }) => ({
+      currentUserId: options?.currentUserId ?? 'demo-user',
+      createStorybookUseCase: {
+        execute: vi.fn(),
+      },
+      listStorybooksUseCase: {
+        execute: vi.fn(),
+      },
+      getStorybookDetailUseCase: {
+        execute: vi.fn(),
+      },
+      deleteStorybookUseCase: {
+        execute: vi.fn(),
+      },
+      accountAgreementsUseCase: {
+        getStatus: vi.fn(async () => ({
+          requiredVersion: '2026-02-24',
+          hasAcceptedRequiredAgreements: false,
+          agreements: {
+            termsOfService: false,
+            adultPayer: false,
+            noDirectChildDataCollection: false,
+          },
+          acceptedAt: null,
+        })),
+        acceptAllRequiredAgreements: vi.fn(),
+      },
+      subscriptionAccessUseCase: {
+        getSnapshot: vi.fn(),
+        startTrial: vi.fn(),
+        openPortal: vi.fn(),
+      },
+    }))
+
+    renderAppAt('/create')
+
+    expect(await screen.findByTestId('agreements-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+  })
+
   it('홈에서 인증 페이지 요청 시 로그인 페이지를 렌더링한다', async () => {
     const user = userEvent.setup()
     vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
@@ -167,6 +277,7 @@ describe('App', () => {
 
     renderAppAt('/')
     await user.click(screen.getByRole('button', { name: 'start-workspace' }))
+    await screen.findByTestId('home-page')
 
     await user.click(screen.getByRole('button', { name: 'open-auth' }))
 
@@ -180,6 +291,7 @@ describe('App', () => {
 
     renderAppAt('/')
     await user.click(screen.getByRole('button', { name: 'start-workspace' }))
+    await screen.findByTestId('home-page')
     await user.click(screen.getByRole('button', { name: 'open-library' }))
 
     expect(screen.getByTestId('library-page')).toHaveTextContent('user-1')
@@ -200,6 +312,20 @@ describe('App', () => {
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
+  })
+
+  it('/agreements는 인증이 없으면 로그인 페이지로 이동한다', () => {
+    vi.mocked(useSupabaseGoogleAuth).mockReturnValue(
+      createMockAuth({
+        userId: null,
+        userEmail: null,
+      }),
+    )
+
+    renderAppAt('/agreements')
+
+    expect(screen.getByTestId('login-page')).toHaveTextContent('true')
+    expect(screen.queryByTestId('agreements-page')).not.toBeInTheDocument()
   })
 
   it('라이브러리 카드 클릭 시 상세 라우트로 이동한다', async () => {

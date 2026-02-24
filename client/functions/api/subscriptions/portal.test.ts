@@ -28,6 +28,18 @@ function createJsonResponse(payload: unknown, status = 200): Response {
   })
 }
 
+function createAcceptedAgreementRowResponse(): Response {
+  return createJsonResponse([
+    {
+      agreed_terms_of_service: true,
+      agreed_adult_payer: true,
+      agreed_no_direct_child_data_collection: true,
+      required_agreements_version: '2026-02-24',
+      required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+    },
+  ])
+}
+
 function createContext({
   userId = 'user-1',
   withAuthorization = true,
@@ -90,6 +102,10 @@ describe('POST /api/subscriptions/portal', () => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
 
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createAcceptedAgreementRowResponse()
+      }
+
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([])
       }
@@ -119,6 +135,10 @@ describe('POST /api/subscriptions/portal', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createAcceptedAgreementRowResponse()
+      }
 
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([
@@ -154,6 +174,10 @@ describe('POST /api/subscriptions/portal', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createAcceptedAgreementRowResponse()
+      }
 
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([
@@ -192,6 +216,37 @@ describe('POST /api/subscriptions/portal', () => {
     expect(payload.portalUrl).toContain('/create?checkout=success')
     expect(payload.portalUrl).toContain('mock_polar=1')
     expect(payload.portalUrl).toContain('portal=1')
+    expect(mockedCreatePolarCustomerPortalUrl).not.toHaveBeenCalled()
+  })
+
+  it('필수 약관 동의가 없으면 403을 반환한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: false,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: null,
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(createContext({ userId: 'user-missing-agreements' }))
+
+    expect(response.status).toBe(403)
+    const payload = (await response.json()) as { code?: string; error?: string; message?: string }
+    expect(payload.code).toBe('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+    expect(payload.error).toBe('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+    expect(payload.message).toBe('Required agreements are not accepted.')
     expect(mockedCreatePolarCustomerPortalUrl).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,8 @@
 import { authenticateRequest } from '../_shared/auth'
+import {
+  ensureRequiredAgreementsAccepted,
+  REQUIRED_AGREEMENTS_REJECT_CODE,
+} from '../_shared/account-profile'
 import { createPolarCustomerPortalUrl, resolvePolarClient, resolvePortalReturnUrl, type PolarEnv } from '../_shared/polar'
 import { getBillingAccessSnapshot } from '../_shared/subscription-access'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../_shared/supabase'
@@ -69,6 +73,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         error: 'SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SECRET_KEY must be configured.',
       },
       500,
+    )
+  }
+
+  const agreementsResult = await ensureRequiredAgreementsAccepted(supabaseConfig, authResult.value.userId)
+  if (!agreementsResult.ok) {
+    return jsonResponse(
+      {
+        error: 'Failed to resolve required agreements status.',
+        detail: agreementsResult.failure.message,
+      },
+      502,
+    )
+  }
+
+  if (!agreementsResult.value.accepted) {
+    return jsonResponse(
+      {
+        code: REQUIRED_AGREEMENTS_REJECT_CODE,
+        error: REQUIRED_AGREEMENTS_REJECT_CODE,
+        message: 'Required agreements are not accepted.',
+      },
+      403,
     )
   }
 

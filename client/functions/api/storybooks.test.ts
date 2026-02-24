@@ -94,6 +94,18 @@ function createLegacyStoryPagesOutput() {
 function resolveBillingSupabaseResponse(url: string, init?: RequestInit): Response | null {
   const method = String(init?.method ?? 'GET').toUpperCase()
 
+  if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+    return createJsonResponse([
+      {
+        agreed_terms_of_service: true,
+        agreed_adult_payer: true,
+        agreed_no_direct_child_data_collection: true,
+        required_agreements_version: '2026-02-24',
+        required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+      },
+    ])
+  }
+
   if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
     return createJsonResponse([], 200)
   }
@@ -341,6 +353,18 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse(`audio:${requestBody.input ?? ''}`)
       }
 
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
+
       if (url.startsWith('https://supabase.test/rest/v1/')) {
         return createJsonResponse({}, 201)
       }
@@ -365,7 +389,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(23)
+    expect(fetchMock).toHaveBeenCalledTimes(24)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const payload = (await response.json()) as {
@@ -452,6 +476,18 @@ describe('storybooks function (v21 pipeline)', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
+
       if (url.startsWith('https://supabase.test/rest/v1/')) {
         return createJsonResponse({}, 201)
       }
@@ -478,7 +514,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(9)
+    expect(fetchMock).toHaveBeenCalledTimes(10)
     expect(bucketPutMock).toHaveBeenCalledTimes(0)
 
     const payload = (await response.json()) as {
@@ -547,6 +583,18 @@ describe('storybooks function (v21 pipeline)', () => {
   it('authorName이 전달되면 storybooks.author_name에 저장한다', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
 
       if (url.startsWith('https://supabase.test/rest/v1/')) {
         return createJsonResponse({}, 201)
@@ -620,12 +668,16 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(payload.error).toBe(
       'CLOUDFLARE_R2_PUBLIC_BASE_URL (or R2_PUBLIC_BASE_URL) must be configured for @@!!TEST!!@@ mode.',
     )
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(
       fetchMock.mock.calls.every((call) => {
         const input = call[0] as RequestInfo | URL
         const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-        return url.includes('/rest/v1/subscriptions?') || url.includes('/rest/v1/usage_quotas')
+        return (
+          url.includes('/rest/v1/account_profiles?') ||
+          url.includes('/rest/v1/subscriptions?') ||
+          url.includes('/rest/v1/usage_quotas')
+        )
       }),
     ).toBe(true)
   })
@@ -730,6 +782,18 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse('legacy-audio')
       }
 
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
+
       if (url.startsWith('https://supabase.test/rest/v1/')) {
         return createJsonResponse({}, 201)
       }
@@ -753,7 +817,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(23)
+    expect(fetchMock).toHaveBeenCalledTimes(24)
 
     const payload = (await response.json()) as {
       ebook: {
@@ -799,6 +863,18 @@ describe('storybooks function (v21 pipeline)', () => {
         return createAudioResponse('narration')
       }
 
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
+
       if (url.startsWith('https://supabase.test/rest/v1/')) {
         return createJsonResponse({}, 201)
       }
@@ -826,7 +902,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(23)
+    expect(fetchMock).toHaveBeenCalledTimes(24)
     expect(bucketPutMock).toHaveBeenCalledTimes(14)
 
     const imageCalls = bucketPutMock.mock.calls.filter((call) => String(call[0]).includes('/images/'))
@@ -883,6 +959,20 @@ describe('storybooks function (v21 pipeline)', () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return Promise.resolve(
+          createJsonResponse([
+            {
+              agreed_terms_of_service: true,
+              agreed_adult_payer: true,
+              agreed_no_direct_child_data_collection: true,
+              required_agreements_version: '2026-02-24',
+              required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+            },
+          ]),
+        )
+      }
+
       if (url === 'https://api.openai.com/v1/responses') {
         return Promise.resolve(
           createJsonResponse({
@@ -919,7 +1009,7 @@ describe('storybooks function (v21 pipeline)', () => {
       setTimeout(resolve, 0)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(17)
+    expect(fetchMock).toHaveBeenCalledTimes(18)
     expect(deferredRequests).toHaveLength(13)
 
       deferredRequests.forEach((request, index) => {
@@ -971,7 +1061,7 @@ describe('storybooks function (v21 pipeline)', () => {
     )
 
     expect(response.status).toBe(502)
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
 
     const payload = (await response.json()) as { error?: string }
     expect(payload.error).toBe('Invalid storybook prompt output schema.')
@@ -1001,6 +1091,18 @@ describe('storybooks function (v21 pipeline)', () => {
           return createJsonResponse({ error: { message: 'simulated tts failure' } }, 500)
         }
         return createAudioResponse(`audio-${ttsRequestCount}`)
+      }
+
+      if (url.includes('/rest/v1/account_profiles?')) {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
       }
 
       if (url.startsWith('https://supabase.test/rest/v1/')) {
@@ -1033,10 +1135,66 @@ describe('storybooks function (v21 pipeline)', () => {
     expect(supabaseCalls.length).toBeGreaterThanOrEqual(3)
   })
 
+  it('필수 약관 동의가 없으면 403으로 생성을 차단한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: false,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: null,
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestPost(
+      createContext(
+        {
+          userId: 'user-missing-agreements',
+          language: 'ko',
+          title: '@@!!TEST!!@@',
+          description: '동의 체크 테스트',
+        },
+        {
+          OPENAI_API_KEY: '',
+          STORYBOOK_ASSETS_BUCKET: undefined,
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com',
+        },
+      ),
+    )
+
+    expect(response.status).toBe(403)
+    const payload = (await response.json()) as { code?: string; error?: string; message?: string }
+    expect(payload.code).toBe('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+    expect(payload.error).toBe('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+    expect(payload.message).toBe('Required agreements are not accepted.')
+  })
+
   it('비구독 + 무료 쿼터 소진 상태면 동화 생성을 403으로 차단한다', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
 
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([])
@@ -1090,6 +1248,18 @@ describe('storybooks function (v21 pipeline)', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
 
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([
@@ -1162,6 +1332,18 @@ describe('storybooks function (v21 pipeline)', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
 
       if (url.includes('/rest/v1/subscriptions?') && method === 'GET') {
         return createJsonResponse([

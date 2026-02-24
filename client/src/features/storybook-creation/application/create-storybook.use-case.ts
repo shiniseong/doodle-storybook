@@ -32,6 +32,7 @@ export type CreateStorybookError =
   | { code: 'DESCRIPTION_TOO_LONG'; message: string }
   | { code: 'INVALID_LANGUAGE'; message: string }
   | { code: 'QUOTA_EXCEEDED'; message: string }
+  | { code: 'REQUIRED_AGREEMENTS_NOT_ACCEPTED'; message: string }
   | { code: 'UNEXPECTED'; message: string }
 
 export interface CreateStorybookUseCasePort {
@@ -78,12 +79,21 @@ export class CreateStorybookUseCase implements CreateStorybookUseCasePort {
 
       return ok(created)
     } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : '동화 생성 요청 중 오류가 발생했습니다.'
+
+      if (message.toUpperCase().includes('REQUIRED_AGREEMENTS_NOT_ACCEPTED')) {
+        return err({
+          code: 'REQUIRED_AGREEMENTS_NOT_ACCEPTED',
+          message,
+        })
+      }
+
       return err({
         code: 'UNEXPECTED',
-        message:
-          error instanceof Error && error.message.trim().length > 0
-            ? error.message
-            : '동화 생성 요청 중 오류가 발생했습니다.',
+        message,
       })
     }
   }

@@ -136,4 +136,30 @@ describe('CreateStorybookUseCase', () => {
     expect(result.error.code).toBe('UNEXPECTED')
     expect(result.error.message).toBe('network failure')
   })
+
+  it('필수 동의 미완료 에러 문자열은 REQUIRED_AGREEMENTS_NOT_ACCEPTED로 매핑한다', async () => {
+    const quotaPort: StorybookQuotaPort = {
+      canCreateStorybook: vi.fn(async () => true),
+    }
+    const commandPort: StorybookCommandPort = {
+      createStorybook: vi.fn(async () => {
+        throw new Error('Failed to create storybook (403): REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+      }),
+    }
+
+    const useCase = new CreateStorybookUseCase(quotaPort, commandPort)
+    const result = await useCase.execute({
+      userId: 'user-1',
+      description: '호수 위를 산책해요',
+      language: 'ko',
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) {
+      return
+    }
+
+    expect(result.error.code).toBe('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+    expect(result.error.message).toContain('REQUIRED_AGREEMENTS_NOT_ACCEPTED')
+  })
 })

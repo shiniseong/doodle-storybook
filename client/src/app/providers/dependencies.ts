@@ -1,4 +1,9 @@
 import {
+  AccountAgreementsUseCase,
+  type AccountAgreementsUseCasePort,
+} from '@features/account-agreements/application/account-agreements.use-case'
+import { HttpAccountAgreementsPort } from '@features/account-agreements/infrastructure/http/account-agreements.ports.http'
+import {
   CreateStorybookUseCase,
   type CreateStorybookUseCasePort,
 } from '@features/storybook-creation/application/create-storybook.use-case'
@@ -33,6 +38,7 @@ export interface AppDependencies {
   readonly listStorybooksUseCase: ListStorybooksUseCasePort
   readonly getStorybookDetailUseCase: GetStorybookDetailUseCasePort
   readonly deleteStorybookUseCase: DeleteStorybookUseCasePort
+  readonly accountAgreementsUseCase?: AccountAgreementsUseCasePort
   readonly subscriptionAccessUseCase?: SubscriptionAccessUseCasePort
 }
 
@@ -55,6 +61,9 @@ export const createAppDependencies = (options: CreateAppDependenciesOptions = {}
   const storybookDetailQueryPort = new HttpStorybookDetailQueryPort({
     accessToken: options.accessToken ?? null,
   })
+  const accountAgreementsPort = new HttpAccountAgreementsPort({
+    accessToken: options.accessToken ?? null,
+  })
   const subscriptionAccessPort = new HttpSubscriptionAccessPort({
     accessToken: options.accessToken ?? null,
   })
@@ -65,6 +74,7 @@ export const createAppDependencies = (options: CreateAppDependenciesOptions = {}
     listStorybooksUseCase: new ListStorybooksUseCase(storybookLibraryQueryPort),
     getStorybookDetailUseCase: new GetStorybookDetailUseCase(storybookDetailQueryPort),
     deleteStorybookUseCase: new DeleteStorybookUseCase(storybookDeletionCommandPort),
+    accountAgreementsUseCase: new AccountAgreementsUseCase(accountAgreementsPort),
     subscriptionAccessUseCase: new SubscriptionAccessUseCase(subscriptionAccessPort),
   }
 }
