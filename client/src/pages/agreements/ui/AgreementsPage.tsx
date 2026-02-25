@@ -5,6 +5,10 @@ import {
   loadAgreementDocument,
   type RequiredAgreementKey,
 } from '@pages/agreements/model/agreement-documents'
+import {
+  DEFAULT_PUBLIC_LEGAL_DOCUMENT_VERSION,
+  normalizeLegalDocumentVersion,
+} from '@shared/lib/legal/legal-documents'
 import type { AccountAgreementsUseCasePort } from '@features/account-agreements/application/account-agreements.use-case'
 import { LanguageSwitcher } from '@shared/ui/language-switcher/LanguageSwitcher'
 import { ThemeToggle } from '@shared/ui/theme-toggle/ThemeToggle'
@@ -43,7 +47,7 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [agreements, setAgreements] = useState<AgreementsState>(DEFAULT_AGREEMENTS_STATE)
   const [reviewedDocuments, setReviewedDocuments] = useState<AgreementsState>(DEFAULT_REVIEWED_DOCUMENTS_STATE)
-  const [requiredVersion, setRequiredVersion] = useState<string | null>(null)
+  const [requiredVersion, setRequiredVersion] = useState<string>(DEFAULT_PUBLIC_LEGAL_DOCUMENT_VERSION)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [activeDocumentKey, setActiveDocumentKey] = useState<RequiredAgreementKey | null>(null)
   const [activeDocumentTitle, setActiveDocumentTitle] = useState<string>('')
@@ -74,7 +78,9 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
           return
         }
 
-        setRequiredVersion(status.requiredVersion)
+        setRequiredVersion(
+          normalizeLegalDocumentVersion(status.requiredVersion) ?? DEFAULT_PUBLIC_LEGAL_DOCUMENT_VERSION,
+        )
         setAgreements({ ...DEFAULT_AGREEMENTS_STATE })
         setReviewedDocuments({ ...DEFAULT_REVIEWED_DOCUMENTS_STATE })
         setErrorMessage(null)
@@ -83,6 +89,7 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
           return
         }
 
+        setRequiredVersion(DEFAULT_PUBLIC_LEGAL_DOCUMENT_VERSION)
         setErrorMessage(t('agreementsPage.loadError'))
       } finally {
         if (!cancelled) {
@@ -137,11 +144,6 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
   const openDocumentDialog = useCallback(
     async (key: RequiredAgreementKey, title: string) => {
       if (isSubmitting) {
-        return
-      }
-
-      if (!requiredVersion) {
-        setErrorMessage(t('agreementsPage.documentVersionError'))
         return
       }
 
