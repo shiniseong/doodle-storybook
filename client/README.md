@@ -91,6 +91,7 @@ Set in Cloudflare Pages project:
 - `SUPABASE_URL` or `VITE_SUPABASE_URL` (var)
 - `SUPABASE_SECRET_KEY` (secret, required for server-side DB persistence)
 - `CLOUDFLARE_R2_PUBLIC_BASE_URL` (var, required for `@@!!TEST!!@@` mock mode asset URLs)
+- `REQUIRED_AGREEMENTS_VERSION` (var, optional; format `YYYY-MM-DD`, default `2026-02-24`)
 
 The storybook API writes generated entities to `doodle_storybook_db` schema tables:
 
@@ -140,6 +141,35 @@ If you run Vite separately (`npm run dev`), set `VITE_API_BASE_URL` in `.env`:
 ```bash
 VITE_API_BASE_URL="http://127.0.0.1:8788"
 ```
+
+## Required Agreements 운영 절차
+
+필수 약관은 서버의 `REQUIRED_AGREEMENTS_VERSION` 값을 기준으로 동의 유효성을 판단합니다.
+프론트는 API가 반환한 `requiredVersion`으로 실제 문서(`public/legal/<version>/...`)를 로드합니다.
+
+약관 개정 릴리즈 절차:
+
+1. 새 버전 디렉터리 생성: `public/legal/<YYYY-MM-DD>/`
+2. 문서 배치:
+   - `ko/terms-of-service.md`
+   - `ko/adult-payer-notice.md`
+   - `ko/child-data-policy.md`
+   - `en/terms-of-service.md`
+   - `en/adult-payer-notice.md`
+   - `en/child-data-policy.md`
+   - `ja/terms-of-service.md`
+   - `ja/adult-payer-notice.md`
+   - `ja/child-data-policy.md`
+   - `zh/terms-of-service.md`
+   - `zh/adult-payer-notice.md`
+   - `zh/child-data-policy.md`
+3. 스테이징에서 `/api/account/agreements` 응답의 `requiredVersion` 확인
+4. `REQUIRED_AGREEMENTS_VERSION=<YYYY-MM-DD>`로 배포 환경 변수 변경
+5. 실제 사용자 계정으로 `/agreements` 진입 후 문서 열람/동의/제출 검증
+
+운영 주의사항:
+- `REQUIRED_AGREEMENTS_VERSION`만 먼저 변경하면, 해당 버전 문서가 없는 경우 프론트 문서 로드가 실패합니다.
+- 반드시 문서 배포 후 버전 전환 순서를 지키세요.
 
 Optional live check test (disabled by default):
 

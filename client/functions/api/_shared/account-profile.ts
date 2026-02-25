@@ -6,8 +6,9 @@ import {
   type SupabaseError,
   type SupabaseResult,
 } from './supabase'
+import { DEFAULT_REQUIRED_AGREEMENTS_VERSION } from './agreements-policy'
 
-export const REQUIRED_AGREEMENTS_VERSION = '2026-02-24'
+export const REQUIRED_AGREEMENTS_VERSION = DEFAULT_REQUIRED_AGREEMENTS_VERSION
 export const REQUIRED_AGREEMENTS_REJECT_CODE = 'REQUIRED_AGREEMENTS_NOT_ACCEPTED'
 
 interface AccountProfileRow {
@@ -57,22 +58,25 @@ function normalizeString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-function normalizeStatus(row: AccountProfileRow | null): AccountAgreementsStatus {
+function normalizeStatus(
+  row: AccountProfileRow | null,
+  requiredAgreementsVersion: string,
+): AccountAgreementsStatus {
   const termsOfService = normalizeBoolean(row?.agreed_terms_of_service)
   const adultPayer = normalizeBoolean(row?.agreed_adult_payer)
   const noDirectChildDataCollection = normalizeBoolean(row?.agreed_no_direct_child_data_collection)
   const acceptedAt = normalizeString(row?.required_agreements_accepted_at)
-  const requiredVersion = normalizeString(row?.required_agreements_version) ?? REQUIRED_AGREEMENTS_VERSION
+  const requiredVersion = normalizeString(row?.required_agreements_version) ?? requiredAgreementsVersion
 
   const hasAcceptedRequiredAgreements =
     termsOfService &&
     adultPayer &&
     noDirectChildDataCollection &&
-    requiredVersion === REQUIRED_AGREEMENTS_VERSION &&
+    requiredVersion === requiredAgreementsVersion &&
     acceptedAt !== null
 
   return {
-    requiredVersion: REQUIRED_AGREEMENTS_VERSION,
+    requiredVersion: requiredAgreementsVersion,
     hasAcceptedRequiredAgreements,
     agreements: {
       termsOfService,
@@ -133,6 +137,7 @@ async function fetchAccountProfileRow(
 export async function getAccountAgreementStatus(
   config: SupabaseConfig,
   userId: string,
+  requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
 ): Promise<SupabaseResult<AccountAgreementsStatus>> {
   const rowResult = await fetchAccountProfileRow(config, userId)
   if (!rowResult.ok) {
@@ -141,13 +146,14 @@ export async function getAccountAgreementStatus(
 
   return {
     ok: true,
-    value: normalizeStatus(rowResult.value),
+    value: normalizeStatus(rowResult.value, requiredAgreementsVersion),
   }
 }
 
 export async function acceptRequiredAgreements(
   config: SupabaseConfig,
   userId: string,
+  requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
 ): Promise<SupabaseResult<AccountAgreementsStatus>> {
   let response: Response
 
@@ -164,7 +170,7 @@ export async function acceptRequiredAgreements(
         agreed_terms_of_service: true,
         agreed_adult_payer: true,
         agreed_no_direct_child_data_collection: true,
-        required_agreements_version: REQUIRED_AGREEMENTS_VERSION,
+        required_agreements_version: requiredAgreementsVersion,
         required_agreements_accepted_at: new Date().toISOString(),
       }),
     })
@@ -180,14 +186,15 @@ export async function acceptRequiredAgreements(
     )
   }
 
-  return getAccountAgreementStatus(config, userId)
+  return getAccountAgreementStatus(config, userId, requiredAgreementsVersion)
 }
 
 export async function ensureRequiredAgreementsAccepted(
   config: SupabaseConfig,
   userId: string,
+  requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
 ): Promise<SupabaseResult<AccountAgreementDecision>> {
-  const statusResult = await getAccountAgreementStatus(config, userId)
+  const statusResult = await getAccountAgreementStatus(config, userId, requiredAgreementsVersion)
   if (!statusResult.ok) {
     return statusResult
   }

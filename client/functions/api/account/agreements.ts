@@ -4,9 +4,13 @@ import {
   getAccountAgreementStatus,
   REQUIRED_AGREEMENTS_REJECT_CODE,
 } from '../_shared/account-profile'
+import {
+  resolveRequiredAgreementsVersion,
+  type RequiredAgreementsEnv,
+} from '../_shared/agreements-policy'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../_shared/supabase'
 
-type Env = SupabaseEnv
+type Env = SupabaseEnv & RequiredAgreementsEnv
 
 interface AcceptRequiredAgreementsRequestBody {
   termsOfService?: unknown
@@ -80,7 +84,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const statusResult = await getAccountAgreementStatus(supabaseConfig, authResult.value.userId)
+  const requiredAgreementsVersion = resolveRequiredAgreementsVersion(context.env)
+  const statusResult = await getAccountAgreementStatus(
+    supabaseConfig,
+    authResult.value.userId,
+    requiredAgreementsVersion,
+  )
   if (!statusResult.ok) {
     return jsonResponse(
       {
@@ -137,7 +146,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const acceptResult = await acceptRequiredAgreements(supabaseConfig, authResult.value.userId)
+  const requiredAgreementsVersion = resolveRequiredAgreementsVersion(context.env)
+  const acceptResult = await acceptRequiredAgreements(
+    supabaseConfig,
+    authResult.value.userId,
+    requiredAgreementsVersion,
+  )
   if (!acceptResult.ok) {
     return jsonResponse(
       {

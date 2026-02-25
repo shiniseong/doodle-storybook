@@ -8,6 +8,7 @@ interface TestEnv {
   SUPABASE_SECRET_KEY?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
   ALLOW_INSECURE_TEST_TOKENS?: string
+  REQUIRED_AGREEMENTS_VERSION?: string
 }
 
 function createJsonResponse(payload: unknown, status = 200): Response {
@@ -133,6 +134,60 @@ describe('GET/POST /api/account/agreements', () => {
         noDirectChildDataCollection: false,
       },
       acceptedAt: null,
+    })
+  })
+
+  it('운영 버전이 변경되면 기존 버전 동의는 미동의로 판정한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = String(init?.method ?? 'GET').toUpperCase()
+
+      if (url.includes('/rest/v1/account_profiles?') && method === 'GET') {
+        return createJsonResponse([
+          {
+            agreed_terms_of_service: true,
+            agreed_adult_payer: true,
+            agreed_no_direct_child_data_collection: true,
+            required_agreements_version: '2026-02-24',
+            required_agreements_accepted_at: '2026-02-24T10:00:00.000Z',
+          },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await onRequestGet(
+      createGetContext({
+        userId: 'user-old-version',
+        envOverrides: {
+          REQUIRED_AGREEMENTS_VERSION: '2026-03-01',
+        },
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as {
+      requiredVersion: string
+      hasAcceptedRequiredAgreements: boolean
+      agreements: {
+        termsOfService: boolean
+        adultPayer: boolean
+        noDirectChildDataCollection: boolean
+      }
+      acceptedAt: string | null
+    }
+
+    expect(payload).toEqual({
+      requiredVersion: '2026-03-01',
+      hasAcceptedRequiredAgreements: false,
+      agreements: {
+        termsOfService: true,
+        adultPayer: true,
+        noDirectChildDataCollection: true,
+      },
+      acceptedAt: '2026-02-24T10:00:00.000Z',
     })
   })
 

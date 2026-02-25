@@ -4,6 +4,10 @@ import {
   REQUIRED_AGREEMENTS_REJECT_CODE,
 } from '../../_shared/account-profile'
 import {
+  resolveRequiredAgreementsVersion,
+  type RequiredAgreementsEnv,
+} from '../../_shared/agreements-policy'
+import {
   createPolarCheckoutUrl,
   createPolarCustomerPortalUrl,
   resolveCheckoutPlanConfig,
@@ -16,7 +20,7 @@ import {
 import { getBillingAccessSnapshot, upsertSubscriptionFromPolar } from '../../_shared/subscription-access'
 import { resolveSupabaseConfig, type SupabaseEnv } from '../../_shared/supabase'
 
-interface Env extends SupabaseEnv, PolarEnv {
+interface Env extends SupabaseEnv, PolarEnv, RequiredAgreementsEnv {
   POLAR_MOCK_ALWAYS_SUCCESS?: string
 }
 
@@ -124,7 +128,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const agreementsResult = await ensureRequiredAgreementsAccepted(supabaseConfig, authResult.value.userId)
+  const requiredAgreementsVersion = resolveRequiredAgreementsVersion(context.env)
+  const agreementsResult = await ensureRequiredAgreementsAccepted(
+    supabaseConfig,
+    authResult.value.userId,
+    requiredAgreementsVersion,
+  )
   if (!agreementsResult.ok) {
     return jsonResponse(
       {

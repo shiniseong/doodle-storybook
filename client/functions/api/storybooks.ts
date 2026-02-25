@@ -4,6 +4,7 @@ import {
   ensureRequiredAgreementsAccepted,
   REQUIRED_AGREEMENTS_REJECT_CODE,
 } from './_shared/account-profile'
+import { resolveRequiredAgreementsVersion } from './_shared/agreements-policy'
 import { getBillingAccessSnapshot, incrementDailyQuotaUsage, incrementFreeQuotaUsage } from './_shared/subscription-access'
 
 type StoryLanguage = 'ko' | 'en' | 'ja' | 'zh'
@@ -36,6 +37,7 @@ interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string
   CLOUDFLARE_R2_PUBLIC_BASE_URL?: string
   R2_PUBLIC_BASE_URL?: string
+  REQUIRED_AGREEMENTS_VERSION?: string
 }
 
 interface StorybookCreateRequestBody {
@@ -1606,7 +1608,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
   }
 
-  const agreementsResult = await ensureRequiredAgreementsAccepted(supabasePersistenceConfig, authenticatedUserId)
+  const requiredAgreementsVersion = resolveRequiredAgreementsVersion(context.env)
+  const agreementsResult = await ensureRequiredAgreementsAccepted(
+    supabasePersistenceConfig,
+    authenticatedUserId,
+    requiredAgreementsVersion,
+  )
   if (!agreementsResult.ok) {
     return jsonResponse(
       {
