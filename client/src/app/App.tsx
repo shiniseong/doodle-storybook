@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { createAppDependencies } from '@app/providers/dependencies'
 import { AgreementsPage } from '@pages/agreements/ui/AgreementsPage'
@@ -10,6 +10,9 @@ import { LibraryPage } from '@pages/library/ui/LibraryPage'
 import { StorybookDetailPage } from '@pages/storybook-detail/ui/StorybookDetailPage'
 import { useSupabaseGoogleAuth, type SupabaseGoogleAuthResult } from '@shared/lib/supabase/use-supabase-google-auth'
 import { ThemeProvider } from '@shared/lib/theme/theme-context'
+import { AppFooter } from '@shared/ui/app-footer/AppFooter'
+
+import './App.css'
 
 interface StorybookDetailRouteProps {
   dependencies: ReturnType<typeof createAppDependencies>
@@ -137,7 +140,9 @@ function CreateRoute({
 
 export default function App() {
   const auth = useSupabaseGoogleAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+  const showFooter = location.pathname !== '/'
   const dependencies = useMemo(
     () =>
       createAppDependencies({
@@ -159,106 +164,111 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <LandingPage
-              onStart={() => {
-                navigate('/create')
-              }}
+      <div className={`app-shell${showFooter ? ' app-shell--with-footer' : ''}`}>
+        <div className="app-shell__content">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <LandingPage
+                  onStart={() => {
+                    navigate('/create')
+                  }}
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="/create"
-          element={
-            <CreateRoute
-              dependencies={dependencies}
-              auth={auth}
-              workspaceAuth={workspaceAuth}
-              onRequestAuthentication={() => {
-                navigate('/auth')
-              }}
-              onNavigateToLibrary={() => {
-                navigate('/library')
-              }}
-              onRequireAgreements={() => {
-                navigate('/agreements', { replace: true })
-              }}
+            <Route
+              path="/create"
+              element={
+                <CreateRoute
+                  dependencies={dependencies}
+                  auth={auth}
+                  workspaceAuth={workspaceAuth}
+                  onRequestAuthentication={() => {
+                    navigate('/auth')
+                  }}
+                  onNavigateToLibrary={() => {
+                    navigate('/library')
+                  }}
+                  onRequireAgreements={() => {
+                    navigate('/agreements', { replace: true })
+                  }}
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="/agreements"
-          element={
-            auth.userId ? (
-              <AgreementsPage
-                useCase={dependencies.accountAgreementsUseCase}
-                onCompleted={() => {
-                  navigate('/create', { replace: true })
-                }}
-              />
-            ) : (
-              <Navigate to="/auth" replace />
-            )
-          }
-        />
-        <Route
-          path="/library"
-          element={
-            auth.userId ? (
-              <LibraryPage
-                dependencies={dependencies}
-                userId={auth.userId}
-                onBackToCreate={() => {
-                  navigate('/create')
-                }}
-                onOpenStorybookDetail={(storybookId) => {
-                  navigate(`/storybooks/${storybookId}`)
-                }}
-              />
-            ) : (
-              <Navigate to="/auth" replace />
-            )
-          }
-        />
-        <Route
-          path="/storybooks/:storybookId"
-          element={
-            auth.userId ? (
-              <StorybookDetailRoute
-                dependencies={dependencies}
-                userId={auth.userId}
-                onBack={() => {
-                  navigate('/library')
-                }}
-              />
-            ) : (
-              <Navigate to="/auth" replace />
-            )
-          }
-        />
-        <Route
-          path="/auth"
-          element={
-            auth.userId ? (
-              <Navigate to="/create" replace />
-            ) : (
-              <LoginPage
-                isConfigured={auth.isConfigured}
-                isLoading={auth.isLoading}
-                isSigningIn={auth.isSigningIn}
-                onSignInWithGoogle={auth.signInWithGoogle}
-                onSignInWithKakao={auth.signInWithKakao}
-                onSignInWithEmail={auth.signInWithEmail}
-                onSignUpWithEmail={auth.signUpWithEmail}
-              />
-            )
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+            <Route
+              path="/agreements"
+              element={
+                auth.userId ? (
+                  <AgreementsPage
+                    useCase={dependencies.accountAgreementsUseCase}
+                    onCompleted={() => {
+                      navigate('/create', { replace: true })
+                    }}
+                  />
+                ) : (
+                  <Navigate to="/auth" replace />
+                )
+              }
+            />
+            <Route
+              path="/library"
+              element={
+                auth.userId ? (
+                  <LibraryPage
+                    dependencies={dependencies}
+                    userId={auth.userId}
+                    onBackToCreate={() => {
+                      navigate('/create')
+                    }}
+                    onOpenStorybookDetail={(storybookId) => {
+                      navigate(`/storybooks/${storybookId}`)
+                    }}
+                  />
+                ) : (
+                  <Navigate to="/auth" replace />
+                )
+              }
+            />
+            <Route
+              path="/storybooks/:storybookId"
+              element={
+                auth.userId ? (
+                  <StorybookDetailRoute
+                    dependencies={dependencies}
+                    userId={auth.userId}
+                    onBack={() => {
+                      navigate('/library')
+                    }}
+                  />
+                ) : (
+                  <Navigate to="/auth" replace />
+                )
+              }
+            />
+            <Route
+              path="/auth"
+              element={
+                auth.userId ? (
+                  <Navigate to="/create" replace />
+                ) : (
+                  <LoginPage
+                    isConfigured={auth.isConfigured}
+                    isLoading={auth.isLoading}
+                    isSigningIn={auth.isSigningIn}
+                    onSignInWithGoogle={auth.signInWithGoogle}
+                    onSignInWithKakao={auth.signInWithKakao}
+                    onSignInWithEmail={auth.signInWithEmail}
+                    onSignUpWithEmail={auth.signUpWithEmail}
+                  />
+                )
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+        {showFooter ? <AppFooter /> : null}
+      </div>
     </ThemeProvider>
   )
 }

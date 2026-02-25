@@ -1,69 +1,12 @@
-export type RequiredAgreementKey = 'termsOfService' | 'adultPayer' | 'noDirectChildDataCollection'
+import {
+  buildLegalDocumentPath,
+  normalizeLegalDocumentLanguage,
+  normalizeLegalDocumentVersion,
+  resolveLegalDocumentLanguageCandidates,
+  type RequiredAgreementKey,
+} from '@shared/lib/legal/legal-documents'
 
-type AgreementLanguageCode = 'ko' | 'en' | 'ja' | 'zh'
-
-interface AgreementDocumentManifest {
-  readonly slug: string
-}
-
-const AGREEMENT_DOCUMENT_BASE_PATH = '/legal'
-const AGREEMENTS_VERSION_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-
-const AGREEMENT_DOCUMENT_MANIFEST: Record<RequiredAgreementKey, AgreementDocumentManifest> = {
-  termsOfService: {
-    slug: 'terms-of-service',
-  },
-  adultPayer: {
-    slug: 'adult-payer-notice',
-  },
-  noDirectChildDataCollection: {
-    slug: 'child-data-policy',
-  },
-}
-
-function normalizeAgreementLanguage(language: string): AgreementLanguageCode {
-  const normalizedLanguage = language.toLowerCase()
-
-  if (normalizedLanguage.startsWith('ko')) {
-    return 'ko'
-  }
-
-  if (normalizedLanguage.startsWith('ja')) {
-    return 'ja'
-  }
-
-  if (normalizedLanguage.startsWith('zh')) {
-    return 'zh'
-  }
-
-  return 'en'
-}
-
-function resolveLanguageCandidates(language: AgreementLanguageCode): AgreementLanguageCode[] {
-  if (language === 'ko') {
-    return ['ko', 'en']
-  }
-
-  if (language === 'ja') {
-    return ['ja', 'en', 'ko']
-  }
-
-  if (language === 'zh') {
-    return ['zh', 'en', 'ko']
-  }
-
-  return ['en', 'ko']
-}
-
-function normalizeAgreementVersion(requiredVersion: string): string | null {
-  const normalizedVersion = requiredVersion.trim()
-
-  if (!AGREEMENTS_VERSION_PATTERN.test(normalizedVersion)) {
-    return null
-  }
-
-  return normalizedVersion
-}
+export type { RequiredAgreementKey }
 
 async function fetchDocumentText(path: string): Promise<string | null> {
   try {
@@ -91,17 +34,20 @@ export async function loadAgreementDocument(
   language: string,
   requiredVersion: string,
 ): Promise<string> {
-  const normalizedVersion = normalizeAgreementVersion(requiredVersion)
+  const normalizedVersion = normalizeLegalDocumentVersion(requiredVersion)
   if (!normalizedVersion) {
     throw new Error('Invalid required agreements version.')
   }
 
-  const manifest = AGREEMENT_DOCUMENT_MANIFEST[key]
-  const preferredLanguage = normalizeAgreementLanguage(language)
-  const candidates = resolveLanguageCandidates(preferredLanguage)
+  const preferredLanguage = normalizeLegalDocumentLanguage(language)
+  const candidates = resolveLegalDocumentLanguageCandidates(preferredLanguage)
 
   for (const candidate of candidates) {
-    const path = `${AGREEMENT_DOCUMENT_BASE_PATH}/${normalizedVersion}/${candidate}/${manifest.slug}.md`
+    const path = buildLegalDocumentPath({
+      key,
+      language: candidate,
+      version: normalizedVersion,
+    })
     const text = await fetchDocumentText(path)
 
     if (text) {

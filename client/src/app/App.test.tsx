@@ -193,6 +193,7 @@ describe('App', () => {
     renderAppAt('/')
 
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('app-footer')).not.toBeInTheDocument()
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
@@ -310,6 +311,7 @@ describe('App', () => {
     renderAppAt('/auth')
 
     expect(screen.getByTestId('login-page')).toHaveTextContent('true')
+    expect(screen.getByTestId('app-footer')).toBeInTheDocument()
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
     expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
   })
