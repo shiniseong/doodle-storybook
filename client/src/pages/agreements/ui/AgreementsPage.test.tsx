@@ -64,7 +64,6 @@ describe('AgreementsPage', () => {
 
     await reviewNextAgreementDocument(user)
 
-    await user.click(checkboxes[0])
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).toBeDisabled()
     expect(submitButton).toBeDisabled()
@@ -84,13 +83,23 @@ describe('AgreementsPage', () => {
     await reviewNextAgreementDocument(user)
 
     const checkboxes = screen.getAllByRole('checkbox')
-    await user.click(checkboxes[0])
-    await user.click(checkboxes[1])
-    expect(submitButton).toBeDisabled()
-
-    await user.click(checkboxes[2])
+    expect(checkboxes[0]).toBeChecked()
+    expect(checkboxes[1]).toBeChecked()
+    expect(checkboxes[2]).toBeChecked()
     expect(submitButton).not.toBeDisabled()
     expect(documentLoader).toHaveBeenCalledTimes(3)
+  })
+
+  it('약관 문서는 마크다운으로 렌더링된다', async () => {
+    const user = userEvent.setup()
+    const useCase = createUseCaseStub()
+    const documentLoader = createDocumentLoaderStub()
+
+    render(<AgreementsPage useCase={useCase} documentLoader={documentLoader} />)
+
+    await user.click((await screen.findAllByRole('button', { name: '약관 보기' }))[0])
+    expect(await screen.findByRole('heading', { name: 'termsOfService' })).toBeInTheDocument()
+    expect(screen.queryByText('# termsOfService')).not.toBeInTheDocument()
   })
 
   it('이미 동의된 상태면 즉시 완료 콜백을 호출한다', async () => {
@@ -154,10 +163,7 @@ describe('AgreementsPage', () => {
     await reviewNextAgreementDocument(user)
     await reviewNextAgreementDocument(user)
 
-    const checkboxes = await screen.findAllByRole('checkbox')
-    await user.click(checkboxes[0])
-    await user.click(checkboxes[1])
-    await user.click(checkboxes[2])
+    expect(screen.getByRole('button', { name: '동의하고 계속하기' })).not.toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: '동의하고 계속하기' }))
 

@@ -188,10 +188,75 @@
 
 .agreements-page__document-content {
   margin: 0;
-  white-space: pre-wrap;
+  display: grid;
+  gap: 12px;
   line-height: 1.58;
   font-size: 0.9rem;
-  font-family: inherit;
+  color: rgba(240, 247, 255, 0.94);
+}
+
+.agreements-page__document-content > * {
+  margin: 0;
+}
+
+.agreements-page__document-content h1,
+.agreements-page__document-content h2,
+.agreements-page__document-content h3,
+.agreements-page__document-content h4 {
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+
+.agreements-page__document-content ul,
+.agreements-page__document-content ol {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+}
+
+.agreements-page__document-content a {
+  color: #9fdcff;
+}
+
+.agreements-page__document-content code {
+  border-radius: 6px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.84em;
+}
+
+.agreements-page__document-content pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: auto;
+}
+
+.agreements-page__document-content pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.agreements-page__document-content table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.agreements-page__document-content th,
+.agreements-page__document-content td {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.agreements-page__document-content blockquote {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid rgba(152, 247, 207, 0.72);
+  color: rgba(203, 231, 255, 0.92);
 }
 
 .agreements-page__dialog-loading {

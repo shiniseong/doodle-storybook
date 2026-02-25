@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 import {
   loadAgreementDocument,
@@ -184,6 +186,10 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
       ...previous,
       [activeDocumentKey]: true,
     }))
+    setAgreements((previous) => ({
+      ...previous,
+      [activeDocumentKey]: true,
+    }))
     closeDocumentDialog()
   }, [activeDocumentKey, closeDocumentDialog])
 
@@ -312,7 +318,9 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
               ) : null}
 
               {!isDocumentLoading && !activeDocumentErrorMessage ? (
-                <pre className="agreements-page__document-content">{activeDocumentContent}</pre>
+                <div className="agreements-page__document-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{activeDocumentContent}</ReactMarkdown>
+                </div>
               ) : null}
             </div>
 
