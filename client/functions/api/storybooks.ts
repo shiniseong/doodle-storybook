@@ -1613,6 +1613,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     supabasePersistenceConfig,
     authenticatedUserId,
     requiredAgreementsVersion,
+    authResult.value.accessToken,
   )
   if (!agreementsResult.ok) {
     return jsonResponse(

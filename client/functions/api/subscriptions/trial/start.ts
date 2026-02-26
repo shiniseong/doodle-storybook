@@ -133,6 +133,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     supabaseConfig,
     authResult.value.userId,
     requiredAgreementsVersion,
+    authResult.value.accessToken,
   )
   if (!agreementsResult.ok) {
     return jsonResponse(

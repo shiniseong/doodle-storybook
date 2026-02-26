@@ -90,6 +90,7 @@ function normalizeStatus(
 async function fetchAccountProfileRow(
   config: SupabaseConfig,
   userId: string,
+  requestAccessToken: string | null = null,
 ): Promise<SupabaseResult<AccountProfileRow | null>> {
   const query = new URLSearchParams({
     select:
@@ -102,7 +103,9 @@ async function fetchAccountProfileRow(
   try {
     response = await fetch(`${config.baseUrl}/rest/v1/account_profiles?${query.toString()}`, {
       method: 'GET',
-      headers: createSupabaseHeaders(config),
+      headers: createSupabaseHeaders(config, {
+        authorizationToken: requestAccessToken,
+      }),
     })
   } catch {
     return asSupabaseFailure(502, 'Failed to reach Supabase REST API for account_profiles.')
@@ -138,8 +141,9 @@ export async function getAccountAgreementStatus(
   config: SupabaseConfig,
   userId: string,
   requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
+  requestAccessToken: string | null = null,
 ): Promise<SupabaseResult<AccountAgreementsStatus>> {
-  const rowResult = await fetchAccountProfileRow(config, userId)
+  const rowResult = await fetchAccountProfileRow(config, userId, requestAccessToken)
   if (!rowResult.ok) {
     return rowResult
   }
@@ -154,6 +158,7 @@ export async function acceptRequiredAgreements(
   config: SupabaseConfig,
   userId: string,
   requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
+  requestAccessToken: string | null = null,
 ): Promise<SupabaseResult<AccountAgreementsStatus>> {
   let response: Response
 
@@ -164,6 +169,7 @@ export async function acceptRequiredAgreements(
         includeJsonBody: true,
         preferMinimal: true,
         mergeDuplicates: true,
+        authorizationToken: requestAccessToken,
       }),
       body: JSON.stringify({
         user_id: userId,
@@ -186,15 +192,16 @@ export async function acceptRequiredAgreements(
     )
   }
 
-  return getAccountAgreementStatus(config, userId, requiredAgreementsVersion)
+  return getAccountAgreementStatus(config, userId, requiredAgreementsVersion, requestAccessToken)
 }
 
 export async function ensureRequiredAgreementsAccepted(
   config: SupabaseConfig,
   userId: string,
   requiredAgreementsVersion: string = REQUIRED_AGREEMENTS_VERSION,
+  requestAccessToken: string | null = null,
 ): Promise<SupabaseResult<AccountAgreementDecision>> {
-  const statusResult = await getAccountAgreementStatus(config, userId, requiredAgreementsVersion)
+  const statusResult = await getAccountAgreementStatus(config, userId, requiredAgreementsVersion, requestAccessToken)
   if (!statusResult.ok) {
     return statusResult
   }

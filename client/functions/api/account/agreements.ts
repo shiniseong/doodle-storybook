@@ -89,6 +89,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     supabaseConfig,
     authResult.value.userId,
     requiredAgreementsVersion,
+    authResult.value.accessToken,
   )
   if (!statusResult.ok) {
     return jsonResponse(
@@ -151,6 +152,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     supabaseConfig,
     authResult.value.userId,
     requiredAgreementsVersion,
+    authResult.value.accessToken,
   )
   if (!acceptResult.ok) {
     return jsonResponse(

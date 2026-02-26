@@ -3,6 +3,12 @@ import { readResponseBody, resolveSupabaseConfig, type SupabaseEnv } from './sup
 export interface AuthenticatedUser {
   userId: string
   userEmail: string | null
+  accessToken: string
+}
+
+interface ResolvedAuthenticatedUserIdentity {
+  userId: string
+  userEmail: string | null
 }
 
 interface AuthFailure {
@@ -41,7 +47,7 @@ function resolveBearerToken(request: Request): string | null {
   return token.length > 0 ? token : null
 }
 
-function normalizeAuthenticatedUser(payload: unknown): AuthenticatedUser | null {
+function normalizeAuthenticatedUser(payload: unknown): ResolvedAuthenticatedUserIdentity | null {
   if (!payload || typeof payload !== 'object') {
     return null
   }
@@ -82,6 +88,7 @@ export async function authenticateRequest(request: Request, env: SupabaseEnv): P
         value: {
           userId: rawUserId,
           userEmail: null,
+          accessToken: token,
         },
       }
     }
@@ -141,6 +148,9 @@ export async function authenticateRequest(request: Request, env: SupabaseEnv): P
 
   return {
     ok: true,
-    value: user,
+    value: {
+      ...user,
+      accessToken: token,
+    },
   }
 }

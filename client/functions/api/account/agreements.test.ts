@@ -192,9 +192,14 @@ describe('GET/POST /api/account/agreements', () => {
   })
 
   it('POST는 3개 필수 동의가 모두 true면 저장하고 상태를 반환한다', async () => {
+    const authorizationHeaders: string[] = []
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       const method = String(init?.method ?? 'GET').toUpperCase()
+      const authorization = new Headers(init?.headers).get('Authorization')
+      if (authorization) {
+        authorizationHeaders.push(authorization)
+      }
 
       if (url.includes('/rest/v1/account_profiles?on_conflict=user_id') && method === 'POST') {
         return createJsonResponse({}, 201)
@@ -249,6 +254,8 @@ describe('GET/POST /api/account/agreements', () => {
       },
       acceptedAt: '2026-02-24T10:00:00.000Z',
     })
+    expect(authorizationHeaders.length).toBeGreaterThan(0)
+    expect(authorizationHeaders.every((value) => value === 'Bearer test-user:user-accepted')).toBe(true)
   })
 
   it('POST는 필수 동의가 하나라도 false면 400을 반환한다', async () => {

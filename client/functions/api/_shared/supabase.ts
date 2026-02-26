@@ -50,12 +50,18 @@ interface CreateSupabaseHeadersOptions {
   preferMinimal?: boolean
   mergeDuplicates?: boolean
   ignoreDuplicates?: boolean
+  authorizationToken?: string | null
 }
 
 export function createSupabaseHeaders(config: SupabaseConfig, options: CreateSupabaseHeadersOptions = {}): Headers {
+  const authorizationToken =
+    typeof options.authorizationToken === 'string' && options.authorizationToken.trim().length > 0
+      ? options.authorizationToken.trim()
+      : config.serviceRoleKey
+
   const headers = new Headers({
     apikey: config.serviceRoleKey,
-    Authorization: `Bearer ${config.serviceRoleKey}`,
+    Authorization: `Bearer ${authorizationToken}`,
     'Content-Profile': config.schema,
     'Accept-Profile': config.schema,
   })

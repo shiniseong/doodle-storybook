@@ -221,8 +221,12 @@ export function AgreementsPage({ useCase, onCompleted, documentLoader = loadAgre
       }
 
       onCompleted?.()
-    } catch {
-      setErrorMessage(t('agreementsPage.saveError'))
+    } catch (error) {
+      if (error instanceof Error && error.message.trim().length > 0) {
+        setErrorMessage(`${t('agreementsPage.saveError')} (${error.message})`)
+      } else {
+        setErrorMessage(t('agreementsPage.saveError'))
+      }
     } finally {
       setIsSubmitting(false)
     }
